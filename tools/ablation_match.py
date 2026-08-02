@@ -73,9 +73,9 @@ def play_game(
                 # score is stm-relative; convert to white POV
                 stm_black = len(moves) % 2 == 1
                 last_score_white_pov = -score_cp if stm_black else score_cp
-    if last_score_white_pov > 200:
+    if last_score_white_pov > 100:
         res = "1-0"
-    elif last_score_white_pov < -200:
+    elif last_score_white_pov < -100:
         res = "0-1"
     else:
         res = "1/2-1/2"

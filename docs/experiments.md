@@ -57,6 +57,13 @@ python3 tools/elo_ladder.py --outdir experiments/$(date +%Y%m%d)
 
 Peldaños: depth-ladder self-play → weak NSCE → Stockfish limitado (si `stockfish` en PATH).
 
-## Hardware note
+## Stockfish (local)
 
-Fill in per machine when publishing results (CPU model, cores used, governor).
+Binary under `third_party/stockfish/` (gitignored). Ensure:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"   # symlink created on install
+# or: export STOCKFISH=/path/to/stockfish
+```
+
+Verify: `stockfish <<< $'uci\nquit' | head -3`

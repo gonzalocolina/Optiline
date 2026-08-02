@@ -1,0 +1,168 @@
+=== Rung 1: depth ladder ===
+  weak-rung game 1: strong result=1/2-1/2
+  weak-rung game 2: strong result=1/2-1/2
+  weak-rung game 3: strong result=1/2-1/2
+  weak-rung game 4: strong result=1/2-1/2
+  weak-rung game 5: strong result=1/2-1/2
+  weak-rung game 6: strong result=1/2-1/2
+  weak-rung game 7: strong result=1/2-1/2
+  weak-rung game 8: strong result=1/2-1/2
+  weak-rung game 9: strong result=1/2-1/2
+  weak-rung game 10: strong result=1/2-1/2
+  weak-rung game 11: strong result=1/2-1/2
+  weak-rung game 12: strong result=1/2-1/2
+  weak-rung game 13: strong result=1/2-1/2
+  weak-rung game 14: strong result=1/2-1/2
+  weak-rung game 15: strong result=1/2-1/2
+  weak-rung game 16: strong result=1/2-1/2
+  weak-rung game 17: strong result=1/2-1/2
+  weak-rung game 18: strong result=1/2-1/2
+  weak-rung game 19: strong result=1/2-1/2
+  weak-rung game 20: strong result=1-0
+  weak-rung game 21: strong result=1/2-1/2
+  weak-rung game 22: strong result=1/2-1/2
+  weak-rung game 23: strong result=1/2-1/2
+  weak-rung game 24: strong result=1/2-1/2
+  weak-rung game 25: strong result=1/2-1/2
+  weak-rung game 26: strong result=1/2-1/2
+  weak-rung game 27: strong result=1/2-1/2
+  weak-rung game 28: strong result=1/2-1/2
+  weak-rung game 29: strong result=1/2-1/2
+  weak-rung game 30: strong result=1/2-1/2
+  weak-rung game 31: strong result=1/2-1/2
+  weak-rung game 32: strong result=1/2-1/2
+  weak-rung game 33: strong result=1/2-1/2
+  weak-rung game 34: strong result=1/2-1/2
+  weak-rung game 35: strong result=1/2-1/2
+  weak-rung game 36: strong result=1-0
+  weak-rung game 37: strong result=1/2-1/2
+  weak-rung game 38: strong result=1/2-1/2
+  weak-rung game 39: strong result=1-0
+  weak-rung game 40: strong result=1/2-1/2
+  weak-rung game 41: strong result=1/2-1/2
+  weak-rung game 42: strong result=1/2-1/2
+  weak-rung game 43: strong result=1/2-1/2
+  weak-rung game 44: strong result=1/2-1/2
+  weak-rung game 45: strong result=1/2-1/2
+  weak-rung game 46: strong result=1/2-1/2
+  weak-rung game 47: strong result=1/2-1/2
+  weak-rung game 48: strong result=1/2-1/2
+  weak-rung game 49: strong result=1/2-1/2
+  weak-rung game 50: strong result=1/2-1/2
+=== Rung 2: weak proxy ===
+  weak-rung game 1: strong result=1/2-1/2
+  weak-rung game 2: strong result=1/2-1/2
+  weak-rung game 3: strong result=1/2-1/2
+  weak-rung game 4: strong result=1/2-1/2
+  weak-rung game 5: strong result=1/2-1/2
+  weak-rung game 6: strong result=1/2-1/2
+  weak-rung game 7: strong result=1-0
+  weak-rung game 8: strong result=1/2-1/2
+  weak-rung game 9: strong result=1/2-1/2
+  weak-rung game 10: strong result=1/2-1/2
+  weak-rung game 11: strong result=1/2-1/2
+  weak-rung game 12: strong result=1/2-1/2
+  weak-rung game 13: strong result=1/2-1/2
+  weak-rung game 14: strong result=1/2-1/2
+  weak-rung game 15: strong result=1/2-1/2
+  weak-rung game 16: strong result=1/2-1/2
+  weak-rung game 17: strong result=1/2-1/2
+  weak-rung game 18: strong result=1/2-1/2
+  weak-rung game 19: strong result=1/2-1/2
+  weak-rung game 20: strong result=1/2-1/2
+  weak-rung game 21: strong result=1/2-1/2
+  weak-rung game 22: strong result=1-0
+  weak-rung game 23: strong result=1-0
+  weak-rung game 24: strong result=1/2-1/2
+  weak-rung game 25: strong result=1/2-1/2
+  weak-rung game 26: strong result=1-0
+  weak-rung game 27: strong result=1/2-1/2
+  weak-rung game 28: strong result=1-0
+  weak-rung game 29: strong result=1/2-1/2
+  weak-rung game 30: strong result=1-0
+  weak-rung game 31: strong result=1/2-1/2
+  weak-rung game 32: strong result=1/2-1/2
+  weak-rung game 33: strong result=1/2-1/2
+  weak-rung game 34: strong result=1-0
+  weak-rung game 35: strong result=1/2-1/2
+  weak-rung game 36: strong result=1-0
+  weak-rung game 37: strong result=1/2-1/2
+  weak-rung game 38: strong result=1-0
+  weak-rung game 39: strong result=1/2-1/2
+  weak-rung game 40: strong result=1/2-1/2
+  weak-rung game 41: strong result=1/2-1/2
+  weak-rung game 42: strong result=1-0
+  weak-rung game 43: strong result=1/2-1/2
+  weak-rung game 44: strong result=1-0
+  weak-rung game 45: strong result=1/2-1/2
+  weak-rung game 46: strong result=1-0
+  weak-rung game 47: strong result=1/2-1/2
+  weak-rung game 48: strong result=1/2-1/2
+  weak-rung game 49: strong result=1/2-1/2
+  weak-rung game 50: strong result=1-0
+=== Rung 3: Stockfish limited ===
+  SF rung game 1: NSCE result=1-0
+  SF rung game 2: NSCE result=1/2-1/2
+  SF rung game 3: NSCE result=1/2-1/2
+  SF rung game 4: NSCE result=1/2-1/2
+  SF rung game 5: NSCE result=1/2-1/2
+  SF rung game 6: NSCE result=1/2-1/2
+  SF rung game 7: NSCE result=1/2-1/2
+  SF rung game 8: NSCE result=1/2-1/2
+  SF rung game 9: NSCE result=1/2-1/2
+  SF rung game 10: NSCE result=0-1
+  SF rung game 11: NSCE result=1/2-1/2
+  SF rung game 12: NSCE result=1/2-1/2
+  SF rung game 13: NSCE result=0-1
+  SF rung game 14: NSCE result=1/2-1/2
+  SF rung game 15: NSCE result=1/2-1/2
+  SF rung game 16: NSCE result=1/2-1/2
+  SF rung game 17: NSCE result=1/2-1/2
+  SF rung game 18: NSCE result=1/2-1/2
+  SF rung game 19: NSCE result=1-0
+  SF rung game 20: NSCE result=1/2-1/2
+  SF rung game 21: NSCE result=1/2-1/2
+  SF rung game 22: NSCE result=1/2-1/2
+  SF rung game 23: NSCE result=1-0
+  SF rung game 24: NSCE result=1/2-1/2
+  SF rung game 25: NSCE result=1/2-1/2
+  SF rung game 26: NSCE result=1/2-1/2
+  SF rung game 27: NSCE result=1/2-1/2
+  SF rung game 28: NSCE result=1/2-1/2
+  SF rung game 29: NSCE result=0-1
+  SF rung game 30: NSCE result=1/2-1/2
+  SF rung game 31: NSCE result=1-0
+  SF rung game 32: NSCE result=1/2-1/2
+  SF rung game 33: NSCE result=1/2-1/2
+  SF rung game 34: NSCE result=0-1
+  SF rung game 35: NSCE result=1/2-1/2
+  SF rung game 36: NSCE result=1/2-1/2
+  SF rung game 37: NSCE result=0-1
+  SF rung game 38: NSCE result=0-1
+  SF rung game 39: NSCE result=1/2-1/2
+  SF rung game 40: NSCE result=1/2-1/2
+  SF rung game 41: NSCE result=1-0
+  SF rung game 42: NSCE result=0-1
+  SF rung game 43: NSCE result=1-0
+  SF rung game 44: NSCE result=0-1
+  SF rung game 45: NSCE result=0-1
+  SF rung game 46: NSCE result=1/2-1/2
+  SF rung game 47: NSCE result=1/2-1/2
+  SF rung game 48: NSCE result=1/2-1/2
+  SF rung game 49: NSCE result=1/2-1/2
+  SF rung game 50: NSCE result=1-0
+# Elo ladder — 20260802_sprt100
+
+| Rung | W-D-L | Score | Elo ±95% | Notes |
+| --- | --- | --- | --- | --- |
+| depth_ladder_d5_vs_d3 | 3-47-0 | 0.530 | +21 ± 96 | |
+| depth_ladder_d4_vs_d1 | 13-37-0 | 0.630 | +92 ± 100 | |
+| stockfish_elo_1400 | 7-34-9 | 0.480 | -14 ± 96 | |
+
+## Weekly KPI checklist
+
+- [ ] ΔElo on current rung recorded
+- [ ] nodes/move from ablation report
+- [ ] time overrun = 0
+- [ ] timeouts/illegals = 0
+

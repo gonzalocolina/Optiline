@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <syncstream>
 
 namespace nsce {
 
@@ -20,10 +21,19 @@ Uci::Uci() {
   Zobrist::init();
   Nnue::instance().load_default_from_hce();
   PolicyNet::instance().load_default();
+  PolicyNet::instance().set_enabled(false);
   SearchController::instance().load_default();
+  SearchController::instance().set_enabled(false);
   pos_.set_startpos();
   search_.set_hash_mb(16);
   search_.set_position(pos_);
+}
+
+Uci::~Uci() { stop_search(); }
+
+void Uci::stop_search() {
+  search_.stop();
+  if (search_thread_.joinable()) search_thread_.join();
 }
 
 void Uci::loop() {
@@ -33,6 +43,7 @@ void Uci::loop() {
     handle_command(line);
     if (line == "quit") break;
   }
+  stop_search();
 }
 
 void Uci::handle_command(const std::string& line) {
@@ -46,8 +57,8 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
     std::cout << "option name Threads type spin default 1 min 1 max 64\n";
     std::cout << "option name UseNNUE type check default true\n";
-    std::cout << "option name UsePolicy type check default true\n";
-    std::cout << "option name UseSearchController type check default true\n";
+    std::cout << "option name UsePolicy type check default false\n";
+    std::cout << "option name UseSearchController type check default false\n";
     std::cout << "option name EvalFile type string default <internal>\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
@@ -56,21 +67,26 @@ void Uci::handle_command(const std::string& line) {
   } else if (token == "isready") {
     std::cout << "readyok" << std::endl;
   } else if (token == "ucinewgame") {
+    stop_search();
     pos_.set_startpos();
     search_.set_position(pos_);
   } else if (token == "position") {
+    stop_search();
     handle_position(is);
   } else if (token == "go") {
     handle_go(is);
   } else if (token == "stop") {
-    search_.stop();
+    stop_search();
   } else if (token == "setoption") {
+    stop_search();
     handle_setoption(is);
   } else if (token == "bench") {
+    stop_search();
     int depth = 5;
     is >> depth;
     bench(depth);
   } else if (token == "perft") {
+    stop_search();
     int depth = 4;
     is >> depth;
     auto t0 = std::chrono::steady_clock::now();
@@ -90,7 +106,7 @@ void Uci::handle_command(const std::string& line) {
       std::cout << "ongoing" << std::endl;
     }
   } else if (token == "quit") {
-    search_.stop();
+    stop_search();
   }
 }
 
@@ -123,6 +139,7 @@ void Uci::handle_position(std::istringstream& is) {
 }
 
 void Uci::handle_go(std::istringstream& is) {
+  stop_search();
   SearchLimits limits;
   std::string token;
   while (is >> token) {
@@ -150,8 +167,12 @@ void Uci::handle_go(std::istringstream& is) {
     limits.depth = 6;
 
   search_.set_position(pos_);
-  SearchInfo info = search_.go(limits);
-  std::cout << "bestmove " << (info.best_move ? move_to_uci(info.best_move) : "0000") << std::endl;
+  search_.prepare();
+  search_thread_ = std::thread([this, limits]() {
+    SearchInfo info = search_.go_prepared(limits);
+    std::osyncstream(std::cout) << "bestmove " << (info.best_move ? move_to_uci(info.best_move) : "0000")
+                                << std::endl;
+  });
 }
 
 void Uci::handle_setoption(std::istringstream& is) {

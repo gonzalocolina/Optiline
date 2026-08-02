@@ -13,6 +13,22 @@ endif()
 option(NSCE_NATIVE "Enable -march=native" ON)
 option(NSCE_LTO "Enable link-time optimization" ON)
 option(NSCE_AVX2 "Enable AVX2 NNUE kernels" ON)
+option(NSCE_SANITIZE "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(NSCE_TSAN "Enable ThreadSanitizer" OFF)
+
+if(NSCE_SANITIZE AND NSCE_TSAN)
+  message(FATAL_ERROR "NSCE_SANITIZE and NSCE_TSAN are mutually exclusive")
+endif()
+if((NSCE_SANITIZE OR NSCE_TSAN) AND NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  message(FATAL_ERROR "Sanitizer builds require GCC or Clang")
+endif()
+if(NSCE_SANITIZE)
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+elseif(NSCE_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
+endif()
 
 add_library(nsce_engine
   engine/src/bitboard.cpp
@@ -79,6 +95,8 @@ add_executable(nsce_tests
   engine/tests/test_perft.cpp
   engine/tests/test_board.cpp
   engine/tests/test_nnue.cpp
+  engine/tests/test_search.cpp
+  engine/tests/test_tt.cpp
 )
 target_link_libraries(nsce_tests PRIVATE nsce_engine GTest::gtest_main)
 include(GoogleTest)

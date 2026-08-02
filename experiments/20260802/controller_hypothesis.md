@@ -9,12 +9,14 @@ Date: 2026-08-02
 - Equal movetime 60–80 ms, Threads=1, Hash=16, same NNUE/policy off for B except controller on
 - Tool: `python3 tools/sprt.py --cfg-b tools/configs/controller.uci`
 
-## Result
+## Result (updated 2026-08-02, N=80)
 
-- SPRT (12 games, ply-cap): **inconclusive** (all draws)
-- Ablation with eval adjudication (N=6, 50 ms): baseline vs controller **1-5-0**, Elo A−B **+58 ± 282**
-  - No evidence controller helps; baseline not clearly worse either (CI includes 0)
-- Conclusion to date: **hypothesis unsupported at current N/TC**; keep controller opt-in and conservative
+- SPRT (80 games, 40 ms, elo0=-5, elo1=+5): **inconclusive**
+  - Controller WDL **9-64-7** (score 0.5125, LLR≈0.06)
+  - No H1 acceptance; draw-heavy short TC
+- Stockfish 17 installed locally; ladder vs SF UCI_Elo=1400 (N=50): NSCE score **0.480 (−14 ± 96 Elo)**
+
+See [experiments/20260802_sprt100/report.md](./20260802_sprt100/report.md).
 
 ## Follow-ups
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -44,7 +45,10 @@ def main() -> int:
     ap.add_argument("-o", "--output", default=str(ROOT / "train/data/distill.jsonl"))
     args = ap.parse_args()
 
-    teacher_cmd = args.teacher or shutil.which("stockfish") or str(ROOT / "build" / "nsce")
+    teacher_cmd = args.teacher or os.environ.get("STOCKFISH") or shutil.which("stockfish")
+    if not teacher_cmd:
+        local_sf = ROOT / "third_party" / "stockfish" / "stockfish"
+        teacher_cmd = str(local_sf) if local_sf.exists() else str(ROOT / "build" / "nsce")
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     openings = load_openings(ROOT / "tools" / "openings.epd")

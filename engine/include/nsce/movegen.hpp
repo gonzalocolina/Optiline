@@ -18,6 +18,7 @@ struct MoveList {
 
 void generate_legal(const Position& pos, MoveList& list);
 void generate_captures(const Position& pos, MoveList& list);
+void generate_noisy(const Position& pos, MoveList& list);
 void generate_pseudo_legal(const Position& pos, MoveList& list);
 
 std::string move_to_uci(Move m);

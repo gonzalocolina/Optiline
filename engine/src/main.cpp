@@ -1,5 +1,7 @@
+#include "nsce/perft.hpp"
 #include "nsce/uci.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -17,9 +19,15 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (cmd == "perft") {
-      // Handled via UCI stdin normally; allow: nsce perft N
       int depth = argc > 2 ? std::atoi(argv[2]) : 4;
-      std::cout << "perft " << depth << std::endl;
+      Position pos;
+      pos.set_startpos();
+      auto start = std::chrono::steady_clock::now();
+      uint64_t nodes = perft(pos, depth);
+      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - start);
+      std::cout << "perft(" << depth << ") = " << nodes << " time " << elapsed.count() << " ms\n";
+      return 0;
     }
   }
 

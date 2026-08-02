@@ -39,6 +39,20 @@ bool Search::time_up() const {
   return ms >= allocated_ms_;
 }
 
+bool Search::count_node(SearchWorker& w) {
+  ++w.nodes;
+  if ((w.nodes & 1023ULL) != 0) return false;
+  flush_nodes(w);
+  return time_up();
+}
+
+void Search::flush_nodes(SearchWorker& w) {
+  uint64_t pending = w.nodes - w.published_nodes;
+  if (pending == 0) return;
+  nodes_.fetch_add(pending, std::memory_order_relaxed);
+  w.published_nodes = w.nodes;
+}
+
 void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, Move tt_move, Move counter, int ply,
                          int* scores) const {
   const bool use_policy = PolicyNet::instance().is_enabled();
@@ -47,6 +61,11 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
     int s = 0;
     if (m == tt_move)
       s = 2'000'000;
+    else if (m.is_promotion()) {
+      Piece victim = m.is_capture() ? pos.piece_on(m.to()) : NO_PIECE;
+      int victim_value = victim == NO_PIECE ? 0 : piece_value(type_of(victim));
+      s = 1'100'000 + piece_value(m.promotion()) + victim_value;
+    }
     else if (m.is_capture() || m.is_ep()) {
       Piece victim = m.is_ep() ? make_piece(~pos.side_to_move(), PAWN) : pos.piece_on(m.to());
       PieceType vt = type_of(victim);
@@ -61,9 +80,8 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
     else {
       Piece pc = pos.piece_on(m.from());
       if (pc != NO_PIECE) s = w.history[pc][m.to()];
-      if (use_policy) s += PolicyNet::instance().score_move(pos, m);
+      if (use_policy) s += PolicyNet::instance().score_move(pos, m) * 5 / 4;
     }
-    if (use_policy && s < 700'000) s += PolicyNet::instance().score_move(pos, m) / 4;
     scores[i] = s;
   }
 }
@@ -102,26 +120,33 @@ void Search::update_quiet_stats(SearchWorker& w, const Position& pos, Move best,
 }
 
 int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta, int ply) {
-  nodes_.fetch_add(1, std::memory_order_relaxed);
-  if ((nodes_.load(std::memory_order_relaxed) & 2047ULL) == 0 && time_up()) return alpha;
+  if (count_node(w)) return alpha;
 
   if (ply >= SearchWorker::kMaxPly - 1) return evaluate(pos);
 
-  int stand = evaluate(pos);
+  const bool in_check = pos.in_check();
+  int stand = in_check ? -VALUE_INFINITE : evaluate(pos);
   ss->static_eval = stand;
-  if (stand >= beta) return stand;
-  if (stand > alpha) alpha = stand;
+  if (!in_check) {
+    if (stand >= beta) return stand;
+    if (stand > alpha) alpha = stand;
+  }
 
-  MoveList list;
-  generate_captures(pos, list);
   MoveList legal;
-  for (int i = 0; i < list.size; ++i) {
-    StateInfo st;
-    Color us = pos.side_to_move();
-    pos.do_move(list.moves[i], st);
-    bool ok = !pos.is_square_attacked(pos.king_square(us), ~us, pos.occupied());
-    pos.undo_move(list.moves[i], st);
-    if (ok) legal.add(list.moves[i]);
+  if (in_check) {
+    generate_legal(pos, legal);
+    if (legal.size == 0) return mated_in(ply);
+  } else {
+    MoveList list;
+    generate_noisy(pos, list);
+    for (int i = 0; i < list.size; ++i) {
+      StateInfo st;
+      Color us = pos.side_to_move();
+      pos.do_move(list.moves[i], st);
+      bool ok = !pos.is_square_attacked(pos.king_square(us), ~us, pos.occupied());
+      pos.undo_move(list.moves[i], st);
+      if (ok) legal.add(list.moves[i]);
+    }
   }
 
   int scores[MAX_MOVES];
@@ -135,8 +160,8 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     Piece attacker = pos.piece_on(m.from());
     int see_proxy = gain - (attacker == NO_PIECE ? 0 : piece_value(type_of(attacker)) / 2);
     // Skip clearly losing captures when not in check (SEE proxy)
-    if (!pos.in_check() && see_proxy < -80) continue;
-    if (!pos.in_check() && stand + gain + 150 < alpha) continue;
+    if (!in_check && !m.is_promotion() && see_proxy < -80) continue;
+    if (!in_check && !m.is_promotion() && stand + gain + 150 < alpha) continue;
 
     StateInfo st;
     pos.do_move(m, st);
@@ -151,8 +176,7 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
 
 int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, int alpha, int beta, int ply,
                    bool cut_node) {
-  nodes_.fetch_add(1, std::memory_order_relaxed);
-  if ((nodes_.load(std::memory_order_relaxed) & 2047ULL) == 0 && time_up()) return alpha;
+  if (count_node(w)) return alpha;
 
   const bool root_node = (ply == 0);
   const bool pv_node = (beta - alpha > 1);
@@ -171,16 +195,16 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   const bool in_check = pos.in_check();
   if (in_check) depth = std::min(depth + 1, SearchWorker::kMaxPly - ply - 1);
 
-  bool found = false;
-  TTEntry* tte = tt_.probe(pos.key(), found);
+  TTEntry tte;
+  bool found = tt_.probe(pos.key(), tte);
   Move tt_move{};
-  if (found && tte) {
-    tt_move = Move{tte->move};
-    int tt_score = TranspositionTable::score_from_tt(tte->score, ply);
-    if (!pv_node && tte->depth >= depth) {
-      if (tte->bound == BOUND_EXACT) return tt_score;
-      if (tte->bound == BOUND_LOWER && tt_score >= beta) return tt_score;
-      if (tte->bound == BOUND_UPPER && tt_score <= alpha) return tt_score;
+  if (found) {
+    tt_move = Move{tte.move};
+    int tt_score = TranspositionTable::score_from_tt(tte.score, ply);
+    if (!pv_node && tte.depth >= depth) {
+      if (tte.bound == BOUND_EXACT) return tt_score;
+      if (tte.bound == BOUND_LOWER && tt_score >= beta) return tt_score;
+      if (tte.bound == BOUND_UPPER && tt_score <= alpha) return tt_score;
     }
   }
 
@@ -326,7 +350,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     if (pc != NO_PIECE) history_update(w.history[pc][best_move.to()], history_bonus(depth));
   }
 
-  tt_.store(pos.key(), depth, best_score, bound, best_move, eval, ply);
+  tt_.store(pos.key(), depth, best_score, bound, best_move, ply);
   return best_score;
 }
 
@@ -337,15 +361,23 @@ void Search::helper_loop(Position root, int max_depth) {
     Position pos = root;
     std::fill(std::begin(stack), std::end(stack), SearchStack{});
     search(pos, w, stack + 2, depth, -VALUE_INFINITE, VALUE_INFINITE, 0, false);
+    flush_nodes(w);
   }
+  flush_nodes(w);
 }
 
 SearchInfo Search::go(const SearchLimits& limits) {
-  stop_.store(false, std::memory_order_relaxed);
+  prepare();
+  return go_prepared(limits);
+}
+
+SearchInfo Search::go_prepared(const SearchLimits& limits) {
   nodes_.store(0, std::memory_order_relaxed);
   start_ = std::chrono::steady_clock::now();
   tt_.new_search();
   std::memset(main_worker_.killers, 0, sizeof(main_worker_.killers));
+  main_worker_.nodes = 0;
+  main_worker_.published_nodes = 0;
   for (auto& row : main_worker_.history)
     for (int& h : row) h /= 2;
 
@@ -390,6 +422,7 @@ SearchInfo Search::go(const SearchLimits& limits) {
       pos = root_;
       std::fill(std::begin(stack), std::end(stack), SearchStack{});
       score = search(pos, main_worker_, stack + 2, depth, alpha, beta, 0, false);
+      flush_nodes(main_worker_);
       if (time_up() && depth > 1) break;
 
       if (score <= alpha) {
@@ -413,9 +446,8 @@ SearchInfo Search::go(const SearchLimits& limits) {
     prev_score = score;
     if (main_worker_.pv_len[0] > 0) best = main_worker_.pv[0][0];
     if (!best) {
-      bool found = false;
-      TTEntry* tte = tt_.probe(root_.key(), found);
-      if (found && tte && tte->move) best = Move{tte->move};
+      TTEntry tte;
+      if (tt_.probe(root_.key(), tte) && tte.move) best = Move{tte.move};
     }
     if (!best) {
       MoveList list;
@@ -450,6 +482,10 @@ SearchInfo Search::go(const SearchLimits& limits) {
 
   stop_.store(true, std::memory_order_relaxed);
   for (auto& t : helpers) t.join();
+  flush_nodes(main_worker_);
+  info.nodes = nodes_.load(std::memory_order_relaxed);
+  info.time_ms = static_cast<int>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count());
 
   if (!info.best_move) {
     MoveList list;

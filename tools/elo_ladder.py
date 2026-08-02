@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -89,8 +90,21 @@ def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: 
         lo.close()
 
 
+def resolve_stockfish() -> str | None:
+    env = os.environ.get("STOCKFISH")
+    if env and Path(env).exists():
+        return env
+    w = shutil.which("stockfish")
+    if w:
+        return w
+    local = ROOT / "third_party" / "stockfish" / "stockfish"
+    if local.exists():
+        return str(local)
+    return None
+
+
 def stockfish_rung(engine: Path, games: int, movetime: int, outdir: Path, sf_elo: int) -> dict | None:
-    sf = shutil.which("stockfish")
+    sf = resolve_stockfish()
     if not sf:
         return {
             "rung": f"stockfish_elo_{sf_elo}",

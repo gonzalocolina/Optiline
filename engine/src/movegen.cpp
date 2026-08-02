@@ -87,6 +87,19 @@ void generate_pawn_moves(const Position& pos, MoveList& list, bool captures_only
 }
 
 template <Color Us>
+void generate_quiet_promotions(const Position& pos, MoveList& list) {
+  constexpr int Up = Us == WHITE ? 8 : -8;
+  Bitboard pawns = pos.pieces(Us, PAWN);
+  Bitboard single = (Us == WHITE ? shift_north(pawns) : shift_south(pawns)) & ~pos.occupied();
+  Bitboard promotions = single & (Us == WHITE ? Rank8BB : Rank1BB);
+  while (promotions) {
+    Square to = pop_lsb(promotions);
+    Square from = static_cast<Square>(static_cast<int>(to) - Up);
+    add_promo(list, from, to, MF_NONE);
+  }
+}
+
+template <Color Us>
 void generate_piece_moves(const Position& pos, MoveList& list, bool captures_only) {
   Bitboard us = pos.pieces(Us);
   Bitboard targets = captures_only ? pos.pieces(~Us) : ~us;
@@ -129,23 +142,27 @@ void generate_piece_moves(const Position& pos, MoveList& list, bool captures_onl
   if (!captures_only && !pos.in_check()) {
     Bitboard occ = pos.occupied();
     if constexpr (Us == WHITE) {
-      if ((pos.castling_rights() & WHITE_OO) && !(occ & (square_bb(SQ_F1) | square_bb(SQ_G1))) &&
+      if ((pos.castling_rights() & WHITE_OO) && pos.piece_on(SQ_H1) == W_ROOK &&
+          !(occ & (square_bb(SQ_F1) | square_bb(SQ_G1))) &&
           !pos.is_square_attacked(SQ_E1, BLACK, occ) && !pos.is_square_attacked(SQ_F1, BLACK, occ) &&
           !pos.is_square_attacked(SQ_G1, BLACK, occ)) {
         list.add(Move::make(SQ_E1, SQ_G1, NO_PIECE_TYPE, MF_CASTLE));
       }
-      if ((pos.castling_rights() & WHITE_OOO) && !(occ & (square_bb(SQ_D1) | square_bb(SQ_C1) | square_bb(SQ_B1))) &&
+      if ((pos.castling_rights() & WHITE_OOO) && pos.piece_on(SQ_A1) == W_ROOK &&
+          !(occ & (square_bb(SQ_D1) | square_bb(SQ_C1) | square_bb(SQ_B1))) &&
           !pos.is_square_attacked(SQ_E1, BLACK, occ) && !pos.is_square_attacked(SQ_D1, BLACK, occ) &&
           !pos.is_square_attacked(SQ_C1, BLACK, occ)) {
         list.add(Move::make(SQ_E1, SQ_C1, NO_PIECE_TYPE, MF_CASTLE));
       }
     } else {
-      if ((pos.castling_rights() & BLACK_OO) && !(occ & (square_bb(SQ_F8) | square_bb(SQ_G8))) &&
+      if ((pos.castling_rights() & BLACK_OO) && pos.piece_on(SQ_H8) == B_ROOK &&
+          !(occ & (square_bb(SQ_F8) | square_bb(SQ_G8))) &&
           !pos.is_square_attacked(SQ_E8, WHITE, occ) && !pos.is_square_attacked(SQ_F8, WHITE, occ) &&
           !pos.is_square_attacked(SQ_G8, WHITE, occ)) {
         list.add(Move::make(SQ_E8, SQ_G8, NO_PIECE_TYPE, MF_CASTLE));
       }
-      if ((pos.castling_rights() & BLACK_OOO) && !(occ & (square_bb(SQ_D8) | square_bb(SQ_C8) | square_bb(SQ_B8))) &&
+      if ((pos.castling_rights() & BLACK_OOO) && pos.piece_on(SQ_A8) == B_ROOK &&
+          !(occ & (square_bb(SQ_D8) | square_bb(SQ_C8) | square_bb(SQ_B8))) &&
           !pos.is_square_attacked(SQ_E8, WHITE, occ) && !pos.is_square_attacked(SQ_D8, WHITE, occ) &&
           !pos.is_square_attacked(SQ_C8, WHITE, occ)) {
         list.add(Move::make(SQ_E8, SQ_C8, NO_PIECE_TYPE, MF_CASTLE));
@@ -185,6 +202,14 @@ void generate_captures(const Position& pos, MoveList& list) {
     generate_pawn_moves<BLACK>(pos, list, true);
     generate_piece_moves<BLACK>(pos, list, true);
   }
+}
+
+void generate_noisy(const Position& pos, MoveList& list) {
+  generate_captures(pos, list);
+  if (pos.side_to_move() == WHITE)
+    generate_quiet_promotions<WHITE>(pos, list);
+  else
+    generate_quiet_promotions<BLACK>(pos, list);
 }
 
 void generate_legal(const Position& pos, MoveList& list) {

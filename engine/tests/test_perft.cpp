@@ -37,6 +37,7 @@ TEST_F(EngineTest, PerftStartPos) {
   EXPECT_EQ(perft(pos, 2), 400ULL);
   EXPECT_EQ(perft(pos, 3), 8902ULL);
   EXPECT_EQ(perft(pos, 4), 197281ULL);
+  EXPECT_EQ(perft(pos, 5), 4865609ULL);
 }
 
 TEST_F(EngineTest, PerftKiwipete) {
@@ -70,4 +71,29 @@ TEST_F(EngineTest, MakeUnmakeRestoresFen) {
   Position check;
   check.set_fen(before);
   EXPECT_EQ(pos.key(), check.key());
+}
+
+TEST_F(EngineTest, NoisyMovesIncludeQuietPromotions) {
+  Position pos;
+  pos.set_fen("7k/P7/8/8/8/8/8/7K w - - 0 1");
+
+  MoveList list;
+  generate_noisy(pos, list);
+
+  ASSERT_EQ(list.size, 4);
+  for (Move move : list) {
+    EXPECT_TRUE(move.is_promotion());
+    EXPECT_FALSE(move.is_capture());
+  }
+}
+
+TEST_F(EngineTest, CastlingRequiresTheRook) {
+  Position pos;
+  pos.set_fen("r3k2r/8/8/8/8/8/8/4K2R w KQkq - 0 1");
+
+  MoveList list;
+  generate_legal(pos, list);
+
+  EXPECT_EQ(list.size, 15);
+  for (Move move : list) EXPECT_NE(move_to_uci(move), "e1c1");
 }

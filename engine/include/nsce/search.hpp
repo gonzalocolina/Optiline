@@ -48,6 +48,8 @@ struct SearchWorker {
   Move countermove[SQUARE_NB][SQUARE_NB]{};
   Move pv[kMaxPly][kMaxPly]{};
   int pv_len[kMaxPly]{};
+  uint64_t nodes = 0;
+  uint64_t published_nodes = 0;
 };
 
 class Search {
@@ -56,6 +58,8 @@ class Search {
 
   void set_position(const Position& pos);
   SearchInfo go(const SearchLimits& limits);
+  void prepare() { stop_.store(false, std::memory_order_relaxed); }
+  SearchInfo go_prepared(const SearchLimits& limits);
   void stop() { stop_.store(true, std::memory_order_relaxed); }
   void set_hash_mb(std::size_t mb) { tt_.resize(mb); }
   void set_threads(int n);
@@ -67,6 +71,8 @@ class Search {
              bool cut_node);
   int quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta, int ply);
   bool time_up() const;
+  bool count_node(SearchWorker& w);
+  void flush_nodes(SearchWorker& w);
   void score_moves(SearchWorker& w, const Position& pos, MoveList& list, Move tt_move, Move counter, int ply,
                    int* scores) const;
   void sort_moves(MoveList& list, int* scores) const;
