@@ -132,7 +132,11 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     Move m = legal.moves[i];
     Piece victim = m.is_ep() ? make_piece(~pos.side_to_move(), PAWN) : pos.piece_on(m.to());
     int gain = (victim == NO_PIECE) ? 0 : piece_value(type_of(victim));
-    if (!pos.in_check() && stand + gain + 200 < alpha) continue;
+    Piece attacker = pos.piece_on(m.from());
+    int see_proxy = gain - (attacker == NO_PIECE ? 0 : piece_value(type_of(attacker)) / 2);
+    // Skip clearly losing captures when not in check (SEE proxy)
+    if (!pos.in_check() && see_proxy < -80) continue;
+    if (!pos.in_check() && stand + gain + 150 < alpha) continue;
 
     StateInfo st;
     pos.do_move(m, st);

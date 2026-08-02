@@ -16,4 +16,17 @@
 
 ## Hipótesis (sigue abierta)
 
-La política neuronal de presupuesto debe medirse con ablations a equal-time en la escalera Elo. Los componentes están cableados; el entrenamiento a escala y SPRT vs Stockfish son el trabajo experimental continuo.
+La política neuronal de presupuesto debe medirse con ablations a equal-time en la escalera Elo.
+
+## Laboratorio experimental (activo)
+
+Ver [docs/experiments.md](experiments.md) y `experiments/YYYYMMDD/`.
+
+Comandos:
+
+```bash
+python3 tools/ablation_match.py --matrix --outdir experiments/$(date +%Y%m%d)
+python3 tools/elo_ladder.py --outdir experiments/$(date +%Y%m%d)
+python3 tools/sprt.py --cfg-b tools/configs/controller.uci
+bash tools/run_experiment_day.sh
+```

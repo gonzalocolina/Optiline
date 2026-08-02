@@ -2,13 +2,12 @@
 
 Motor de ajedrez UCI en C++20. Hipótesis: una política neuronal de presupuesto de búsqueda puede ganar Elo a igual CPU/tiempo frente a Stockfish.
 
-## Estado actual (v0.8)
+## Estado actual (v0.8 + lab)
 
-- Núcleo bitboard + perft + UCI
-- Búsqueda competitiva (NMP, LMR, aspiration, futility, Lazy SMP)
-- NNUE incremental int16 (+ AVX2), política de ordenación, controlador de reducciones + telemetría
-- Autojuego y fit de redes (`train/`)
-- Optimización: `-O3`, `-march=native`, LTO, prefetch TT, PGO opcional
+- Núcleo bitboard + perft + UCI (`status` para adjudicar)
+- Búsqueda competitiva + NNUE/política/controlador
+- **Laboratorio:** baseline congelado, ablations, escalera Elo, SPRT, autojuego con resultados, destilación
+- Optimización: AVX2, LTO, `-march=native`, bench de latencia NNUE
 
 ## Build
 
@@ -35,10 +34,17 @@ python3 tools/smoke_match.py --games 2
 bash train/run_train_loop.sh
 ```
 
-## Documentación
+## Laboratorio
 
-- [Hipótesis y protocolo](docs/hypothesis.md)
-- [Roadmap](docs/roadmap.md)
+```bash
+bash tools/run_experiment_day.sh experiments/$(date +%Y%m%d)
+# o por piezas:
+python3 tools/ablation_match.py --matrix --outdir experiments/$(date +%Y%m%d)
+python3 tools/elo_ladder.py --outdir experiments/$(date +%Y%m%d)
+python3 tools/sprt.py --cfg-b tools/configs/controller.uci
+```
+
+Baseline congelado: [docs/experiments.md](docs/experiments.md), configs en `tools/configs/`.
 
 ## Licencia
 

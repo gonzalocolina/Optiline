@@ -16,3 +16,8 @@ __pycache__/
 .vscode/
 *.gcda
 *.gcno
+experiments/**/*.json
+experiments/**/*.txt
+!experiments/**/report.md
+!experiments/**/controller_hypothesis.md
+!experiments/**/kpi_weekly.md

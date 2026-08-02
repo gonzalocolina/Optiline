@@ -87,6 +87,9 @@ gtest_discover_tests(nsce_tests)
 add_executable(nsce_bench engine/benches/bench_search.cpp)
 target_link_libraries(nsce_bench PRIVATE nsce_engine)
 
+add_executable(nsce_bench_nnue engine/benches/bench_nnue_latency.cpp)
+target_link_libraries(nsce_bench_nnue PRIVATE nsce_engine)
+
 # Optional PGO helpers (manual two-pass):
 #   cmake -DNSCE_PGO_GENERATE=ON ... && build && ./nsce bench 8
 #   cmake -DNSCE_PGO_USE=ON ... && rebuild

@@ -79,6 +79,16 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "perft(" << depth << ") = " << nodes << " time " << ms << " ms" << std::endl;
   } else if (token == "d") {
     std::cout << pos_.fen() << std::endl;
+  } else if (token == "status") {
+    MoveList list;
+    generate_legal(pos_, list);
+    if (list.size == 0) {
+      std::cout << (pos_.in_check() ? "checkmate" : "stalemate") << std::endl;
+    } else if (pos_.is_draw()) {
+      std::cout << "draw" << std::endl;
+    } else {
+      std::cout << "ongoing" << std::endl;
+    }
   } else if (token == "quit") {
     search_.stop();
   }

@@ -1,26 +1,28 @@
-# Training pipeline (Phases 4–7)
+# Training pipeline (Phases 4–7 + lab)
 
-## Export default NNUE
+## Self-play with real outcomes
 
 ```bash
-python3 train/export_nnue.py -o nets/nnue_default.bin
+python3 train/selfplay.py --games 8 --movetime 80 --config tools/configs/baseline.uci
 ```
 
-## Self-play under time budget + fit policy/controller
+Uses UCI `status` (`checkmate` / `stalemate` / `draw` / `ongoing`).
+
+## Distillation labels
+
+```bash
+python3 train/distill.py --depth 10 --positions 64 -o train/data/distill.jsonl
+# uses Stockfish if on PATH, else NSCE
+```
+
+## Fit policy / controller binaries
 
 ```bash
 bash train/run_train_loop.sh
-# or:
-python3 train/selfplay.py --games 8 --movetime 50
-python3 train/train_from_selfplay.py --telemetry /tmp/nsce_telem_train.csv
 ```
 
-Load into the engine:
+## SPRT candidate vs baseline
 
+```bash
+python3 tools/sprt.py --cfg-a tools/configs/baseline.uci --cfg-b tools/configs/controller.uci --max-games 100
 ```
-setoption name PolicyFile value nets/policy.bin
-setoption name ControllerFile value nets/controller.bin
-setoption name EvalFile value nets/nnue_default.bin
-```
-
-Reward used in self-play JSONL: `result - λ * mean_nodes` (scaffold for Phase 7 RL). Replace labeling with real game outcomes / SPRT data for serious experiments.

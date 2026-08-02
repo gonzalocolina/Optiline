@@ -1,0 +1,5 @@
+setoption name Hash value 16
+setoption name Threads value 1
+setoption name UseNNUE value true
+setoption name UsePolicy value true
+setoption name UseSearchController value true

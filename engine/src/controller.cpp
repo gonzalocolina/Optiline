@@ -11,13 +11,13 @@ SearchController& SearchController::instance() {
 }
 
 bool SearchController::load_default() {
-  // Conservative prior: reduce more on late quiet moves at higher depth.
-  w_depth = 80;
-  w_index = 70;
-  w_eval_gap = 2;
-  w_quiet = 40;
+  // Conservative prior: prefer classical LMR; only mild extra reductions on very late moves.
+  w_depth = 40;
+  w_index = 50;
+  w_eval_gap = 1;
+  w_quiet = 20;
   w_policy = -1;
-  bias = -50;
+  bias = -120;
   loaded_ = true;
   enabled_ = true;
   return true;
@@ -62,9 +62,9 @@ int SearchController::reduction_delta(int depth, int move_index, int static_eval
   int gap = std::abs(static_eval - (alpha + beta) / 2);
   int raw = bias + w_depth * depth / 8 + w_index * move_index / 4 + w_eval_gap * gap / 100 +
             (is_quiet ? w_quiet : 0) + w_policy * policy_score / 50;
-  // Map to delta in [-1, +3]
-  int delta = raw / 200;
-  return std::clamp(delta, -1, 3);
+  // Map to delta in [-1, +2] — never more aggressive than +2 vs classical LMR
+  int delta = raw / 250;
+  return std::clamp(delta, -1, 2);
 }
 
 int SearchController::prune_score(int depth, int move_index, int static_eval, int alpha) const {
