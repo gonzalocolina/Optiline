@@ -5,10 +5,11 @@ Motor de ajedrez UCI en C++20. Hipótesis: una política neuronal de presupuesto
 ## Estado actual (v0.8 + lab)
 
 - Movegen legal pin-aware (doble jaque, evasiones y en-passant) validado con perft
-- PVS/alpha-beta con reparto raíz YBWC: cada worker reclama movimientos distintos
-- NNUE `768x128x1` entrenada con etiquetas Stockfish, cuantizada y validada en holdout
-- **Laboratorio:** baseline congelado, ablations, escalera Elo, SPRT, autojuego con resultados, destilación
-- Optimización: AVX2, LTO, `-march=native`, bench de latencia NNUE
+- PVS/alpha-beta con pool persistente y reparto raíz YBWC
+- Telemetría `NSCE_STATS`, flags de ablación de búsqueda y tablas de ataques magic/PEXT
+- NNUE `768x128x1` entrenada + runtime HalfKP (`NSCEHFKP`) listo para corpus grande
+- **Laboratorio:** aperturas balanceadas, SPRT pentanomial por pares, ablations de técnicas
+- Optimización: AVX2, LTO, `-march=native`, bench multi-FEN y Callgrind/perf helpers
 
 ## Build
 
@@ -19,22 +20,24 @@ cmake --build build -j"$(nproc)"
 ```
 
 Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_SANITIZE`,
-`NSCE_TSAN`, `NSCE_PGO_GENERATE`, `NSCE_PGO_USE`.
+`NSCE_TSAN`, `NSCE_STATS`, `NSCE_PGO_GENERATE`, `NSCE_PGO_USE`.
 
 ## Uso
 
 ```bash
 ./build/nsce
 # UCI options: Hash, Threads, UseNNUE, UsePolicy, UseSearchController,
-# EvalFile, PolicyFile, ControllerFile, TelemetryFile
+# EvalFile, PolicyFile, ControllerFile, TelemetryFile,
+# UseTT, UseSEE, UseLMR, UseNullMove, UseFutility, UseLMP, UseRazoring, UseRFP
 ```
 
 ```bash
 ctest --test-dir build --output-on-failure
-./build/nsce bench 6
+./build/nsce_bench 10 1 1
 python3 tools/smoke_match.py --games 2
 bash train/run_train_loop.sh
-# Pipeline NNUE reproducible: train/README.md
+# Pipeline NNUE / HalfKP: train/README.md
+# Telemetría y scorecards: docs/measurement.md
 ```
 
 ## Laboratorio
@@ -42,13 +45,18 @@ bash train/run_train_loop.sh
 ```bash
 bash tools/run_experiment_day.sh experiments/$(date +%Y%m%d)
 # o por piezas:
-python3 tools/ablation_match.py --matrix --games 100 --seed 1 --outdir experiments/$(date +%Y%m%d)
-python3 tools/elo_ladder.py --outdir experiments/$(date +%Y%m%d)
-python3 tools/sprt.py --cfg-b tools/configs/controller.uci --max-games 200 --seed 1
+python3 tools/generate_openings.py --positions 256 --output tools/openings_balanced.epd
+python3 tools/ablation_match.py --search-matrix --openings tools/openings_balanced.epd \
+  --games 40 --seed 1 --outdir experiments/$(date +%Y%m%d)_search
+python3 tools/sprt.py --cfg-b tools/configs/trained_nnue.uci \
+  --openings tools/openings_balanced.epd --max-games 200 --seed 1
+bash tools/profile_engine.sh
 ```
 
-Los runners usan aperturas emparejadas con colores invertidos y escriben un
-`manifest.json` reproducible. Baseline y protocolo: [docs/experiments.md](docs/experiments.md).
+Los runners usan aperturas emparejadas con colores invertidos, SPRT pentanomial
+por pares y escriben un `manifest.json` reproducible. Baseline y protocolo:
+[docs/experiments.md](docs/experiments.md). Medición de arquitectura:
+[docs/measurement.md](docs/measurement.md).
 
 ## Licencia
 

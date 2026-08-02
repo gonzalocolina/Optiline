@@ -202,28 +202,42 @@ def match(
 def run_matrix(
     engine: Path,
     outdir: Path,
+    openings_path: Path,
     games: int,
     movetime: int,
     max_plies: int,
     seed: int,
     adjudication_cp: int,
     adjudication_plies: int,
+    search_matrix: bool = False,
 ) -> None:
     configs = ROOT / "tools" / "configs"
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings = load_openings(openings_path)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    pairs = [
-        ("baseline", configs / "baseline.uci", "hce", configs / "hce.uci"),
-        ("baseline", configs / "baseline.uci", "policy", configs / "policy.uci"),
-        ("baseline", configs / "baseline.uci", "controller", configs / "controller.uci"),
-        (
-            "baseline",
-            configs / "baseline.uci",
-            "policy_controller",
-            configs / "policy_controller.uci",
-        ),
-    ]
+    if search_matrix:
+        baseline = configs / "baseline.uci"
+        baseline_text = baseline.read_text()
+        pairs = []
+        for option in ("UseTT", "UseSEE", "UseLMR", "UseNullMove", "UseFutility", "UseLMP", "UseRazoring", "UseRFP"):
+            candidate = outdir / f"no_{option.removeprefix('Use').lower()}.uci"
+            enabled = f"setoption name {option} value true"
+            if enabled not in baseline_text:
+                raise RuntimeError(f"baseline does not freeze {option}")
+            candidate.write_text(baseline_text.replace(enabled, f"setoption name {option} value false"))
+            pairs.append(("baseline", baseline, candidate.stem, candidate))
+    else:
+        pairs = [
+            ("baseline", configs / "baseline.uci", "hce", configs / "hce.uci"),
+            ("baseline", configs / "baseline.uci", "policy", configs / "policy.uci"),
+            ("baseline", configs / "baseline.uci", "controller", configs / "controller.uci"),
+            (
+                "baseline",
+                configs / "baseline.uci",
+                "policy_controller",
+                configs / "policy_controller.uci",
+            ),
+        ]
 
     results = []
 
@@ -251,10 +265,10 @@ def run_matrix(
         ROOT,
         engine,
         [item for pair in pairs for item in (pair[1], pair[3])],
-        ROOT / "tools" / "openings.epd",
+        openings_path,
         seed,
         {
-            "kind": "ablation_matrix",
+            "kind": "search_ablation_matrix" if search_matrix else "ablation_matrix",
             "games_per_match": games,
             "movetime_ms": movetime,
             "exploratory_short_tc": movetime < 50,
@@ -315,6 +329,8 @@ def main() -> int:
     ap.add_argument("--engine", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--engine-b", default="", help="optional second binary for engine-vs-engine matches")
     ap.add_argument("--matrix", action="store_true")
+    ap.add_argument("--search-matrix", action="store_true", help="ablate TT/SEE/pruning/search features")
+    ap.add_argument("--openings", default=str(ROOT / "tools/openings.epd"))
     ap.add_argument("--outdir", default="")
     ap.add_argument("--games", type=int, default=100, help="even number; each opening is played with both colors")
     ap.add_argument("--movetime", type=int, default=100)
@@ -344,24 +360,27 @@ def main() -> int:
 
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
 
-    if args.matrix:
+    openings_path = Path(args.openings)
+    if args.matrix or args.search_matrix:
         run_matrix(
             engine,
             outdir,
+            openings_path,
             args.games,
             args.movetime,
             args.max_plies,
             args.seed,
             args.adjudication_cp,
             args.adjudication_plies,
+            args.search_matrix,
         )
         return 0
 
     if not args.cfg_a or not args.cfg_b:
-        print("need --matrix or --cfg-a/--cfg-b", file=sys.stderr)
+        print("need --matrix, --search-matrix or --cfg-a/--cfg-b", file=sys.stderr)
         return 1
 
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings = load_openings(openings_path)
     outdir.mkdir(parents=True, exist_ok=True)
     r = match(
         engine,
@@ -383,7 +402,7 @@ def main() -> int:
         ROOT,
         engine,
         [Path(args.cfg_a), Path(args.cfg_b)],
-        ROOT / "tools" / "openings.epd",
+        openings_path,
         args.seed,
         {
             "kind": "ablation_match",

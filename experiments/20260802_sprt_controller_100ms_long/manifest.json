@@ -1,0 +1,65 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "018228987752ebcaf90df8013fde1009f31852d8deb13ea16f96fbc3ecfb4012",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/controller.uci": "c035878d8e42d2bdcc77687a0b547fced445accd303696a4e7fa54c3858cd0d9"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "43ac1be3795f89465124f2ad8d04580567b6b6314c9bc556b6b98d4fd882d812",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings.epd",
+    "openings_sha256": "dd42f8d02ffce27ba7e807459441bd364ff51981a2d3f602b9411069e43d4fb3"
+  },
+  "command": [
+    "tools/sprt.py",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/controller.uci",
+    "--name-a",
+    "baseline",
+    "--name-b",
+    "controller",
+    "--movetime",
+    "100",
+    "--max-games",
+    "600",
+    "--max-plies",
+    "160",
+    "--seed",
+    "7",
+    "--resume",
+    "--outdir",
+    "experiments/20260802_sprt_controller_100ms_long"
+  ],
+  "created_utc": "2026-08-02T21:04:57.504873+00:00",
+  "git": {
+    "commit": "76cdf49f591c173639789585f77d40f6a89c544a",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "alpha": 0.05,
+    "beta": 0.05,
+    "elo0": -5.0,
+    "elo1": 5.0,
+    "exploratory_short_tc": false,
+    "kind": "sprt",
+    "max_games": 600,
+    "max_plies": 160,
+    "movetime_ms": 100
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "toolchain": {
+    "cmake_cache_sha256": "6de4bc31c282821905e142cd95c377d0c86f58b7d286cb5693184fdc8329d1ef",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

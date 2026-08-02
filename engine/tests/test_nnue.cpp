@@ -7,6 +7,10 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
+#include <vector>
+
 using namespace nsce;
 
 TEST(NnueTest, IncrementalMatchesRefresh) {
@@ -47,4 +51,44 @@ TEST(NnueTest, EvalFinite) {
   int e = evaluate(pos);
   EXPECT_GT(e, -5000);
   EXPECT_LT(e, 5000);
+}
+
+TEST(NnueTest, LoadsHalfKpAndKeepsKingMoveAccumulatorIncremental) {
+  init_bitboards();
+  Zobrist::init();
+  auto path = std::filesystem::temp_directory_path() / "nsce_halfkp_test.bin";
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write("NSCEHFKP", 8);
+    int32_t features = NnueNet::kHalfKpFeatures;
+    int32_t hidden = NnueNet::kHidden;
+    out.write(reinterpret_cast<const char*>(&features), sizeof(features));
+    out.write(reinterpret_cast<const char*>(&hidden), sizeof(hidden));
+    std::vector<int16_t> zeros(static_cast<std::size_t>(NnueNet::kHalfKpFeatures) * NnueNet::kHidden);
+    out.write(reinterpret_cast<const char*>(zeros.data()), static_cast<std::streamsize>(zeros.size() * 2));
+    std::array<int16_t, NnueNet::kHidden> bias{};
+    bias.fill(64);
+    out.write(reinterpret_cast<const char*>(bias.data()), static_cast<std::streamsize>(bias.size() * 2));
+    std::array<int16_t, 2 * NnueNet::kHidden> output{};
+    out.write(reinterpret_cast<const char*>(output.data()), static_cast<std::streamsize>(output.size() * 2));
+    int32_t output_bias = 0;
+    out.write(reinterpret_cast<const char*>(&output_bias), sizeof(output_bias));
+  }
+
+  ASSERT_TRUE(Nnue::instance().load(path.string()));
+  ASSERT_TRUE(Nnue::instance().uses_king_buckets());
+  Position pos;
+  pos.set_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  Move king_move = Move::make(SQ_E1, SQ_D1);
+  StateInfo state;
+  pos.do_move(king_move, state);
+  NnueAccumulator refreshed;
+  Nnue::instance().refresh(pos, refreshed);
+  EXPECT_EQ(pos.nnue_acc().half, refreshed.half);
+  EXPECT_EQ(pos.nnue_acc().king_bucket, refreshed.king_bucket);
+  pos.undo_move(king_move, state);
+  Nnue::instance().refresh(pos, refreshed);
+  EXPECT_EQ(pos.nnue_acc().half, refreshed.half);
+  EXPECT_EQ(pos.nnue_acc().king_bucket, refreshed.king_bucket);
+  std::filesystem::remove(path);
 }

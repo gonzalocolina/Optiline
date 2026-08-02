@@ -38,6 +38,30 @@ small piece-square network rather than a Stockfish HalfKP/king-bucket architectu
 The current 2k corpus is a reproducible bootstrap, not a claim of Stockfish-level
 evaluation quality; promotion still requires a paired game SPRT.
 
+## HalfKP / king-bucket path (`NSCEHFKP`)
+
+Runtime already loads `NSCEHFKP` (16 king buckets, dual accumulators, refresh on king
+moves). Train only after a large labeled corpus:
+
+```bash
+.venv/bin/python train/train_halfkp.py \
+  --data train/data/nnue_stockfish_d8.jsonl \
+  --epochs 40 --seed 20260802 \
+  --minimum-samples 50000
+```
+
+The default `--minimum-samples 50000` rejects the 2k bootstrap on purpose. For runtime
+smoke tests only:
+
+```bash
+.venv/bin/python train/train_halfkp.py \
+  --data train/data/nnue_stockfish_d8.jsonl \
+  --epochs 2 --minimum-samples 20 \
+  --out nets/nnue_halfkp_smoke.bin
+```
+
+Do not promote smoke nets. Prefer a fresh distill of ≥50k positions before any SPRT.
+
 ## Fit policy / controller binaries
 
 ```bash
@@ -47,5 +71,9 @@ bash train/run_train_loop.sh
 ## SPRT candidate vs baseline
 
 ```bash
-python3 tools/sprt.py --cfg-a tools/configs/baseline.uci --cfg-b tools/configs/controller.uci --max-games 100
+python3 tools/sprt.py \
+  --cfg-a tools/configs/baseline.uci \
+  --cfg-b tools/configs/trained_nnue.uci \
+  --openings tools/openings_balanced.epd \
+  --max-games 200
 ```

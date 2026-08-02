@@ -73,7 +73,9 @@ void Position::remove_piece(Square s) {
 
 void Position::move_piece(Square from, Square to) {
   Piece pc = board_[from];
-  if (nnue_live_ && Nnue::instance().is_enabled()) {
+  bool refresh_halfkp =
+      nnue_live_ && Nnue::instance().uses_king_buckets() && type_of(pc) == KING;
+  if (nnue_live_ && Nnue::instance().is_enabled() && !refresh_halfkp) {
     Nnue::instance().remove_piece(nnue_acc_, pc, from);
     Nnue::instance().add_piece(nnue_acc_, pc, to);
   }
@@ -83,6 +85,7 @@ void Position::move_piece(Square from, Square to) {
   occupied_ ^= from_to;
   board_[to] = pc;
   board_[from] = NO_PIECE;
+  if (refresh_halfkp) Nnue::instance().refresh(*this, nnue_acc_);
 }
 
 void Position::refresh_nnue() {

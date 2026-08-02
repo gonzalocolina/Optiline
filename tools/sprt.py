@@ -50,6 +50,46 @@ def llr(wins: int, losses: int, draws: int, elo0: float, elo1: float) -> float:
     )
 
 
+def pentanomial_llr(counts: list[int], elo0: float, elo1: float) -> float:
+    """Pair-level normal SPRT over scores {0, .25, .5, .75, 1}.
+
+    Each observation is the candidate's average score over one color-reversed
+    opening pair. The empirical variance is a nuisance estimate, matching the
+    standard pentanomial approximation used for paired engine testing.
+    """
+    if len(counts) != 5:
+        raise ValueError("pentanomial counts must have five buckets")
+    n = sum(counts)
+    if n == 0:
+        return 0.0
+    values = (0.0, 0.25, 0.5, 0.75, 1.0)
+    mean = sum(count * value for count, value in zip(counts, values)) / n
+    variance = sum(count * (value - mean) ** 2 for count, value in zip(counts, values)) / n
+    variance = max(variance, 1e-6)
+
+    def score(elo: float) -> float:
+        return 1.0 / (1.0 + 10 ** (-elo / 400.0))
+
+    score0, score1 = score(elo0), score(elo1)
+    midpoint = 0.5 * (score0 + score1)
+    return n * (score1 - score0) * (mean - midpoint) / variance
+
+
+def candidate_game_score(result: str, candidate_is_white: bool) -> float:
+    if result == "1/2-1/2":
+        return 0.5
+    return 1.0 if (result == "1-0") == candidate_is_white else 0.0
+
+
+def pentanomial_from_history(history: list[dict]) -> list[int]:
+    counts = [0, 0, 0, 0, 0]
+    for first, second in zip(history[::2], history[1::2]):
+        pair_score = candidate_game_score(first["result"], first["candidate_is_white"])
+        pair_score += candidate_game_score(second["result"], second["candidate_is_white"])
+        counts[int(round(pair_score * 2))] += 1
+    return counts
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", default=str(ROOT / "build" / "nsce"))
@@ -65,10 +105,16 @@ def main() -> int:
     ap.add_argument("--allow-short-tc", action="store_true", help="allow exploratory movetime below 50 ms")
     ap.add_argument("--max-games", type=int, default=200, help="positive even number")
     ap.add_argument("--max-plies", type=int, default=60)
+    ap.add_argument("--openings", default=str(ROOT / "tools/openings.epd"))
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--adjudication-cp", type=int, default=800)
     ap.add_argument("--adjudication-plies", type=int, default=6)
     ap.add_argument("--outdir", default="")
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue from outdir/sprt_<name-b>.json if present (same seed/schedule)",
+    )
     args = ap.parse_args()
 
     engine = Path(args.engine)
@@ -80,7 +126,8 @@ def main() -> int:
         return 1
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
     outdir.mkdir(parents=True, exist_ok=True)
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings_path = Path(args.openings)
+    openings = load_openings(openings_path)
     schedule = paired_schedule(openings, args.max_games, args.seed)
 
     a = UciEngine([str(engine)], args.name_a)
@@ -94,9 +141,39 @@ def main() -> int:
 
     # SPRT on (elo_b - elo_a): we track results from B's perspective as wins
     w = d = l = 0
+    pentanomial = [0, 0, 0, 0, 0]
+    pending_pair_score = 0.0
     decision = "inconclusive"
-    history = []
+    history: list[dict] = []
     output_path = outdir / f"sprt_{args.name_b}.json"
+    start_index = 0
+
+    if args.resume and output_path.exists():
+        prior = json.loads(output_path.read_text())
+        if prior.get("llr_model") != "pair_normal_pentanomial":
+            print("--resume file uses an incompatible pre-pentanomial LLR model", file=sys.stderr)
+            return 1
+        if prior.get("seed") != args.seed:
+            print(f"--resume seed mismatch: file={prior.get('seed')} args={args.seed}", file=sys.stderr)
+            return 1
+        if prior.get("movetime_ms") != args.movetime:
+            print("--resume movetime mismatch", file=sys.stderr)
+            return 1
+        history = list(prior.get("history", []))
+        # Only resume from an even game count so opening/color pairs stay balanced.
+        if len(history) % 2:
+            history = history[:-1]
+        if history:
+            w, d, l = int(history[-1]["W"]), int(history[-1]["D"]), int(history[-1]["L"])
+        else:
+            w = d = l = 0
+        decision = prior.get("decision", "inconclusive")
+        pentanomial = pentanomial_from_history(history)
+        start_index = len(history)
+        print(f"Resuming from game {start_index + 1}/{args.max_games} WDL={w}-{d}-{l}")
+        if decision != "inconclusive" or start_index >= args.max_games:
+            print(json.dumps({"decision": decision, "W": w, "D": d, "L": l}, indent=2))
+            return 0
 
     def snapshot() -> dict:
         out = {
@@ -104,6 +181,8 @@ def main() -> int:
             "W": w,
             "D": d,
             "L": l,
+            "pentanomial": pentanomial,
+            "llr_model": "pair_normal_pentanomial",
             "elo0": args.elo0,
             "elo1": args.elo1,
             "alpha": args.alpha,
@@ -111,6 +190,7 @@ def main() -> int:
             "bounds": {"lower": B, "upper": A},
             "seed": args.seed,
             "movetime_ms": args.movetime,
+            "max_plies": args.max_plies,
             "exploratory_short_tc": args.movetime < 50,
             "adjudication_cp": args.adjudication_cp,
             "adjudication_plies": args.adjudication_plies,
@@ -123,6 +203,8 @@ def main() -> int:
 
     try:
         for i, (pair_id, fen, b_is_black) in enumerate(schedule):
+            if i < start_index:
+                continue
             if b_is_black:
                 res, meta = play_game(
                     a,
@@ -157,14 +239,19 @@ def main() -> int:
                     l += 1
                 else:
                     d += 1
-            # LLR for candidate advantage: elo0/elo1 are for elo_b - elo_a
-            ratio = llr(w, l, d, args.elo0, args.elo1)
+            candidate_is_white = not b_is_black
+            pending_pair_score += candidate_game_score(res, candidate_is_white)
+            if (i + 1) % 2 == 0:
+                pentanomial[int(round(pending_pair_score * 2))] += 1
+                pending_pair_score = 0.0
+            # Pair-level LLR; it only changes at complete opening-pair boundaries.
+            ratio = pentanomial_llr(pentanomial, args.elo0, args.elo1)
             history.append(
                 {
                     "game": i + 1,
                     "pair_id": pair_id,
                     "fen": fen,
-                    "candidate_is_white": not b_is_black,
+                    "candidate_is_white": candidate_is_white,
                     "result": res,
                     "termination": meta["termination"],
                     "W": w,
@@ -174,15 +261,16 @@ def main() -> int:
                 }
             )
             print(f"SPRT game {i+1}: WDL={w}-{d}-{l} llr={ratio:.3f} bounds=[{B:.3f},{A:.3f}]")
+            # Persist every game so interrupted runs can resume without losing odd games.
             # Stop only at pair boundaries to preserve opening/color balance.
             if (i + 1) % 2 == 0:
                 if ratio >= A:
                     decision = "accept_H1_candidate_stronger"
                 elif ratio <= B:
                     decision = "accept_H0_baseline_not_worse"
-                snapshot()
-                if decision != "inconclusive":
-                    break
+            snapshot()
+            if decision != "inconclusive" and (i + 1) % 2 == 0:
+                break
     finally:
         a.close()
         b.close()
@@ -192,7 +280,7 @@ def main() -> int:
         ROOT,
         engine,
         [Path(args.cfg_a), Path(args.cfg_b)],
-        ROOT / "tools" / "openings.epd",
+        openings_path,
         args.seed,
         {
             "kind": "sprt",
@@ -206,6 +294,8 @@ def main() -> int:
             "beta": args.beta,
             "adjudication_cp": args.adjudication_cp,
             "adjudication_plies": args.adjudication_plies,
+            "openings": str(openings_path),
+            "llr_model": "pair_normal_pentanomial",
         },
     )
     write_manifest(outdir / "manifest.json", manifest)

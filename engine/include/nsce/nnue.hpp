@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace nsce {
 
@@ -14,17 +15,24 @@ class Position;
 struct NnueNet {
   static constexpr int kFeatures = 12 * 64;
   static constexpr int kHidden = 128;
+  static constexpr int kKingBuckets = 16;
+  static constexpr int kHalfKpFeatures = kKingBuckets * kFeatures;
   static constexpr int kWeightScale = 64;  // int16 weights; activate / scale
 
   bool loaded = false;
+  bool halfkp = false;
   std::array<std::array<int16_t, kHidden>, kFeatures> w0{};
   std::array<int16_t, kHidden> b0{};
   std::array<int16_t, kHidden> w1{};
+  std::vector<std::array<int16_t, kHidden>> halfkp_w0{};
+  std::array<int16_t, 2 * kHidden> halfkp_w1{};
   int32_t b1 = 0;
 };
 
 struct NnueAccumulator {
   alignas(32) std::array<int16_t, NnueNet::kHidden> v{};
+  alignas(32) std::array<std::array<int16_t, NnueNet::kHidden>, 2> half{};
+  std::array<uint8_t, 2> king_bucket{};
 };
 
 class Nnue {
@@ -34,6 +42,7 @@ class Nnue {
   bool load(const std::string& path);
   bool load_default_from_hce();  // PST-distilled linear init (no external file)
   bool enabled() const { return net_.loaded; }
+  bool uses_king_buckets() const { return net_.loaded && net_.halfkp; }
   void set_enabled(bool on) { enabled_ = on && net_.loaded; }
   bool is_enabled() const { return enabled_ && net_.loaded; }
 
@@ -55,5 +64,8 @@ class Nnue {
 inline int nnue_feature(Piece pc, Square sq) {
   return static_cast<int>(pc) * 64 + static_cast<int>(sq);
 }
+
+int halfkp_king_bucket(Color perspective, Square king);
+int halfkp_feature(Color perspective, int king_bucket, Piece pc, Square sq);
 
 }  // namespace nsce

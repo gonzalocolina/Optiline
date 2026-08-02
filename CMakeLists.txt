@@ -15,6 +15,7 @@ option(NSCE_LTO "Enable link-time optimization" ON)
 option(NSCE_AVX2 "Enable AVX2 NNUE kernels" ON)
 option(NSCE_SANITIZE "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(NSCE_TSAN "Enable ThreadSanitizer" OFF)
+option(NSCE_STATS "Enable low-overhead search telemetry" OFF)
 
 if(NSCE_SANITIZE AND NSCE_TSAN)
   message(FATAL_ERROR "NSCE_SANITIZE and NSCE_TSAN are mutually exclusive")
@@ -56,6 +57,9 @@ target_compile_options(nsce_engine PRIVATE
   $<$<CONFIG:Debug>:-O0 -g>
   -Wall -Wextra -Wpedantic
 )
+if(NSCE_STATS)
+  target_compile_definitions(nsce_engine PUBLIC NSCE_STATS=1)
+endif()
 
 if(NSCE_NATIVE)
   target_compile_options(nsce_engine PRIVATE -march=native)

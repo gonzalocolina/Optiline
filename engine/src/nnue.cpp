@@ -81,6 +81,18 @@ inline int32_t affine_avx(const int16_t* acc, const int16_t* w1, int32_t bias) {
 
 }  // namespace
 
+int halfkp_king_bucket(Color perspective, Square king) {
+  int oriented = perspective == WHITE ? static_cast<int>(king) : (static_cast<int>(king) ^ 56);
+  return (rank_of(static_cast<Square>(oriented)) / 2) * 4 + file_of(static_cast<Square>(oriented)) / 2;
+}
+
+int halfkp_feature(Color perspective, int king_bucket, Piece pc, Square sq) {
+  int oriented_sq = perspective == WHITE ? static_cast<int>(sq) : (static_cast<int>(sq) ^ 56);
+  int oriented_pc = static_cast<int>(pc);
+  if (perspective == BLACK) oriented_pc = oriented_pc < 6 ? oriented_pc + 6 : oriented_pc - 6;
+  return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
+}
+
 Nnue& Nnue::instance() {
   static Nnue n;
   return n;
@@ -118,16 +130,28 @@ bool Nnue::load(const std::string& path) {
   if (!in) return false;
   char magic[8]{};
   in.read(magic, 8);
-  if (std::strncmp(magic, "NSCENNUE", 8) != 0) return false;
+  const bool halfkp = std::strncmp(magic, "NSCEHFKP", 8) == 0;
+  if (!halfkp && std::strncmp(magic, "NSCENNUE", 8) != 0) return false;
   int32_t hidden = 0, features = 0;
   in.read(reinterpret_cast<char*>(&features), 4);
   in.read(reinterpret_cast<char*>(&hidden), 4);
-  if (features != NnueNet::kFeatures || hidden != NnueNet::kHidden) return false;
+  int expected_features = halfkp ? NnueNet::kHalfKpFeatures : NnueNet::kFeatures;
+  if (features != expected_features || hidden != NnueNet::kHidden) return false;
   net_ = NnueNet{};
-  for (int f = 0; f < NnueNet::kFeatures; ++f)
-    in.read(reinterpret_cast<char*>(net_.w0[f].data()), NnueNet::kHidden * 2);
+  net_.halfkp = halfkp;
+  if (halfkp) {
+    net_.halfkp_w0.resize(NnueNet::kHalfKpFeatures);
+    for (int f = 0; f < NnueNet::kHalfKpFeatures; ++f)
+      in.read(reinterpret_cast<char*>(net_.halfkp_w0[f].data()), NnueNet::kHidden * 2);
+  } else {
+    for (int f = 0; f < NnueNet::kFeatures; ++f)
+      in.read(reinterpret_cast<char*>(net_.w0[f].data()), NnueNet::kHidden * 2);
+  }
   in.read(reinterpret_cast<char*>(net_.b0.data()), NnueNet::kHidden * 2);
-  in.read(reinterpret_cast<char*>(net_.w1.data()), NnueNet::kHidden * 2);
+  if (halfkp)
+    in.read(reinterpret_cast<char*>(net_.halfkp_w1.data()), 2 * NnueNet::kHidden * 2);
+  else
+    in.read(reinterpret_cast<char*>(net_.w1.data()), NnueNet::kHidden * 2);
   in.read(reinterpret_cast<char*>(&net_.b1), 4);
   if (!in) return false;
   net_.loaded = true;
@@ -137,6 +161,20 @@ bool Nnue::load(const std::string& path) {
 
 void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
+  if (net_.halfkp) {
+    for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
+      int feature =
+          halfkp_feature(static_cast<Color>(perspective), acc.king_bucket[perspective], pc, sq);
+      const auto& column = net_.halfkp_w0[feature];
+#if defined(__AVX2__)
+      acc_add_avx(acc.half[perspective].data(), column.data());
+#else
+      for (int h = 0; h < NnueNet::kHidden; ++h)
+        acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] + column[h]);
+#endif
+    }
+    return;
+  }
   const auto& col = net_.w0[nnue_feature(pc, sq)];
 #if defined(__AVX2__)
   acc_add_avx(acc.v.data(), col.data());
@@ -147,6 +185,20 @@ void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
 
 void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
+  if (net_.halfkp) {
+    for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
+      int feature =
+          halfkp_feature(static_cast<Color>(perspective), acc.king_bucket[perspective], pc, sq);
+      const auto& column = net_.halfkp_w0[feature];
+#if defined(__AVX2__)
+      acc_sub_avx(acc.half[perspective].data(), column.data());
+#else
+      for (int h = 0; h < NnueNet::kHidden; ++h)
+        acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] - column[h]);
+#endif
+    }
+    return;
+  }
   const auto& col = net_.w0[nnue_feature(pc, sq)];
 #if defined(__AVX2__)
   acc_sub_avx(acc.v.data(), col.data());
@@ -156,6 +208,19 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
 }
 
 void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
+  if (net_.halfkp) {
+    for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
+      acc.king_bucket[perspective] =
+          static_cast<uint8_t>(halfkp_king_bucket(static_cast<Color>(perspective),
+                                                  pos.king_square(static_cast<Color>(perspective))));
+      acc.half[perspective] = net_.b0;
+    }
+    for (int sq = 0; sq < SQUARE_NB; ++sq) {
+      Piece pc = pos.piece_on(static_cast<Square>(sq));
+      if (pc != NO_PIECE) add_piece(acc, pc, static_cast<Square>(sq));
+    }
+    return;
+  }
   acc.v.fill(0);
   for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = net_.b0[h];
   for (int sq = 0; sq < SQUARE_NB; ++sq) {
@@ -165,6 +230,24 @@ void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
 }
 
 int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
+  if (net_.halfkp) {
+    int32_t sum = net_.b1;
+#if defined(__AVX2__)
+    sum = affine_avx(acc.half[stm].data(), net_.halfkp_w1.data(), net_.b1);
+    sum += affine_avx(acc.half[~stm].data(), net_.halfkp_w1.data() + NnueNet::kHidden, 0);
+#else
+    for (int side = 0; side < 2; ++side) {
+      Color perspective = side == 0 ? stm : ~stm;
+      const int16_t* weights = net_.halfkp_w1.data() + side * NnueNet::kHidden;
+      for (int h = 0; h < NnueNet::kHidden; ++h) {
+        int16_t x = acc.half[perspective][h];
+        x = std::clamp<int16_t>(x, 0, 127 * NnueNet::kWeightScale);
+        sum += static_cast<int32_t>(x) * weights[h];
+      }
+    }
+#endif
+    return static_cast<int>(sum / (NnueNet::kWeightScale * NnueNet::kWeightScale));
+  }
   int32_t sum = net_.b1;
 #if defined(__AVX2__)
   sum = affine_avx(acc.v.data(), net_.w1.data(), net_.b1);

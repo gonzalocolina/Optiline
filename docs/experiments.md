@@ -12,6 +12,7 @@
 | Threads | 1 |
 | Hash | 16 |
 | Time control | `movetime=100` (ablations) / `tc=10+0.1` (ladder when cutechess available) |
+| Openings | Prefer `tools/openings_balanced.epd` for exploratory lab; regenerate with `tools/generate_openings.py` |
 
 Apply via UCI before every match:
 
@@ -41,7 +42,10 @@ Record under `experiments/YYYYMMDD/report.md`:
 Run:
 
 ```bash
-python3 tools/ablation_match.py --matrix --outdir experiments/$(date +%Y%m%d)
+python3 tools/ablation_match.py --matrix --openings tools/openings_balanced.epd \
+  --outdir experiments/$(date +%Y%m%d)
+python3 tools/ablation_match.py --search-matrix --openings tools/openings_balanced.epd \
+  --outdir experiments/$(date +%Y%m%d)_search
 ```
 
 Matches:
@@ -50,12 +54,14 @@ Matches:
 2. baseline vs Policy on
 3. baseline vs Controller on
 4. baseline vs Policy+Controller
+5. search-matrix: baseline vs one-feature-off for TT/SEE/LMR/null/futility/LMP/razor/RFP
 
 The trained NNUE is a separate candidate, `tools/configs/trained_nnue.uci`; do not
 silently replace the frozen baseline when measuring it.
 
-All four comparisons are pre-registered and always run. The matrix is exploratory:
+All comparisons are pre-registered and always run. The matrix is exploratory:
 promote a candidate only after a separate confirmation SPRT on fresh games.
+See also [docs/measurement.md](measurement.md).
 
 ## Elo ladder
 
@@ -123,13 +129,15 @@ evidence of insufficient information, not evidence that the engines are equal.
 python3 tools/sprt.py \
   --cfg-a tools/configs/baseline.uci \
   --cfg-b tools/configs/candidate.uci \
+  --openings tools/openings_balanced.epd \
   --elo0 -5 --elo1 5 \
   --max-games 400 --movetime 100 --seed 20260802 \
   --outdir experiments/$(date +%Y%m%d)-candidate
 ```
 
-5. Accept/reject only at opening-pair boundaries. Never stop because a point estimate looks
-   favorable.
+5. Accept/reject only at opening-pair boundaries using the pair-level pentanomial LLR.
+   Never stop because a point estimate looks favorable. Older trinomial SPRT JSON files are
+   incompatible with `--resume`.
 6. Re-run accepted candidates against a stronger Stockfish rung with fresh openings.
 
 When thread counts differ, wall time is not equal compute. Official comparisons use equal

@@ -60,6 +60,14 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name UseNNUE type check default true\n";
     std::cout << "option name UsePolicy type check default false\n";
     std::cout << "option name UseSearchController type check default false\n";
+    std::cout << "option name UseTT type check default true\n";
+    std::cout << "option name UseSEE type check default true\n";
+    std::cout << "option name UseLMR type check default true\n";
+    std::cout << "option name UseNullMove type check default true\n";
+    std::cout << "option name UseFutility type check default true\n";
+    std::cout << "option name UseLMP type check default true\n";
+    std::cout << "option name UseRazoring type check default true\n";
+    std::cout << "option name UseRFP type check default true\n";
     std::cout << "option name EvalFile type string default nets/nnue_trained.bin\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
@@ -204,6 +212,22 @@ void Uci::handle_setoption(std::istringstream& is) {
     PolicyNet::instance().set_enabled(value == "true" || value == "1");
   } else if (name == "UseSearchController") {
     SearchController::instance().set_enabled(value == "true" || value == "1");
+  } else if (name == "UseTT") {
+    search_.set_use_tt(value == "true" || value == "1");
+  } else if (name == "UseSEE") {
+    search_.set_use_see(value == "true" || value == "1");
+  } else if (name == "UseLMR") {
+    search_.set_use_lmr(value == "true" || value == "1");
+  } else if (name == "UseNullMove") {
+    search_.set_use_null_move(value == "true" || value == "1");
+  } else if (name == "UseFutility") {
+    search_.set_use_futility(value == "true" || value == "1");
+  } else if (name == "UseLMP") {
+    search_.set_use_lmp(value == "true" || value == "1");
+  } else if (name == "UseRazoring") {
+    search_.set_use_razoring(value == "true" || value == "1");
+  } else if (name == "UseRFP") {
+    search_.set_use_rfp(value == "true" || value == "1");
   } else if (name == "EvalFile") {
     if (value == "<internal>" || value == "internal" || value == "hce") {
       Nnue::instance().load_default_from_hce();

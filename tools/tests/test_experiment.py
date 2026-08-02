@@ -8,7 +8,7 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
 from experiment_common import paired_schedule  # noqa: E402
-from sprt import llr  # noqa: E402
+from sprt import llr, pentanomial_llr  # noqa: E402
 from uci_common import elo_from_wdl  # noqa: E402
 
 
@@ -41,6 +41,11 @@ class StatisticsTest(unittest.TestCase):
     def test_sprt_direction(self) -> None:
         self.assertGreater(llr(20, 5, 10, -5, 5), 0.0)
         self.assertLess(llr(5, 20, 10, -5, 5), 0.0)
+
+    def test_pentanomial_sprt_direction(self) -> None:
+        self.assertGreater(pentanomial_llr([1, 2, 4, 8, 12], -5, 5), 0.0)
+        self.assertLess(pentanomial_llr([12, 8, 4, 2, 1], -5, 5), 0.0)
+        self.assertAlmostEqual(pentanomial_llr([0, 0, 20, 0, 0], -5, 5), 0.0)
 
 
 if __name__ == "__main__":

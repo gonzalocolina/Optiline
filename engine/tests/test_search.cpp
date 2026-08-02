@@ -3,7 +3,9 @@
 #include "nsce/search.hpp"
 #include "nsce/zobrist.hpp"
 
+#include <chrono>
 #include <gtest/gtest.h>
+#include <thread>
 
 using namespace nsce;
 
@@ -69,5 +71,99 @@ TEST(SearchTest, ParallelRootSplitPreservesForcedMate) {
   generate_legal(pos, replies);
   EXPECT_TRUE(pos.in_check());
   EXPECT_EQ(replies.size, 0);
+}
+
+TEST(SearchTest, StopDuringParallelSearchReturns) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_threads(4);
+  search.set_silent(true);
+
+  SearchLimits limits;
+  limits.infinite = true;
+  SearchInfo info;
+  std::thread worker([&]() {
+    search.prepare();
+    info = search.go_prepared(limits);
+  });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  search.stop();
+  worker.join();
+  EXPECT_TRUE(info.best_move);
+}
+
+TEST(SearchTest, RepeatedGoStopNoHang) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_threads(4);
+  search.set_silent(true);
+
+  for (int i = 0; i < 12; ++i) {
+    SearchLimits limits;
+    limits.depth = 8;
+    SearchInfo info;
+    std::thread worker([&]() {
+      search.prepare();
+      info = search.go_prepared(limits);
+    });
+    if ((i & 1) != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      search.stop();
+    }
+    worker.join();
+    EXPECT_TRUE(info.best_move);
+  }
+}
+
+TEST(SearchTest, AspirationWindowsReusePool) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_threads(4);
+  search.set_silent(true);
+
+  SearchLimits limits;
+  limits.depth = 8;
+  SearchInfo info = search.go(limits);
+  EXPECT_GT(info.depth, 0);
+  EXPECT_TRUE(info.best_move);
+}
+
+TEST(SearchTest, SetThreadsResizePool) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_silent(true);
+
+  search.set_threads(2);
+  SearchLimits shallow;
+  shallow.depth = 4;
+  EXPECT_TRUE(search.go(shallow).best_move);
+
+  search.set_threads(6);
+  EXPECT_TRUE(search.go(shallow).best_move);
+
+  search.set_threads(1);
+  SearchInfo info = search.go(shallow);
+  EXPECT_TRUE(info.best_move);
+  EXPECT_GT(info.depth, 0);
 }
 

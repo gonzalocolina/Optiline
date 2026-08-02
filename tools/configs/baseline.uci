@@ -4,3 +4,11 @@ setoption name UseNNUE value true
 setoption name EvalFile value internal
 setoption name UsePolicy value false
 setoption name UseSearchController value false
+setoption name UseTT value true
+setoption name UseSEE value true
+setoption name UseLMR value true
+setoption name UseNullMove value true
+setoption name UseFutility value true
+setoption name UseLMP value true
+setoption name UseRazoring value true
+setoption name UseRFP value true
