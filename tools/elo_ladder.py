@@ -16,22 +16,23 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ablation_match import match  # noqa: E402
-from uci_common import UciEngine, elo_from_score, load_openings  # noqa: E402
+from experiment_common import build_manifest, paired_schedule, write_manifest  # noqa: E402
+from uci_common import UciEngine, elo_from_wdl, load_openings  # noqa: E402
 
 
-def depth_ladder(engine: Path, games: int, outdir: Path) -> dict:
+def depth_ladder(engine: Path, games: int, outdir: Path, seed: int) -> dict:
     """Stronger depth vs weaker depth using same baseline config."""
-    return depth_ladder_custom(engine, games, 5, 3, outdir)
+    return depth_ladder_custom(engine, games, 5, 3, outdir, seed)
 
 
-def weak_nsce_rung(engine: Path, games: int, movetime: int, outdir: Path) -> dict:
+def weak_nsce_rung(engine: Path, games: int, movetime: int, outdir: Path, seed: int) -> dict:
     """Baseline movetime vs very weak (tiny movetime) as stand-in for weak engine."""
     # Use configs: baseline 100ms vs "weak" via same binary with UseNNUE false + short time in match
     # Simpler: depth 4 vs depth 1 through go_depth match inline
-    return depth_ladder_custom(engine, games, 4, 1, outdir)
+    return depth_ladder_custom(engine, games, 4, 1, outdir, seed)
 
 
-def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: Path) -> dict:
+def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: Path, seed: int) -> dict:
     openings = load_openings(ROOT / "tools" / "openings.epd")
     cfg = ROOT / "tools" / "configs" / "baseline.uci"
     hi = UciEngine([str(engine)], f"d{d_hi}")
@@ -40,12 +41,10 @@ def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: 
         hi.apply_uci_file(cfg)
         lo.apply_uci_file(cfg)
         w = d = l = 0
-        for i in range(games):
-            fen = openings[i % len(openings)]
+        for i, (pair_id, fen, a_white) in enumerate(paired_schedule(openings, games, seed)):
             hi.new_game()
             lo.new_game()
             moves: list[str] = []
-            a_white = i % 2 == 0
             result = "1/2-1/2"
             for ply in range(40):
                 if a_white:
@@ -75,7 +74,7 @@ def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: 
                 d += 1
             print(f"  weak-rung game {i+1}: strong result={result}")
         score = (w + 0.5 * d) / max(1, games)
-        elo, err = elo_from_score(score, games)
+        elo, err = elo_from_wdl(w, d, l)
         return {
             "rung": f"depth_ladder_d{d_hi}_vs_d{d_lo}",
             "W": w,
@@ -103,7 +102,9 @@ def resolve_stockfish() -> str | None:
     return None
 
 
-def stockfish_rung(engine: Path, games: int, movetime: int, outdir: Path, sf_elo: int) -> dict | None:
+def stockfish_rung(
+    engine: Path, games: int, movetime: int, outdir: Path, sf_elo: int, seed: int
+) -> dict | None:
     sf = resolve_stockfish()
     if not sf:
         return {
@@ -126,12 +127,10 @@ def stockfish_rung(engine: Path, games: int, movetime: int, outdir: Path, sf_elo
             }
         )
         w = d = l = 0
-        for i in range(games):
-            fen = openings[i % len(openings)]
+        for i, (_pair_id, fen, a_white) in enumerate(paired_schedule(openings, games, seed)):
             nsce.new_game()
             stock.new_game()
             moves: list[str] = []
-            a_white = i % 2 == 0
             result = "1/2-1/2"
             for ply in range(60):
                 eng = (nsce if a_white else stock) if ply % 2 == 0 else (stock if a_white else nsce)
@@ -158,7 +157,7 @@ def stockfish_rung(engine: Path, games: int, movetime: int, outdir: Path, sf_elo
                 d += 1
             print(f"  SF rung game {i+1}: NSCE result={result}")
         score = (w + 0.5 * d) / max(1, games)
-        elo, err = elo_from_score(score, games)
+        elo, err = elo_from_wdl(w, d, l)
         return {
             "rung": f"stockfish_elo_{sf_elo}",
             "W": w,
@@ -178,22 +177,29 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--outdir", default="")
-    ap.add_argument("--games", type=int, default=6)
+    ap.add_argument("--games", type=int, default=100, help="positive even number")
     ap.add_argument("--movetime", type=int, default=100)
     ap.add_argument("--sf-elo", type=int, default=1400)
+    ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
 
     engine = Path(args.engine)
+    if not engine.exists():
+        print(f"engine not found: {engine}", file=sys.stderr)
+        return 1
+    if args.games <= 0 or args.games % 2:
+        print("--games must be a positive even number", file=sys.stderr)
+        return 1
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
     outdir.mkdir(parents=True, exist_ok=True)
 
     results = []
     print("=== Rung 1: depth ladder ===")
-    results.append(depth_ladder(engine, args.games, outdir))
+    results.append(depth_ladder(engine, args.games, outdir, args.seed))
     print("=== Rung 2: weak proxy ===")
-    results.append(weak_nsce_rung(engine, args.games, args.movetime, outdir))
+    results.append(weak_nsce_rung(engine, args.games, args.movetime, outdir, args.seed))
     print("=== Rung 3: Stockfish limited ===")
-    results.append(stockfish_rung(engine, args.games, args.movetime, outdir, args.sf_elo))
+    results.append(stockfish_rung(engine, args.games, args.movetime, outdir, args.sf_elo, args.seed))
 
     (outdir / "elo_ladder.json").write_text(json.dumps(results, indent=2))
     lines = [
@@ -227,6 +233,22 @@ def main() -> int:
     # merge into report
     with (outdir / "report.md").open("a") as f:
         f.write("\n" + "\n".join(lines) + "\n")
+    configs = [ROOT / "tools" / "configs" / "baseline.uci"]
+    manifest = build_manifest(
+        ROOT,
+        engine,
+        configs,
+        ROOT / "tools" / "openings.epd",
+        args.seed,
+        {
+            "kind": "elo_ladder",
+            "games_per_rung": args.games,
+            "movetime_ms": args.movetime,
+            "stockfish_elo": args.sf_elo,
+            "stockfish": resolve_stockfish(),
+        },
+    )
+    write_manifest(outdir / "manifest.json", manifest)
     print("\n".join(lines))
     return 0
 

@@ -2,6 +2,7 @@
 
 #include "nsce/zobrist.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <sstream>
@@ -201,10 +202,25 @@ bool Position::is_capture(Move m) const {
 
 bool Position::is_draw() const {
   if (halfmove_ >= 100) return true;
+
+  if (!(pieces(PAWN) | pieces(ROOK) | pieces(QUEEN))) {
+    int knights = popcount(pieces(KNIGHT));
+    int bishops = popcount(pieces(BISHOP));
+    if (knights + bishops <= 1) return true;
+    if (knights == 0) {
+      constexpr Bitboard DarkSquares = 0xAA55AA55AA55AA55ULL;
+      Bitboard bishop_squares = pieces(BISHOP);
+      if (!(bishop_squares & DarkSquares) || !(bishop_squares & ~DarkSquares)) return true;
+    }
+  }
+
   int reps = 0;
-  for (Key k : history_keys_)
-    if (k == key_) ++reps;
-  return reps >= 3;
+  int current = static_cast<int>(history_keys_.size()) - 1;
+  int earliest = std::max(0, current - halfmove_);
+  for (int i = current; i >= earliest; i -= 2) {
+    if (history_keys_[i] == key_ && ++reps >= 3) return true;
+  }
+  return false;
 }
 
 void Position::do_move(Move m, StateInfo& st) {

@@ -16,13 +16,14 @@ struct TTEntry {
   int16_t score = 0;
   uint8_t depth = 0;
   uint8_t bound = BOUND_NONE;
+  uint8_t generation = 0;
 };
 
 class TranspositionTable {
  public:
   void resize(std::size_t mb);
   void clear();
-  void new_search() {}
+  void new_search();
 
   bool probe(Key key, TTEntry& entry) const;
   void store(Key key, int depth, int score, Bound bound, Move move, int ply);
@@ -36,8 +37,13 @@ class TranspositionTable {
     std::atomic<uint64_t> payload{0};
   };
 
-  std::unique_ptr<Slot[]> table_;
+  struct alignas(64) Cluster {
+    Slot slots[4];
+  };
+
+  std::unique_ptr<Cluster[]> table_;
   std::size_t size_ = 0;
+  uint8_t generation_ = 0;
 };
 
 }  // namespace nsce

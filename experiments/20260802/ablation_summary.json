@@ -1,0 +1,52 @@
+[
+  {
+    "name_a": "baseline",
+    "name_b": "controller",
+    "cfg_a": "tools/configs/baseline.uci",
+    "cfg_b": "tools/configs/controller.uci",
+    "games": 6,
+    "movetime_ms": 50,
+    "W": 1,
+    "D": 5,
+    "L": 0,
+    "score": 0.5833333333333334,
+    "elo_diff_a_minus_b": 58.45121427129523,
+    "elo_err_95": 281.9499180310926,
+    "nodes_per_game_a": 270307.8333333333,
+    "nodes_per_game_b": 281895.5,
+    "overruns_a": 0,
+    "overruns_b": 0,
+    "games_log": [
+      {
+        "i": 0,
+        "result_from_a": "1-0",
+        "plies": 30
+      },
+      {
+        "i": 1,
+        "result_from_a": "1/2-1/2",
+        "plies": 30
+      },
+      {
+        "i": 2,
+        "result_from_a": "1/2-1/2",
+        "plies": 30
+      },
+      {
+        "i": 3,
+        "result_from_a": "1/2-1/2",
+        "plies": 30
+      },
+      {
+        "i": 4,
+        "result_from_a": "1/2-1/2",
+        "plies": 30
+      },
+      {
+        "i": 5,
+        "result_from_a": "1/2-1/2",
+        "plies": 30
+      }
+    ]
+  }
+]

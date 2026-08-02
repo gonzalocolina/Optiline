@@ -30,3 +30,19 @@ TEST(SearchTest, FindsMateInOneAtQuiescenceBoundary) {
   EXPECT_TRUE(pos.in_check());
   EXPECT_EQ(replies.size, 0);
 }
+
+TEST(SearchTest, CheckmateTakesPrecedenceOverFiftyMoveDraw) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_fen("7k/5Q2/6K1/8/8/8/8/8 w - - 99 1");
+
+  Search search;
+  search.set_position(pos);
+  SearchLimits limits;
+  limits.depth = 1;
+  SearchInfo info = search.go(limits);
+
+  EXPECT_EQ(info.score, mate_in(1));
+}

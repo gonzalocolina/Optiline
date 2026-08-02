@@ -50,6 +50,7 @@ struct SearchWorker {
   int pv_len[kMaxPly]{};
   uint64_t nodes = 0;
   uint64_t published_nodes = 0;
+  int id = 0;
 };
 
 class Search {
@@ -78,14 +79,16 @@ class Search {
   void sort_moves(MoveList& list, int* scores) const;
   void update_quiet_stats(SearchWorker& w, const Position& pos, Move best, const Move* quiets, int quiet_count,
                           int depth, int ply, Move prev);
-  void helper_loop(Position root, int max_depth);
+  void helper_loop(Position root, int max_depth, int worker_id);
 
   Position root_;
   TranspositionTable tt_;
   std::atomic<bool> stop_{false};
   std::atomic<uint64_t> nodes_{0};
   std::chrono::steady_clock::time_point start_{};
-  int allocated_ms_ = 0;
+  int optimum_ms_ = 0;
+  int maximum_ms_ = 0;
+  bool use_soft_time_ = false;
   int64_t nodes_limit_ = 0;
   int threads_ = 1;
   SearchWorker main_worker_{};

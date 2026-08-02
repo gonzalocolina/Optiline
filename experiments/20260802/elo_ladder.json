@@ -1,0 +1,25 @@
+[
+  {
+    "rung": "depth_ladder_d5_vs_d3",
+    "W": 0,
+    "D": 4,
+    "L": 0,
+    "score": 0.5,
+    "elo": 0.0,
+    "elo_err": 340.48687381214944
+  },
+  {
+    "rung": "depth_ladder_d4_vs_d1",
+    "W": 0,
+    "D": 4,
+    "L": 0,
+    "score": 0.5,
+    "elo": 0.0,
+    "elo_err": 340.48687381214944
+  },
+  {
+    "rung": "stockfish_elo_1400",
+    "skipped": true,
+    "reason": "stockfish not in PATH; install to enable this rung"
+  }
+]

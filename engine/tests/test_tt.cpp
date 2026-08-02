@@ -51,3 +51,22 @@ TEST(TranspositionTableTest, NormalizesMateDistance) {
   ASSERT_TRUE(table.probe(key, entry));
   EXPECT_EQ(TranspositionTable::score_from_tt(entry.score, ply), score);
 }
+
+TEST(TranspositionTableTest, KeepsFourCollidingEntriesInCluster) {
+  TranspositionTable table;
+  table.resize(1);
+  constexpr Key stride = 1ULL << 20;
+  constexpr Key base = 0x1234;
+
+  for (int i = 0; i < 4; ++i) {
+    table.store(base + stride * i, 6 + i, 10 * i, BOUND_LOWER,
+                Move::make(SQ_A2, static_cast<Square>(SQ_A3 + i)), 0);
+  }
+
+  TTEntry entry;
+  for (int i = 0; i < 4; ++i) {
+    ASSERT_TRUE(table.probe(base + stride * i, entry));
+    EXPECT_EQ(entry.depth, 6 + i);
+    EXPECT_EQ(entry.score, 10 * i);
+  }
+}

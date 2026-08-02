@@ -17,7 +17,8 @@ cmake -G "Unix Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPIL
 cmake --build build -j"$(nproc)"
 ```
 
-Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_PGO_GENERATE`, `NSCE_PGO_USE`.
+Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_SANITIZE`,
+`NSCE_TSAN`, `NSCE_PGO_GENERATE`, `NSCE_PGO_USE`.
 
 ## Uso
 
@@ -39,12 +40,13 @@ bash train/run_train_loop.sh
 ```bash
 bash tools/run_experiment_day.sh experiments/$(date +%Y%m%d)
 # o por piezas:
-python3 tools/ablation_match.py --matrix --outdir experiments/$(date +%Y%m%d)
+python3 tools/ablation_match.py --matrix --games 100 --seed 1 --outdir experiments/$(date +%Y%m%d)
 python3 tools/elo_ladder.py --outdir experiments/$(date +%Y%m%d)
-python3 tools/sprt.py --cfg-b tools/configs/controller.uci
+python3 tools/sprt.py --cfg-b tools/configs/controller.uci --max-games 200 --seed 1
 ```
 
-Baseline congelado: [docs/experiments.md](docs/experiments.md), configs en `tools/configs/`.
+Los runners usan aperturas emparejadas con colores invertidos y escriben un
+`manifest.json` reproducible. Baseline y protocolo: [docs/experiments.md](docs/experiments.md).
 
 ## Licencia
 

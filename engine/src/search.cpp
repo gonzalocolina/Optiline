@@ -4,6 +4,7 @@
 #include "nsce/movegen.hpp"
 #include "nsce/policy.hpp"
 #include "nsce/controller.hpp"
+#include "nsce/see.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -34,9 +35,9 @@ bool Search::time_up() const {
   if (stop_.load(std::memory_order_relaxed)) return true;
   if (nodes_limit_ > 0 && static_cast<int64_t>(nodes_.load(std::memory_order_relaxed)) >= nodes_limit_)
     return true;
-  if (allocated_ms_ <= 0) return false;
+  if (maximum_ms_ <= 0) return false;
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count();
-  return ms >= allocated_ms_;
+  return ms >= maximum_ms_;
 }
 
 bool Search::count_node(SearchWorker& w) {
@@ -68,9 +69,11 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
     }
     else if (m.is_capture() || m.is_ep()) {
       Piece victim = m.is_ep() ? make_piece(~pos.side_to_move(), PAWN) : pos.piece_on(m.to());
-      PieceType vt = type_of(victim);
-      PieceType at = type_of(pos.piece_on(m.from()));
-      s = 1'000'000 + piece_value(vt) * 16 - piece_value(at);
+      Piece attacker = pos.piece_on(m.from());
+      int victim_value = victim == NO_PIECE ? 0 : piece_value(type_of(victim));
+      int attacker_value = attacker == NO_PIECE ? 0 : piece_value(type_of(attacker));
+      s = 1'000'000 + victim_value * 16 - attacker_value +
+          std::clamp(static_exchange_eval(pos, m), -500, 500);
     } else if (ply < SearchWorker::kMaxPly && m == w.killers[ply][0])
       s = 900'000;
     else if (ply < SearchWorker::kMaxPly && m == w.killers[ply][1])
@@ -81,18 +84,27 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
       Piece pc = pos.piece_on(m.from());
       if (pc != NO_PIECE) s = w.history[pc][m.to()];
       if (use_policy) s += PolicyNet::instance().score_move(pos, m) * 5 / 4;
+      if (w.id > 0) {
+        uint32_t mix = m.raw ^ static_cast<uint32_t>(pos.key()) ^ static_cast<uint32_t>(w.id * 0x9E3779B9U);
+        s += static_cast<int>(mix % 17) - 8;
+      }
     }
     scores[i] = s;
   }
 }
 
 void Search::sort_moves(MoveList& list, int* scores) const {
-  for (int i = 0; i < list.size; ++i) {
-    int best = i;
-    for (int j = i + 1; j < list.size; ++j)
-      if (scores[j] > scores[best]) best = j;
-    std::swap(list.moves[i], list.moves[best]);
-    std::swap(scores[i], scores[best]);
+  for (int i = 1; i < list.size; ++i) {
+    Move move = list.moves[i];
+    int score = scores[i];
+    int j = i;
+    while (j > 0 && scores[j - 1] < score) {
+      list.moves[j] = list.moves[j - 1];
+      scores[j] = scores[j - 1];
+      --j;
+    }
+    list.moves[j] = move;
+    scores[j] = score;
   }
 }
 
@@ -125,6 +137,8 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
   if (ply >= SearchWorker::kMaxPly - 1) return evaluate(pos);
 
   const bool in_check = pos.in_check();
+  const bool draw = pos.is_draw();
+  if (draw && !in_check) return VALUE_DRAW;
   int stand = in_check ? -VALUE_INFINITE : evaluate(pos);
   ss->static_eval = stand;
   if (!in_check) {
@@ -136,6 +150,7 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
   if (in_check) {
     generate_legal(pos, legal);
     if (legal.size == 0) return mated_in(ply);
+    if (draw) return VALUE_DRAW;
   } else {
     MoveList list;
     generate_noisy(pos, list);
@@ -157,10 +172,8 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     Move m = legal.moves[i];
     Piece victim = m.is_ep() ? make_piece(~pos.side_to_move(), PAWN) : pos.piece_on(m.to());
     int gain = (victim == NO_PIECE) ? 0 : piece_value(type_of(victim));
-    Piece attacker = pos.piece_on(m.from());
-    int see_proxy = gain - (attacker == NO_PIECE ? 0 : piece_value(type_of(attacker)) / 2);
-    // Skip clearly losing captures when not in check (SEE proxy)
-    if (!in_check && !m.is_promotion() && see_proxy < -80) continue;
+    // Skip clearly losing captures when not in check.
+    if (!in_check && !m.is_promotion() && static_exchange_eval(pos, m) < -80) continue;
     if (!in_check && !m.is_promotion() && stand + gain + 150 < alpha) continue;
 
     StateInfo st;
@@ -180,10 +193,18 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
 
   const bool root_node = (ply == 0);
   const bool pv_node = (beta - alpha > 1);
+  const bool in_check = pos.in_check();
   w.pv_len[ply] = 0;
 
   if (!root_node) {
-    if (pos.is_draw()) return VALUE_DRAW;
+    if (pos.is_draw()) {
+      if (pos.halfmove_clock() >= 100 && in_check) {
+        MoveList legal;
+        generate_legal(pos, legal);
+        if (legal.size == 0) return mated_in(ply);
+      }
+      return VALUE_DRAW;
+    }
     alpha = std::max(alpha, mated_in(ply));
     beta = std::min(beta, mate_in(ply + 1));
     if (alpha >= beta) return alpha;
@@ -192,7 +213,6 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   if (ply >= SearchWorker::kMaxPly - 1) return evaluate(pos);
   if (depth <= 0) return quiescence(pos, w, ss, alpha, beta, ply);
 
-  const bool in_check = pos.in_check();
   if (in_check) depth = std::min(depth + 1, SearchWorker::kMaxPly - ply - 1);
 
   TTEntry tte;
@@ -354,10 +374,12 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   return best_score;
 }
 
-void Search::helper_loop(Position root, int max_depth) {
+void Search::helper_loop(Position root, int max_depth, int worker_id) {
   SearchWorker w{};
+  w.id = worker_id;
   SearchStack stack[SearchWorker::kMaxPly + 4]{};
-  for (int depth = 1; depth <= max_depth && !time_up(); ++depth) {
+  int first_depth = 1 + (worker_id & 1);
+  for (int depth = first_depth; depth <= max_depth && !time_up(); ++depth) {
     Position pos = root;
     std::fill(std::begin(stack), std::end(stack), SearchStack{});
     search(pos, w, stack + 2, depth, -VALUE_INFINITE, VALUE_INFINITE, 0, false);
@@ -381,28 +403,36 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
   for (auto& row : main_worker_.history)
     for (int& h : row) h /= 2;
 
-  allocated_ms_ = 0;
+  optimum_ms_ = 0;
+  maximum_ms_ = 0;
+  use_soft_time_ = false;
   nodes_limit_ = limits.nodes;
-  if (limits.movetime_ms > 0)
-    allocated_ms_ = limits.movetime_ms;
-  else if (limits.wtime > 0 || limits.btime > 0) {
+  if (!limits.infinite && limits.movetime_ms > 0) {
+    optimum_ms_ = limits.movetime_ms;
+    maximum_ms_ = limits.movetime_ms;
+  } else if (!limits.infinite && (limits.wtime > 0 || limits.btime > 0)) {
     int time = root_.side_to_move() == WHITE ? limits.wtime : limits.btime;
     int inc = root_.side_to_move() == WHITE ? limits.winc : limits.binc;
     int mtg = limits.movestogo > 0 ? limits.movestogo : 30;
-    allocated_ms_ = time / mtg + inc / 2;
-    allocated_ms_ = std::max(10, allocated_ms_ - 30);
+    int reserve = std::min(time / 2, std::max(20, time / 50));
+    int available = std::max(1, time - reserve);
+    optimum_ms_ = std::min(available, std::max(1, time / mtg + 3 * inc / 4));
+    maximum_ms_ = std::min(available, std::max(3 * optimum_ms_, optimum_ms_ + 50));
+    use_soft_time_ = true;
   }
 
   int max_depth = limits.depth > 0 ? limits.depth : 64;
   SearchInfo info;
   Position pos = root_;
   Move best{};
+  Move previous_iteration_best{};
+  int stable_best_iterations = 0;
   int prev_score = 0;
 
   std::vector<std::thread> helpers;
   if (threads_ > 1) {
     for (int t = 1; t < threads_; ++t)
-      helpers.emplace_back([this, max_depth]() { helper_loop(root_, max_depth); });
+      helpers.emplace_back([this, max_depth, t]() { helper_loop(root_, max_depth, t); });
   }
 
   SearchStack stack[SearchWorker::kMaxPly + 4]{};
@@ -454,6 +484,12 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
       generate_legal(root_, list);
       if (list.size) best = list.moves[0];
     }
+    if (best && best == previous_iteration_best)
+      ++stable_best_iterations;
+    else {
+      previous_iteration_best = best;
+      stable_best_iterations = 0;
+    }
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count();
     uint64_t nodes = nodes_.load(std::memory_order_relaxed);
@@ -476,7 +512,15 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     info.time_ms = static_cast<int>(ms);
 
     if (limits.nodes > 0 && static_cast<int64_t>(nodes) >= limits.nodes) break;
-    if (allocated_ms_ > 0 && ms >= allocated_ms_) break;
+    if (maximum_ms_ > 0 && ms >= maximum_ms_) break;
+    if (use_soft_time_ && optimum_ms_ > 0) {
+      int soft_limit = optimum_ms_;
+      if (stable_best_iterations >= 2)
+        soft_limit = std::max(1, 4 * optimum_ms_ / 5);
+      else if (stable_best_iterations == 0)
+        soft_limit = std::min(maximum_ms_, 6 * optimum_ms_ / 5);
+      if (ms >= soft_limit) break;
+    }
     if (limits.depth > 0 && depth >= limits.depth) break;
   }
 

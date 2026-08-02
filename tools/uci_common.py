@@ -23,6 +23,29 @@ def elo_from_score(score: float, n: int) -> tuple[float, float]:
     return elo, err
 
 
+def elo_from_wdl(wins: int, draws: int, losses: int) -> tuple[float, float]:
+    """Elo and conservative 95% interval from trinomial W/D/L outcomes."""
+    n = wins + draws + losses
+    if n <= 0:
+        return 0.0, 999.0
+    raw_score = (wins + 0.5 * draws) / n
+    score = min(max(raw_score, 1e-6), 1 - 1e-6)
+    elo = 400.0 * math.log10(score / (1.0 - score))
+
+    # Jeffreys smoothing avoids a zero-width interval for all-draw or all-win samples.
+    effective_n = n + 1.5
+    p_win = (wins + 0.5) / effective_n
+    p_draw = (draws + 0.5) / effective_n
+    mean = p_win + 0.5 * p_draw
+    variance = max(0.0, p_win + 0.25 * p_draw - mean * mean)
+    score_error = 1.96 * math.sqrt(variance / effective_n)
+    low = min(max(mean - score_error, 1e-6), 1 - 1e-6)
+    high = min(max(mean + score_error, 1e-6), 1 - 1e-6)
+    elo_low = 400.0 * math.log10(low / (1.0 - low))
+    elo_high = 400.0 * math.log10(high / (1.0 - high))
+    return elo, max(elo - elo_low, elo_high - elo)
+
+
 def load_openings(path: Path) -> list[str]:
     fens: list[str] = []
     if not path.exists():
@@ -60,6 +83,7 @@ class UciEngine:
         self._wait_for("readyok")
         self.last_nodes = 0
         self.last_time_ms = 0
+        self.last_score_cp = 0
         self.overruns = 0
 
     def _send(self, line: str) -> None:
@@ -111,35 +135,39 @@ class UciEngine:
 
     def go_movetime(self, fen: str, moves: list[str], movetime_ms: int) -> str:
         self.set_position(fen, moves)
-        t0 = time.time()
+        t0 = time.monotonic()
         self._send(f"go movetime {movetime_ms}")
         lines = self._wait_for("bestmove", timeout=max(30.0, movetime_ms / 1000.0 + 30.0))
-        elapsed_ms = int((time.time() - t0) * 1000)
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
         self.last_time_ms = elapsed_ms
-        if elapsed_ms > movetime_ms * 2 + 200:
+        if elapsed_ms > movetime_ms + max(20, movetime_ms // 10):
             self.overruns += 1
-        self.last_nodes = 0
-        best = "0000"
-        for line in lines:
-            if line.startswith("info ") and " nodes " in line:
-                parts = line.split()
-                if "nodes" in parts:
-                    self.last_nodes = int(parts[parts.index("nodes") + 1])
-            if line.startswith("bestmove"):
-                best = line.split()[1]
-        return best
+        return self._parse_search(lines)
 
     def go_depth(self, fen: str, moves: list[str], depth: int) -> str:
         self.set_position(fen, moves)
         self._send(f"go depth {depth}")
         lines = self._wait_for("bestmove", timeout=120.0)
+        return self._parse_search(lines)
+
+    def _parse_search(self, lines: list[str]) -> str:
         self.last_nodes = 0
+        self.last_score_cp = 0
         best = "0000"
         for line in lines:
-            if line.startswith("info ") and " nodes " in line:
+            if line.startswith("info "):
                 parts = line.split()
                 if "nodes" in parts:
                     self.last_nodes = int(parts[parts.index("nodes") + 1])
+                if "score" in parts:
+                    score_index = parts.index("score")
+                    if score_index + 2 < len(parts):
+                        kind = parts[score_index + 1]
+                        value = int(parts[score_index + 2])
+                        if kind == "cp":
+                            self.last_score_cp = value
+                        elif kind == "mate":
+                            self.last_score_cp = (32000 - min(abs(value), 255)) * (1 if value > 0 else -1)
             if line.startswith("bestmove"):
                 best = line.split()[1]
         return best

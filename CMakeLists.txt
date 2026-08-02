@@ -40,6 +40,7 @@ add_library(nsce_engine
   engine/src/nnue.cpp
   engine/src/policy.cpp
   engine/src/controller.cpp
+  engine/src/see.cpp
   engine/src/search.cpp
   engine/src/uci.cpp
   engine/src/perft.cpp
@@ -96,11 +97,24 @@ add_executable(nsce_tests
   engine/tests/test_board.cpp
   engine/tests/test_nnue.cpp
   engine/tests/test_search.cpp
+  engine/tests/test_see.cpp
   engine/tests/test_tt.cpp
 )
 target_link_libraries(nsce_tests PRIVATE nsce_engine GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(nsce_tests)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(
+  NAME PythonExperimentTests
+  COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/tests -p "test_*.py"
+)
+set_tests_properties(PythonExperimentTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(
+  NAME UciSmoke
+  COMMAND ${Python3_EXECUTABLE} tools/smoke_match.py --engine $<TARGET_FILE:nsce>
+          --games 1 --depth-a 3 --depth-b 2 --max-plies 10
+)
+set_tests_properties(UciSmoke PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 30)
 
 add_executable(nsce_bench engine/benches/bench_search.cpp)
 target_link_libraries(nsce_bench PRIVATE nsce_engine)
