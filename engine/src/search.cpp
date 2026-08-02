@@ -7,8 +7,10 @@
 #include "nsce/see.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 
 namespace nsce {
 namespace {
@@ -72,8 +74,8 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
       Piece attacker = pos.piece_on(m.from());
       int victim_value = victim == NO_PIECE ? 0 : piece_value(type_of(victim));
       int attacker_value = attacker == NO_PIECE ? 0 : piece_value(type_of(attacker));
-      s = 1'000'000 + victim_value * 16 - attacker_value +
-          std::clamp(static_exchange_eval(pos, m), -500, 500);
+      int see_score = victim_value <= attacker_value ? static_exchange_eval(pos, m) : 0;
+      s = 1'000'000 + victim_value * 16 - attacker_value + std::clamp(see_score, -500, 500);
     } else if (ply < SearchWorker::kMaxPly && m == w.killers[ply][0])
       s = 900'000;
     else if (ply < SearchWorker::kMaxPly && m == w.killers[ply][1])
@@ -84,10 +86,6 @@ void Search::score_moves(SearchWorker& w, const Position& pos, MoveList& list, M
       Piece pc = pos.piece_on(m.from());
       if (pc != NO_PIECE) s = w.history[pc][m.to()];
       if (use_policy) s += PolicyNet::instance().score_move(pos, m) * 5 / 4;
-      if (w.id > 0) {
-        uint32_t mix = m.raw ^ static_cast<uint32_t>(pos.key()) ^ static_cast<uint32_t>(w.id * 0x9E3779B9U);
-        s += static_cast<int>(mix % 17) - 8;
-      }
     }
     scores[i] = s;
   }
@@ -152,16 +150,11 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     if (legal.size == 0) return mated_in(ply);
     if (draw) return VALUE_DRAW;
   } else {
-    MoveList list;
-    generate_noisy(pos, list);
-    for (int i = 0; i < list.size; ++i) {
-      StateInfo st;
-      Color us = pos.side_to_move();
-      pos.do_move(list.moves[i], st);
-      bool ok = !pos.is_square_attacked(pos.king_square(us), ~us, pos.occupied());
-      pos.undo_move(list.moves[i], st);
-      if (ok) legal.add(list.moves[i]);
-    }
+    MoveList all_legal;
+    generate_legal(pos, all_legal);
+    for (int i = 0; i < all_legal.size; ++i)
+      if (all_legal.moves[i].is_capture() || all_legal.moves[i].is_ep() || all_legal.moves[i].is_promotion())
+        legal.add(all_legal.moves[i]);
   }
 
   int scores[MAX_MOVES];
@@ -172,8 +165,10 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     Move m = legal.moves[i];
     Piece victim = m.is_ep() ? make_piece(~pos.side_to_move(), PAWN) : pos.piece_on(m.to());
     int gain = (victim == NO_PIECE) ? 0 : piece_value(type_of(victim));
+    Piece attacker = pos.piece_on(m.from());
+    int attacker_value = attacker == NO_PIECE ? 0 : piece_value(type_of(attacker));
     // Skip clearly losing captures when not in check.
-    if (!in_check && !m.is_promotion() && static_exchange_eval(pos, m) < -80) continue;
+    if (!in_check && !m.is_promotion() && gain < attacker_value && static_exchange_eval(pos, m) < -80) continue;
     if (!in_check && !m.is_promotion() && stand + gain + 150 < alpha) continue;
 
     StateInfo st;
@@ -374,18 +369,104 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   return best_score;
 }
 
-void Search::helper_loop(Position root, int max_depth, int worker_id) {
-  SearchWorker w{};
-  w.id = worker_id;
-  SearchStack stack[SearchWorker::kMaxPly + 4]{};
-  int first_depth = 1 + (worker_id & 1);
-  for (int depth = first_depth; depth <= max_depth && !time_up(); ++depth) {
-    Position pos = root;
-    std::fill(std::begin(stack), std::end(stack), SearchStack{});
-    search(pos, w, stack + 2, depth, -VALUE_INFINITE, VALUE_INFINITE, 0, false);
-    flush_nodes(w);
+int Search::search_root_parallel(int depth, int alpha, int beta) {
+  if (count_node(main_worker_)) return alpha;
+
+  MoveList moves;
+  generate_legal(root_, moves);
+  if (moves.size == 0) return root_.in_check() ? mated_in(0) : VALUE_DRAW;
+
+  TTEntry tte;
+  Move tt_move{};
+  if (tt_.probe(root_.key(), tte)) tt_move = Move{tte.move};
+  int move_scores[MAX_MOVES];
+  score_moves(main_worker_, root_, moves, tt_move, Move{}, 0, move_scores);
+  sort_moves(moves, move_scores);
+
+  const int original_alpha = alpha;
+  std::atomic<int> next_move{1};
+  std::atomic<int> shared_alpha{alpha};
+  std::atomic<bool> cutoff{false};
+  std::mutex best_mutex;
+  int best_score = -VALUE_INFINITE;
+  Move best_move{};
+  std::array<Move, SearchWorker::kMaxPly> best_pv{};
+  int best_pv_len = 0;
+
+  auto search_move = [&](int index, SearchWorker& worker, bool first) {
+    Position pos = root_;
+    SearchStack stack[SearchWorker::kMaxPly + 4]{};
+    SearchStack* ss = stack + 2;
+    Move move = moves.moves[index];
+    ss->current_move = move;
+    StateInfo state;
+    pos.do_move(move, state);
+
+    int local_alpha = shared_alpha.load(std::memory_order_relaxed);
+    int score;
+    if (first) {
+      score = -search(pos, worker, ss + 1, depth - 1, -beta, -local_alpha, 1, false);
+    } else {
+      score = -search(pos, worker, ss + 1, depth - 1, -local_alpha - 1, -local_alpha, 1, true);
+      if (score > local_alpha && score < beta && !time_up()) {
+        local_alpha = std::max(local_alpha, shared_alpha.load(std::memory_order_relaxed));
+        score = -search(pos, worker, ss + 1, depth - 1, -beta, -local_alpha, 1, false);
+      }
+    }
+    pos.undo_move(move, state);
+
+    if (time_up()) return;
+    {
+      std::lock_guard<std::mutex> lock(best_mutex);
+      if (score > best_score) {
+        best_score = score;
+        best_move = move;
+        best_pv[0] = move;
+        best_pv_len = 1;
+        for (int i = 0; i < worker.pv_len[1] && best_pv_len < SearchWorker::kMaxPly; ++i)
+          best_pv[best_pv_len++] = worker.pv[1][i];
+      }
+    }
+
+    int observed = shared_alpha.load(std::memory_order_relaxed);
+    while (score > observed &&
+           !shared_alpha.compare_exchange_weak(observed, score, std::memory_order_relaxed)) {
+    }
+    if (score >= beta) cutoff.store(true, std::memory_order_relaxed);
+  };
+
+  search_move(0, main_worker_, true);
+
+  auto claim_moves = [&](SearchWorker& worker) {
+    while (!cutoff.load(std::memory_order_relaxed) && !time_up()) {
+      int index = next_move.fetch_add(1, std::memory_order_relaxed);
+      if (index >= moves.size) break;
+      search_move(index, worker, false);
+    }
+    flush_nodes(worker);
+  };
+
+  std::vector<std::thread> helpers;
+  if (!cutoff.load(std::memory_order_relaxed) && !time_up()) {
+    int helper_count = std::min(threads_ - 1, moves.size - 1);
+    helpers.reserve(helper_count);
+    for (int id = 1; id <= helper_count; ++id) {
+      helpers.emplace_back([&]() {
+        SearchWorker worker{};
+        claim_moves(worker);
+      });
+    }
+    claim_moves(main_worker_);
   }
-  flush_nodes(w);
+  for (auto& helper : helpers) helper.join();
+
+  if (!time_up() && best_move) {
+    main_worker_.pv_len[0] = best_pv_len;
+    for (int i = 0; i < best_pv_len; ++i) main_worker_.pv[0][i] = best_pv[i];
+    Bound bound = best_score >= beta ? BOUND_LOWER : best_score > original_alpha ? BOUND_EXACT : BOUND_UPPER;
+    tt_.store(root_.key(), depth, best_score, bound, best_move, 0);
+  }
+  return best_move ? best_score : alpha;
 }
 
 SearchInfo Search::go(const SearchLimits& limits) {
@@ -429,12 +510,6 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
   int stable_best_iterations = 0;
   int prev_score = 0;
 
-  std::vector<std::thread> helpers;
-  if (threads_ > 1) {
-    for (int t = 1; t < threads_; ++t)
-      helpers.emplace_back([this, max_depth, t]() { helper_loop(root_, max_depth, t); });
-  }
-
   SearchStack stack[SearchWorker::kMaxPly + 4]{};
 
   for (int depth = 1; depth <= max_depth; ++depth) {
@@ -451,7 +526,8 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     while (true) {
       pos = root_;
       std::fill(std::begin(stack), std::end(stack), SearchStack{});
-      score = search(pos, main_worker_, stack + 2, depth, alpha, beta, 0, false);
+      score = threads_ > 1 ? search_root_parallel(depth, alpha, beta)
+                           : search(pos, main_worker_, stack + 2, depth, alpha, beta, 0, false);
       flush_nodes(main_worker_);
       if (time_up() && depth > 1) break;
 
@@ -525,7 +601,6 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
   }
 
   stop_.store(true, std::memory_order_relaxed);
-  for (auto& t : helpers) t.join();
   flush_nodes(main_worker_);
   info.nodes = nodes_.load(std::memory_order_relaxed);
   info.time_ms = static_cast<int>(

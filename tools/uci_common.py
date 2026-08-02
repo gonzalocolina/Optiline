@@ -82,6 +82,7 @@ class UciEngine:
         self._send("isready")
         self._wait_for("readyok")
         self.last_nodes = 0
+        self.last_depth = 0
         self.last_time_ms = 0
         self.last_score_cp = 0
         self.overruns = 0
@@ -152,6 +153,7 @@ class UciEngine:
 
     def _parse_search(self, lines: list[str]) -> str:
         self.last_nodes = 0
+        self.last_depth = 0
         self.last_score_cp = 0
         best = "0000"
         for line in lines:
@@ -159,6 +161,8 @@ class UciEngine:
                 parts = line.split()
                 if "nodes" in parts:
                     self.last_nodes = int(parts[parts.index("nodes") + 1])
+                if "depth" in parts:
+                    self.last_depth = int(parts[parts.index("depth") + 1])
                 if "score" in parts:
                     score_index = parts.index("score")
                     if score_index + 2 < len(parts):
@@ -179,6 +183,30 @@ class UciEngine:
         assert self.proc.stdout is not None
         line = self.proc.stdout.readline().strip()
         return line
+
+    def legal_moves(self, fen: str, moves: list[str]) -> list[str]:
+        self.set_position(fen, moves)
+        self._send("legalmoves")
+        assert self.proc.stdout is not None
+        parts = self.proc.stdout.readline().strip().split()
+        if not parts or parts[0] != "legalmoves":
+            raise RuntimeError(f"{self.name}: expected legalmoves response")
+        return parts[1:]
+
+    def current_fen(self, fen: str, moves: list[str]) -> str:
+        self.set_position(fen, moves)
+        self._send("d")
+        assert self.proc.stdout is not None
+        return self.proc.stdout.readline().strip()
+
+    def evaluate(self, fen: str, moves: list[str] | None = None) -> int:
+        self.set_position(fen, moves or [])
+        self._send("eval")
+        assert self.proc.stdout is not None
+        parts = self.proc.stdout.readline().strip().split()
+        if len(parts) != 2 or parts[0] != "eval":
+            raise RuntimeError(f"{self.name}: expected eval response")
+        return int(parts[1])
 
     def close(self) -> None:
         try:

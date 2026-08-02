@@ -2,6 +2,7 @@
 
 #include "nsce/bitboard.hpp"
 #include "nsce/controller.hpp"
+#include "nsce/eval.hpp"
 #include "nsce/movegen.hpp"
 #include "nsce/nnue.hpp"
 #include "nsce/perft.hpp"
@@ -19,7 +20,7 @@ namespace nsce {
 Uci::Uci() {
   init_bitboards();
   Zobrist::init();
-  Nnue::instance().load_default_from_hce();
+  if (!Nnue::instance().load("nets/nnue_trained.bin")) Nnue::instance().load_default_from_hce();
   PolicyNet::instance().load_default();
   PolicyNet::instance().set_enabled(false);
   SearchController::instance().load_default();
@@ -59,7 +60,7 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name UseNNUE type check default true\n";
     std::cout << "option name UsePolicy type check default false\n";
     std::cout << "option name UseSearchController type check default false\n";
-    std::cout << "option name EvalFile type string default <internal>\n";
+    std::cout << "option name EvalFile type string default nets/nnue_trained.bin\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
     std::cout << "option name TelemetryFile type string default <empty>\n";
@@ -105,6 +106,14 @@ void Uci::handle_command(const std::string& line) {
     } else {
       std::cout << "ongoing" << std::endl;
     }
+  } else if (token == "legalmoves") {
+    MoveList list;
+    generate_legal(pos_, list);
+    std::cout << "legalmoves";
+    for (Move move : list) std::cout << ' ' << move_to_uci(move);
+    std::cout << std::endl;
+  } else if (token == "eval") {
+    std::cout << "eval " << evaluate(pos_) << std::endl;
   } else if (token == "quit") {
     stop_search();
   }
@@ -196,10 +205,11 @@ void Uci::handle_setoption(std::istringstream& is) {
   } else if (name == "UseSearchController") {
     SearchController::instance().set_enabled(value == "true" || value == "1");
   } else if (name == "EvalFile") {
-    if (value == "<internal>" || value == "internal")
+    if (value == "<internal>" || value == "internal" || value == "hce") {
       Nnue::instance().load_default_from_hce();
-    else
+    } else {
       Nnue::instance().load(value);
+    }
     pos_.set_fen(pos_.fen());
     search_.set_position(pos_);
   } else if (name == "PolicyFile") {

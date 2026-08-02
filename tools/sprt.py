@@ -62,6 +62,7 @@ def main() -> int:
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--beta", type=float, default=0.05)
     ap.add_argument("--movetime", type=int, default=100)
+    ap.add_argument("--allow-short-tc", action="store_true", help="allow exploratory movetime below 50 ms")
     ap.add_argument("--max-games", type=int, default=200, help="positive even number")
     ap.add_argument("--max-plies", type=int, default=60)
     ap.add_argument("--seed", type=int, default=1)
@@ -73,6 +74,9 @@ def main() -> int:
     engine = Path(args.engine)
     if args.max_games <= 0 or args.max_games % 2:
         print("--max-games must be a positive even number", file=sys.stderr)
+        return 1
+    if args.movetime < 50 and not args.allow_short_tc:
+        print("movetime below 50 ms is too noisy for SPRT; use --allow-short-tc only for smoke tests", file=sys.stderr)
         return 1
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
     outdir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +111,7 @@ def main() -> int:
             "bounds": {"lower": B, "upper": A},
             "seed": args.seed,
             "movetime_ms": args.movetime,
+            "exploratory_short_tc": args.movetime < 50,
             "adjudication_cp": args.adjudication_cp,
             "adjudication_plies": args.adjudication_plies,
             "cfg_a": args.cfg_a,
@@ -193,6 +198,7 @@ def main() -> int:
             "kind": "sprt",
             "max_games": args.max_games,
             "movetime_ms": args.movetime,
+            "exploratory_short_tc": args.movetime < 50,
             "max_plies": args.max_plies,
             "elo0": args.elo0,
             "elo1": args.elo1,

@@ -4,8 +4,9 @@ Motor de ajedrez UCI en C++20. Hipótesis: una política neuronal de presupuesto
 
 ## Estado actual (v0.8 + lab)
 
-- Núcleo bitboard + perft + UCI (`status` para adjudicar)
-- Búsqueda competitiva + NNUE/política/controlador
+- Movegen legal pin-aware (doble jaque, evasiones y en-passant) validado con perft
+- PVS/alpha-beta con reparto raíz YBWC: cada worker reclama movimientos distintos
+- NNUE `768x128x1` entrenada con etiquetas Stockfish, cuantizada y validada en holdout
 - **Laboratorio:** baseline congelado, ablations, escalera Elo, SPRT, autojuego con resultados, destilación
 - Optimización: AVX2, LTO, `-march=native`, bench de latencia NNUE
 
@@ -33,6 +34,7 @@ ctest --test-dir build --output-on-failure
 ./build/nsce bench 6
 python3 tools/smoke_match.py --games 2
 bash train/run_train_loop.sh
+# Pipeline NNUE reproducible: train/README.md
 ```
 
 ## Laboratorio

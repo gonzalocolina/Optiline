@@ -46,3 +46,28 @@ TEST(SearchTest, CheckmateTakesPrecedenceOverFiftyMoveDraw) {
 
   EXPECT_EQ(info.score, mate_in(1));
 }
+
+TEST(SearchTest, ParallelRootSplitPreservesForcedMate) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_fen("7k/5Q2/6K1/8/8/8/8/8 w - - 0 1");
+  Search search;
+  search.set_position(pos);
+  search.set_threads(4);
+  SearchLimits limits;
+  limits.depth = 3;
+
+  SearchInfo info = search.go(limits);
+
+  ASSERT_TRUE(info.best_move);
+  EXPECT_EQ(info.score, mate_in(1));
+  StateInfo state;
+  pos.do_move(info.best_move, state);
+  MoveList replies;
+  generate_legal(pos, replies);
+  EXPECT_TRUE(pos.in_check());
+  EXPECT_EQ(replies.size, 0);
+}
+

@@ -1,0 +1,210 @@
+[
+  {
+    "name_a": "frozen_hce",
+    "name_b": "trained_nnue",
+    "engine_a": "build/nsce",
+    "engine_b": "build/nsce",
+    "cfg_a": "tools/configs/baseline.uci",
+    "cfg_b": "tools/configs/trained_nnue.uci",
+    "games": 20,
+    "pairs": 10,
+    "seed": 20260802,
+    "movetime_ms": 100,
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "W": 0,
+    "D": 19,
+    "L": 1,
+    "score": 0.475,
+    "elo_diff_a_minus_b": -17.386277512436145,
+    "elo_err_95": 45.55681035020663,
+    "nodes_per_game_a": 960774.25,
+    "nodes_per_game_b": 864018.7,
+    "time_ms_per_game_a": 1975.7,
+    "time_ms_per_game_b": 1980.45,
+    "overruns_a": 0,
+    "overruns_b": 0,
+    "games_log": [
+      {
+        "i": 0,
+        "pair_id": 0,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 1,
+        "pair_id": 0,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 2,
+        "pair_id": 1,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 3,
+        "pair_id": 1,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 4,
+        "pair_id": 2,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 5,
+        "pair_id": 2,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 6,
+        "pair_id": 3,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 7,
+        "pair_id": 3,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 8,
+        "pair_id": 4,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 9,
+        "pair_id": 4,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 10,
+        "pair_id": 5,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 11,
+        "pair_id": 5,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 12,
+        "pair_id": 6,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 13,
+        "pair_id": 6,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+        "result_from_a": "0-1",
+        "plies": 34,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 14,
+        "pair_id": 7,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 15,
+        "pair_id": 7,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 16,
+        "pair_id": 8,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 17,
+        "pair_id": 8,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 18,
+        "pair_id": 9,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      },
+      {
+        "i": 19,
+        "pair_id": 9,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "result_from_a": "1/2-1/2",
+        "plies": 40,
+        "termination": "max_plies"
+      }
+    ]
+  }
+]

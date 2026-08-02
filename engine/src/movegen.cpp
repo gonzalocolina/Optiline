@@ -1,5 +1,7 @@
 #include "nsce/movegen.hpp"
 
+#include <array>
+
 namespace nsce {
 namespace {
 
@@ -180,6 +182,30 @@ bool leaves_king_in_check(Position& pos, Move m) {
   return bad;
 }
 
+bool legal_king_move(const Position& pos, Move move) {
+  Color us = pos.side_to_move();
+  Color them = ~us;
+  Square from = move.from();
+  Square to = move.to();
+  Bitboard occupied = pos.occupied();
+
+  if (!move.is_castle()) {
+    Bitboard occupied_after = (occupied & ~square_bb(from)) | square_bb(to);
+    return !pos.is_square_attacked(to, them, occupied_after);
+  }
+
+  bool kingside = file_of(to) > file_of(from);
+  Square transit = static_cast<Square>(from + (kingside ? 1 : -1));
+  Bitboard transit_occupied = (occupied & ~square_bb(from)) | square_bb(transit);
+  if (pos.is_square_attacked(transit, them, transit_occupied)) return false;
+
+  Square rook_from = kingside ? (us == WHITE ? SQ_H1 : SQ_H8) : (us == WHITE ? SQ_A1 : SQ_A8);
+  Square rook_to = kingside ? (us == WHITE ? SQ_F1 : SQ_F8) : (us == WHITE ? SQ_D1 : SQ_D8);
+  Bitboard final_occupied = occupied & ~square_bb(from) & ~square_bb(rook_from);
+  final_occupied |= square_bb(to) | square_bb(rook_to);
+  return !pos.is_square_attacked(to, them, final_occupied);
+}
+
 }  // namespace
 
 void generate_pseudo_legal(const Position& pos, MoveList& list) {
@@ -216,9 +242,61 @@ void generate_legal(const Position& pos, MoveList& list) {
   MoveList pseudo;
   generate_pseudo_legal(pos, pseudo);
   list.size = 0;
-  Position& mutable_pos = const_cast<Position&>(pos);
+
+  const Color us = pos.side_to_move();
+  const Square king = pos.king_square(us);
+  const Bitboard occupied = pos.occupied();
+  const Bitboard checkers = pos.checkers();
+  const int check_count = popcount(checkers);
+
+  Bitboard pinned = 0;
+  std::array<Bitboard, SQUARE_NB> pin_line{};
+  Bitboard snipers = (bishop_attacks_bb(king, 0) & (pos.pieces(~us, BISHOP) | pos.pieces(~us, QUEEN))) |
+                     (rook_attacks_bb(king, 0) & (pos.pieces(~us, ROOK) | pos.pieces(~us, QUEEN)));
+  while (snipers) {
+    Square sniper = pop_lsb(snipers);
+    Bitboard blockers = between_bb(king, sniper) & occupied;
+    if (popcount(blockers) == 1 && (blockers & pos.pieces(us))) {
+      Square blocker = lsb(blockers);
+      pinned |= blockers;
+      pin_line[blocker] = line_bb(king, sniper);
+    }
+  }
+
+  Bitboard evasion_mask = ~Bitboard{0};
+  Square checker = SQ_NONE;
+  if (check_count == 1) {
+    checker = lsb(checkers);
+    evasion_mask = square_bb(checker) | between_bb(king, checker);
+  }
+
   for (int i = 0; i < pseudo.size; ++i) {
-    if (!leaves_king_in_check(mutable_pos, pseudo.moves[i])) list.add(pseudo.moves[i]);
+    Move move = pseudo.moves[i];
+    Piece moving = pos.piece_on(move.from());
+    if (moving == NO_PIECE) continue;
+
+    if (type_of(moving) == KING) {
+      if (legal_king_move(pos, move)) list.add(move);
+      continue;
+    }
+
+    if (check_count >= 2) continue;
+    if ((pinned & square_bb(move.from())) && !(pin_line[move.from()] & square_bb(move.to()))) continue;
+
+    if (check_count == 1) {
+      bool evades = evasion_mask & square_bb(move.to());
+      if (move.is_ep()) {
+        Square captured = static_cast<Square>(move.to() + (us == WHITE ? -8 : 8));
+        evades = evades || captured == checker;
+      }
+      if (!evades) continue;
+    }
+
+    if (move.is_ep()) {
+      Position& mutable_pos = const_cast<Position&>(pos);
+      if (leaves_king_in_check(mutable_pos, move)) continue;
+    }
+    list.add(move);
   }
 }
 

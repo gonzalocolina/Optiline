@@ -6,6 +6,7 @@
 | --- | --- |
 | Binary | `build/nsce` (Release, NSCE 0.8+) |
 | UseNNUE | true |
+| EvalFile | internal (frozen HCE-distilled network) |
 | UsePolicy | false |
 | UseSearchController | false |
 | Threads | 1 |
@@ -18,6 +19,7 @@ Apply via UCI before every match:
 setoption name Hash value 16
 setoption name Threads value 1
 setoption name UseNNUE value true
+setoption name EvalFile value internal
 setoption name UsePolicy value false
 setoption name UseSearchController value false
 ```
@@ -48,6 +50,9 @@ Matches:
 2. baseline vs Policy on
 3. baseline vs Controller on
 4. baseline vs Policy+Controller
+
+The trained NNUE is a separate candidate, `tools/configs/trained_nnue.uci`; do not
+silently replace the frozen baseline when measuring it.
 
 All four comparisons are pre-registered and always run. The matrix is exploratory:
 promote a candidate only after a separate confirmation SPRT on fresh games.
@@ -97,6 +102,15 @@ as referee. It has been removed. The internal runner now:
 - aborts on `bestmove 0000` in an ongoing position instead of silently scoring it.
 
 For publishable matches, prefer `cutechess-cli` with a separately pinned adjudication policy.
+Treat `movetime < 50 ms` as timer/scheduler testing only: `sprt.py` rejects it unless
+`--allow-short-tc` is explicitly supplied, and every manifest records
+`exploratory_short_tc`. At short controls, OS jitter and adjudication account for too much
+of the result variance.
+
+Report opening pairs, not just games, as the effective independent sample count. Before
+promotion, repeat the result at a longer control and run an adjudication sensitivity check
+(higher threshold or no evaluation adjudication). A short-control `inconclusive` result is
+evidence of insufficient information, not evidence that the engines are equal.
 
 ## Candidate promotion gates
 

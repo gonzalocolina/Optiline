@@ -1,0 +1,17 @@
+{
+  "baseline": {
+    "mae_cp": 430.0979381443299,
+    "rmse_cp": 520.4593678744263,
+    "samples": 194
+  },
+  "dataset_sha256": "e8ffbe05d955b1ef7fd03ec72eeb5a78e84dc19470412350b1df56133da6bb51",
+  "mae_improvement_cp": 104.97938144329896,
+  "mae_improvement_percent": 24.40825033857069,
+  "network_sha256": "bff4ebb9075790f2d13cd9a1c7ce1e9aa74934f8a7f0d6750f62a1664537be5d",
+  "split": "sha256(fen) modulo 10 == 0",
+  "trained": {
+    "mae_cp": 325.1185567010309,
+    "rmse_cp": 411.7101184686679,
+    "samples": 194
+  }
+}

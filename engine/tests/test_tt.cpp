@@ -70,3 +70,29 @@ TEST(TranspositionTableTest, KeepsFourCollidingEntriesInCluster) {
     EXPECT_EQ(entry.score, 10 * i);
   }
 }
+
+TEST(TranspositionTableTest, PreservesFullMoveEncoding) {
+  TranspositionTable table;
+  table.resize(1);
+  Move max_encoded{Move::kEncodingMask};
+  constexpr Key key = 0xDEADBEEF;
+
+  table.store(key, 12, -321, BOUND_EXACT, max_encoded, 0);
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_EQ(entry.move, max_encoded.raw);
+}
+
+TEST(TranspositionTableTest, GenerationWrapDoesNotClearTable) {
+  TranspositionTable table;
+  table.resize(1);
+  constexpr Key key = 0xABCDEF;
+  table.store(key, 20, 42, BOUND_EXACT, Move::make(SQ_E2, SQ_E4), 0);
+
+  for (int i = 0; i < 64; ++i) table.new_search();
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_EQ(entry.score, 42);
+}

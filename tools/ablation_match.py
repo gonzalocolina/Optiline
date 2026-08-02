@@ -257,6 +257,7 @@ def run_matrix(
             "kind": "ablation_matrix",
             "games_per_match": games,
             "movetime_ms": movetime,
+            "exploratory_short_tc": movetime < 50,
             "max_plies": max_plies,
             "adjudication_cp": adjudication_cp,
             "adjudication_plies": adjudication_plies,
@@ -338,6 +339,8 @@ def main() -> int:
     if args.games <= 0 or args.games % 2:
         print("--games must be a positive even number", file=sys.stderr)
         return 1
+    if args.movetime < 50:
+        print("warning: movetime below 50 ms is exploratory and unsuitable for promotion decisions", file=sys.stderr)
 
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
 
@@ -386,6 +389,7 @@ def main() -> int:
             "kind": "ablation_match",
             "games": args.games,
             "movetime_ms": args.movetime,
+            "exploratory_short_tc": args.movetime < 50,
             "max_plies": args.max_plies,
             "adjudication_cp": args.adjudication_cp,
             "adjudication_plies": args.adjudication_plies,

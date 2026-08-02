@@ -103,7 +103,14 @@ enum MoveFlags : int {
   MF_PROMO = 16
 };
 
+static_assert(NO_PIECE_TYPE < 16, "Move promotion field is four bits");
+static_assert((MF_CAPTURE | MF_DOUBLE | MF_EP | MF_CASTLE | MF_PROMO) < 256,
+              "Move flags field is eight bits");
+
 struct Move {
+  static constexpr int kEncodingBits = 24;
+  static constexpr uint32_t kEncodingMask = (1U << kEncodingBits) - 1;
+
   uint32_t raw = 0;
 
   Move() = default;

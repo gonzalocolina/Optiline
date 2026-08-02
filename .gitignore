@@ -8,7 +8,10 @@ compile_commands.json
 gamess*.pgn
 *.nnue
 *.onnx
-nets/
+nets/*
+!nets/nnue_trained.bin
+!nets/nnue_trained.metrics.json
+!nets/nnue_validation.json
 train/data/
 train/checkpoints/
 .venv/

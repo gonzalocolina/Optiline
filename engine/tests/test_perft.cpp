@@ -57,6 +57,33 @@ TEST_F(EngineTest, PerftPosition3) {
   EXPECT_EQ(perft(pos, 4), 43238ULL);
 }
 
+TEST_F(EngineTest, PerftPosition4PinsAndPromotions) {
+  Position pos;
+  pos.set_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+  EXPECT_EQ(perft(pos, 1), 6ULL);
+  EXPECT_EQ(perft(pos, 2), 264ULL);
+  EXPECT_EQ(perft(pos, 3), 9467ULL);
+  EXPECT_EQ(perft(pos, 4), 422333ULL);
+}
+
+TEST_F(EngineTest, PerftPosition5ChecksAndCastling) {
+  Position pos;
+  pos.set_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+  EXPECT_EQ(perft(pos, 1), 44ULL);
+  EXPECT_EQ(perft(pos, 2), 1486ULL);
+  EXPECT_EQ(perft(pos, 3), 62379ULL);
+  EXPECT_EQ(perft(pos, 4), 2103487ULL);
+}
+
+TEST_F(EngineTest, PerftPosition6TacticalPins) {
+  Position pos;
+  pos.set_fen("r4rk1/1pp1qppp/p1np1n2/8/2B1P3/2N2Q1p/PPP2PPP/R1B2RK1 w - - 0 10");
+  EXPECT_EQ(perft(pos, 1), 42ULL);
+  EXPECT_EQ(perft(pos, 2), 1549ULL);
+  EXPECT_EQ(perft(pos, 3), 66500ULL);
+  EXPECT_EQ(perft(pos, 4), 2396676ULL);
+}
+
 TEST_F(EngineTest, MakeUnmakeRestoresFen) {
   Position pos;
   pos.set_startpos();
@@ -96,4 +123,15 @@ TEST_F(EngineTest, CastlingRequiresTheRook) {
 
   EXPECT_EQ(list.size, 15);
   for (Move move : list) EXPECT_NE(move_to_uci(move), "e1c1");
+}
+
+TEST_F(EngineTest, EnPassantCannotExposeHorizontalRookCheck) {
+  Position pos;
+  pos.set_fen("8/8/8/r4pPK/8/8/8/7k w - f6 0 1");
+
+  MoveList list;
+  generate_legal(pos, list);
+
+  EXPECT_EQ(list.size, 4);
+  for (Move move : list) EXPECT_NE(move_to_uci(move), "g5f6");
 }

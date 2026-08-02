@@ -1,0 +1,66 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "2809210c3120973b17c762eb214e0706eb0735535af7a1655ee96522d215e3ea",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/trained_nnue.uci": "c394127e62415b5d847f68defc2878d8b339ac443cb223b0493190f82189ee8b"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "e5c7bbe9b27d32764f739571fe326c2fdbf66cc336d22dbbe7ce562df570e20f",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings.epd",
+    "openings_sha256": "dd42f8d02ffce27ba7e807459441bd364ff51981a2d3f602b9411069e43d4fb3"
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--engine",
+    "build/nsce",
+    "--engine-b",
+    "build/nsce",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/trained_nnue.uci",
+    "--name-a",
+    "frozen_hce",
+    "--name-b",
+    "trained_nnue",
+    "--games",
+    "20",
+    "--movetime",
+    "100",
+    "--max-plies",
+    "40",
+    "--seed",
+    "20260802",
+    "--outdir",
+    "experiments/20260802_nnue_confirmation"
+  ],
+  "created_utc": "2026-08-02T18:10:25.488349+00:00",
+  "git": {
+    "commit": "3447ecee1d82642f436a5a007c7b0970fb55471b",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "e5c7bbe9b27d32764f739571fe326c2fdbf66cc336d22dbbe7ce562df570e20f",
+    "exploratory_short_tc": false,
+    "games": 20,
+    "kind": "ablation_match",
+    "max_plies": 40,
+    "movetime_ms": 100
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260802,
+  "toolchain": {
+    "cmake_cache_sha256": "2119c23e674be393b34bae6a08b4a786c2f0841da0b76704765e5651d9e9b36b",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}
