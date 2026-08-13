@@ -132,6 +132,7 @@ class Search {
              bool cut_node);
   int quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta, int ply);
   bool time_up() const;
+  bool stopped() const { return stop_.load(std::memory_order_relaxed); }
   bool count_node(SearchWorker& w);
   void flush_nodes(SearchWorker& w);
   void score_moves(SearchWorker& w, const Position& pos, const SearchStack* ss, MoveList& list, Move tt_move,

@@ -29,6 +29,8 @@ int main(int argc, char** argv) {
   if (argc > 2) threads = std::atoi(argv[2]);
   int repetitions = 1;
   if (argc > 3) repetitions = std::atoi(argv[3]);
+  int movetime = 0;
+  if (argc > 5) movetime = std::atoi(argv[5]);
 
   Search search;
   search.set_hash_mb(64);
@@ -45,7 +47,10 @@ int main(int argc, char** argv) {
   };
 
   SearchLimits limits;
-  limits.depth = depth;
+  if (movetime > 0)
+    limits.movetime_ms = movetime;
+  else
+    limits.depth = depth;
 
   auto t0 = std::chrono::steady_clock::now();
   uint64_t total_nodes = 0;
@@ -67,7 +72,8 @@ int main(int argc, char** argv) {
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
 
   uint64_t nps = ms > 0 ? total_nodes * 1000ULL / static_cast<uint64_t>(ms) : total_nodes;
-  std::cout << "nsce_bench positions=" << fens.size() * repetitions << " depth=" << depth
+  std::cout << "nsce_bench positions=" << fens.size() * repetitions
+            << (movetime > 0 ? " movetime=" : " depth=") << (movetime > 0 ? movetime : depth)
             << " threads=" << threads << " nodes=" << total_nodes << " time_ms=" << ms << " nps=" << nps
             << " best=" << last_best.raw << " score=" << last_score;
 #if defined(NSCE_STATS)

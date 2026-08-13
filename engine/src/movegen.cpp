@@ -1,7 +1,5 @@
 #include "nsce/movegen.hpp"
 
-#include <array>
-
 namespace nsce {
 namespace {
 
@@ -243,23 +241,9 @@ void filter_legal(const Position& pos, const MoveList& pseudo, MoveList& list) {
 
   const Color us = pos.side_to_move();
   const Square king = pos.king_square(us);
-  const Bitboard occupied = pos.occupied();
   const Bitboard checkers = pos.checkers();
   const int check_count = popcount(checkers);
-
-  Bitboard pinned = 0;
-  std::array<Bitboard, SQUARE_NB> pin_line{};
-  Bitboard snipers = (bishop_attacks_bb(king, 0) & (pos.pieces(~us, BISHOP) | pos.pieces(~us, QUEEN))) |
-                     (rook_attacks_bb(king, 0) & (pos.pieces(~us, ROOK) | pos.pieces(~us, QUEEN)));
-  while (snipers) {
-    Square sniper = pop_lsb(snipers);
-    Bitboard blockers = between_bb(king, sniper) & occupied;
-    if (popcount(blockers) == 1 && (blockers & pos.pieces(us))) {
-      Square blocker = lsb(blockers);
-      pinned |= blockers;
-      pin_line[blocker] = line_bb(king, sniper);
-    }
-  }
+  const Bitboard pinned = pos.blockers_for_king();
 
   Bitboard evasion_mask = ~Bitboard{0};
   Square checker = SQ_NONE;
@@ -279,7 +263,7 @@ void filter_legal(const Position& pos, const MoveList& pseudo, MoveList& list) {
     }
 
     if (check_count >= 2) continue;
-    if ((pinned & square_bb(move.from())) && !(pin_line[move.from()] & square_bb(move.to()))) continue;
+    if ((pinned & square_bb(move.from())) && !(line_bb(king, move.from()) & square_bb(move.to()))) continue;
 
     if (check_count == 1) {
       bool evades = evasion_mask & square_bb(move.to());

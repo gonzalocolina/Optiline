@@ -48,6 +48,8 @@ void Position::clear() {
   pawn_key_ = 0;
   nonpawn_key_ = 0;
   checkers_ = 0;
+  blockers_for_king_ = 0;
+  blockers_valid_ = false;
   history_keys_.clear();
   history_keys_.reserve(512);
   nnue_live_ = false;
@@ -200,6 +202,30 @@ Key Position::compute_key() const {
 
 void Position::update_checkers() {
   checkers_ = attackers_to(king_square(side_)) & pieces(~side_);
+  blockers_valid_ = false;
+}
+
+Bitboard Position::compute_blockers_for_king() const {
+  const Color us = side_;
+  const Square king = king_square(us);
+  const Bitboard occupied = occupied_;
+  Bitboard pinned = 0;
+  Bitboard snipers = (bishop_attacks_bb(king, 0) & (pieces(~us, BISHOP) | pieces(~us, QUEEN))) |
+                     (rook_attacks_bb(king, 0) & (pieces(~us, ROOK) | pieces(~us, QUEEN)));
+  while (snipers) {
+    const Square sniper = pop_lsb(snipers);
+    const Bitboard blockers = between_bb(king, sniper) & occupied;
+    if (popcount(blockers) == 1 && (blockers & pieces(us))) pinned |= blockers;
+  }
+  return pinned;
+}
+
+Bitboard Position::blockers_for_king() const {
+  if (!blockers_valid_) {
+    blockers_for_king_ = compute_blockers_for_king();
+    blockers_valid_ = true;
+  }
+  return blockers_for_king_;
 }
 
 Bitboard Position::attackers_to(Square s, Bitboard occ) const {
@@ -212,7 +238,12 @@ Bitboard Position::attackers_to(Square s, Bitboard occ) const {
 }
 
 bool Position::is_square_attacked(Square s, Color by, Bitboard occ) const {
-  return attackers_to(s, occ) & pieces(by);
+  if (pawn_attacks_bb(~by, s) & pieces(by, PAWN)) return true;
+  if (knight_attacks_bb(s) & pieces(by, KNIGHT)) return true;
+  if (king_attacks_bb(s) & pieces(by, KING)) return true;
+  if (bishop_attacks_bb(s, occ) & (pieces(by, BISHOP) | pieces(by, QUEEN))) return true;
+  if (rook_attacks_bb(s, occ) & (pieces(by, ROOK) | pieces(by, QUEEN))) return true;
+  return false;
 }
 
 bool Position::is_capture(Move m) const {
@@ -233,10 +264,10 @@ bool Position::is_draw() const {
     }
   }
 
-  int reps = 0;
+  int reps = 1;
   int current = static_cast<int>(history_keys_.size()) - 1;
   int earliest = std::max(0, current - halfmove_);
-  for (int i = current; i >= earliest; i -= 2) {
+  for (int i = current - 2; i >= earliest; i -= 2) {
     if (history_keys_[i] == key_ && ++reps >= 3) return true;
   }
   return false;
@@ -331,6 +362,7 @@ void Position::undo_move(Move m, const StateInfo& st) {
   halfmove_ = st.halfmove_clock;
   key_ = st.key;
   checkers_ = st.checkers;
+  blockers_valid_ = false;
 
   if (m.is_castle()) {
     bool kingside = file_of(to) > file_of(from);
@@ -372,6 +404,7 @@ void Position::do_null_move(StateInfo& st) {
   ++halfmove_;
   side_ = ~side_;
   checkers_ = 0;
+  blockers_valid_ = false;
   history_keys_.push_back(key_);
 }
 
@@ -383,6 +416,7 @@ void Position::undo_null_move(const StateInfo& st) {
   halfmove_ = st.halfmove_clock;
   key_ = st.key;
   checkers_ = st.checkers;
+  blockers_valid_ = false;
 }
 
 }  // namespace nsce

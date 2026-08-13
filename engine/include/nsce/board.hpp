@@ -46,6 +46,7 @@ class Position {
   Key pawn_key() const { return pawn_key_; }
   Key nonpawn_key() const { return nonpawn_key_; }
   Bitboard checkers() const { return checkers_; }
+  Bitboard blockers_for_king() const;
   Square king_square(Color c) const { return lsb(pieces(c, KING)); }
   const NnueAccumulator& nnue_acc() const { return nnue_acc_; }
 
@@ -66,6 +67,7 @@ class Position {
   void update_checkers();
   Key compute_key() const;
   void refresh_nnue();
+  Bitboard compute_blockers_for_king() const;
 
   std::array<Piece, SQUARE_NB> board_{};
   std::array<Bitboard, COLOR_NB> by_color_{};
@@ -80,6 +82,8 @@ class Position {
   Key pawn_key_ = 0;
   Key nonpawn_key_ = 0;
   Bitboard checkers_ = 0;
+  mutable Bitboard blockers_for_king_ = 0;
+  mutable bool blockers_valid_ = false;
   std::vector<Key> history_keys_;
   NnueAccumulator nnue_acc_{};
   bool nnue_live_ = false;

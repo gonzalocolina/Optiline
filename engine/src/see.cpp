@@ -70,15 +70,16 @@ int static_exchange_eval(const Position& pos, Move move) {
   pieces[us][target_type] |= target_bb;
   occupied |= target_bb;
 
+  Bitboard by_color[COLOR_NB] = {pos.pieces(WHITE), pos.pieces(BLACK)};
+  by_color[us] ^= from_bb;
+  by_color[us] |= target_bb;
+  if (captured_piece != NO_PIECE) by_color[~us] &= ~square_bb(captured_square);
+
   Color side = ~us;
   Color occupant_color = us;
   int depth = 0;
   while (depth < 31) {
-    Bitboard attackers = attackers_to(target, occupied, pieces) & [&]() {
-      Bitboard side_pieces = 0;
-      for (int type = 0; type < PIECE_TYPE_NB; ++type) side_pieces |= pieces[side][type];
-      return side_pieces;
-    }();
+    Bitboard attackers = attackers_to(target, occupied, pieces) & by_color[side];
     if (!attackers) break;
 
     PieceType attacker_type = PAWN;
@@ -96,12 +97,7 @@ int static_exchange_eval(const Position& pos, Move move) {
     Bitboard attacker_bb = square_bb(attacker_square);
     if (attacker_type == KING) {
       Bitboard occupied_after = occupied & ~attacker_bb;
-      if (attackers_to(target, occupied_after, pieces) & [&]() {
-            Bitboard enemy_pieces = 0;
-            for (int type = 0; type < PIECE_TYPE_NB; ++type) enemy_pieces |= pieces[~side][type];
-            return enemy_pieces;
-          }())
-        break;
+      if (attackers_to(target, occupied_after, pieces) & by_color[~side]) break;
     }
 
     ++depth;
@@ -117,7 +113,10 @@ int static_exchange_eval(const Position& pos, Move move) {
     pieces[occupant_color][target_type] &= ~target_bb;
     pieces[side][attacker_type] &= ~attacker_bb;
     occupied &= ~attacker_bb;
+    by_color[side] &= ~attacker_bb;
     pieces[side][arriving_type] |= target_bb;
+    by_color[occupant_color] &= ~target_bb;
+    by_color[side] |= target_bb;
 
     target_type = arriving_type;
     occupant_color = side;
