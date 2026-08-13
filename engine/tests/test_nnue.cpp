@@ -51,6 +51,10 @@ TEST(NnueTest, EvalFinite) {
   int e = evaluate(pos);
   EXPECT_GT(e, -5000);
   EXPECT_LT(e, 5000);
+  set_use_extras(false);
+  EXPECT_EQ(evaluate(pos), Nnue::instance().evaluate(pos));
+  set_use_extras(true);
+  EXPECT_NE(evaluate(pos), Nnue::instance().evaluate(pos));
 }
 
 TEST(NnueTest, LoadsHalfKpAndKeepsKingMoveAccumulatorIncremental) {

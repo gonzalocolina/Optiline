@@ -1,0 +1,76 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "0f71ce974932cda439fcba52a6d808d9cf4a4dcad02336fc4a162e5ace6f4d39",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/hash32.uci": "a6607ec711d7df37307eccf8bb84b9249b0429da3eee1edc992f3cc3d32a9cde"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "e55c21ff0d363e8cf31581927879e650fc60f561da161aea40a48e50df6d431b",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e"
+  },
+  "command": [
+    "tools/sprt.py",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/hash32.uci",
+    "--name-a",
+    "hash16",
+    "--name-b",
+    "hash32",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--elo0",
+    "-5",
+    "--elo1",
+    "5",
+    "--min-games",
+    "40",
+    "--max-games",
+    "200",
+    "--movetime",
+    "100",
+    "--max-plies",
+    "80",
+    "--seed",
+    "20260813",
+    "--outdir",
+    "experiments/20260813_hash32_sprt"
+  ],
+  "created_utc": "2026-08-13T20:41:19.306676+00:00",
+  "git": {
+    "commit": "bdd898f9419a50b1fcd0776df1b0284dc82b42bf",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "alpha": 0.05,
+    "beta": 0.05,
+    "elo0": -5.0,
+    "elo1": 5.0,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "exploratory_short_tc": false,
+    "kind": "sprt",
+    "llr_model": "pair_normal_pentanomial",
+    "max_games": 200,
+    "max_plies": 80,
+    "min_games": 40,
+    "movetime_ms": 100,
+    "openings": "tools/openings_balanced.epd"
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260813,
+  "toolchain": {
+    "cmake_cache_sha256": "bc41496caac83ba67febdc50163eba5720f5bc7c9888e3276189bb30c8b3a811",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

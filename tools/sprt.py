@@ -99,6 +99,7 @@ def pentanomial_from_history(history: list[dict]) -> list[int]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", default=str(ROOT / "build" / "nsce"))
+    ap.add_argument("--engine-b", default="", help="optional second binary (candidate)")
     ap.add_argument("--cfg-a", default=str(ROOT / "tools/configs/baseline.uci"), help="H0 / baseline")
     ap.add_argument("--cfg-b", default=str(ROOT / "tools/configs/controller.uci"), help="H1 candidate")
     ap.add_argument("--name-a", default="baseline")
@@ -130,6 +131,7 @@ def main() -> int:
     args = ap.parse_args()
 
     engine = Path(args.engine)
+    engine_b = Path(args.engine_b) if args.engine_b else engine
     if args.max_games <= 0 or args.max_games % 2:
         print("--max-games must be a positive even number", file=sys.stderr)
         return 1
@@ -142,6 +144,12 @@ def main() -> int:
     if args.movetime < 50 and not args.allow_short_tc:
         print("movetime below 50 ms is too noisy for SPRT; use --allow-short-tc only for smoke tests", file=sys.stderr)
         return 1
+    if not engine.exists():
+        print(f"engine not found: {engine}", file=sys.stderr)
+        return 1
+    if not engine_b.exists():
+        print(f"engine-b not found: {engine_b}", file=sys.stderr)
+        return 1
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
     outdir.mkdir(parents=True, exist_ok=True)
     openings_path = Path(args.openings)
@@ -149,7 +157,7 @@ def main() -> int:
     schedule = paired_schedule(openings, args.max_games, args.seed)
 
     a = UciEngine([str(engine)], args.name_a)
-    b = UciEngine([str(engine)], args.name_b)
+    b = UciEngine([str(engine_b)], args.name_b)
     a.apply_uci_file(Path(args.cfg_a))
     b.apply_uci_file(Path(args.cfg_b))
 
@@ -316,6 +324,7 @@ def main() -> int:
             "adjudication_plies": args.adjudication_plies,
             "openings": str(openings_path),
             "llr_model": "pair_normal_pentanomial",
+            "engine_b": str(engine_b),
         },
     )
     write_manifest(outdir / "manifest.json", manifest)

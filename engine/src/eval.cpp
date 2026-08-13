@@ -204,11 +204,16 @@ int extras(const Position& pos) {
 
 }  // namespace
 
+bool g_use_extras = true;
+
+void set_use_extras(bool on) { g_use_extras = on; }
+bool use_extras() { return g_use_extras; }
+
 int evaluate(const Position& pos) {
   if (Nnue::instance().is_enabled()) {
     const int nnue = Nnue::instance().evaluate(pos);
     // Trained king-bucket nets already see structure/threats; HCE extras fight the net.
-    if (Nnue::instance().uses_king_buckets()) return nnue;
+    if (Nnue::instance().uses_king_buckets() || !g_use_extras) return nnue;
     const int extras_white = extras(pos);
     const int extras_stm = (pos.side_to_move() == WHITE) ? extras_white : -extras_white;
     return extras_stm + nnue;

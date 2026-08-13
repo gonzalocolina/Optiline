@@ -6,9 +6,9 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-13 |
+| Last updated | 2026-08-13 (evening: KAT 2× H0, extras-off H0, Hash/TM inconclusive) |
 | Engine | NSCE 0.10 |
-| Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseSearchController=false`, `UsePolicy=false` |
+| Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
 | Protocol | [hypothesis.md](hypothesis.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
 
 ## How to add knowledge
@@ -42,9 +42,9 @@ These are the claims we act on until a later log entry supersedes them.
 
 ### Frozen baseline (v0.10)
 
-- Eval: HCE-distilled `768×128×1` (`EvalFile=internal`) **plus** classical `extras()` (mobility, files, outposts, hanging, king).
+- Eval: HCE-distilled `768×128×1` (`EvalFile=internal`) **plus** classical `extras()` (mobility, files, outposts, hanging, king). `UseExtras=true` is **load-bearing** on this net: turning it off lost SPRT. Keep extras on the 768 path; keep extras off for king-bucket nets.
 - King-bucket nets (KAT / HalfKP): **`extras()` off**. The residual fights the net and biases learning.
-- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Ablation flags freeze each of these in `baseline.uci`.
+- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Ablation flags freeze each of these in `baseline.uci`. Hash stays **16 MB**. Iterative-deepening still stops a new iteration when remaining `< last_iter / 2` (stricter soft-stop was a coin flip).
 - Policy and search controller: **off** on the frozen baseline.
 
 ### Measurement pitfalls (paid for in lab time)
@@ -55,12 +55,13 @@ These are the claims we act on until a later log entry supersedes them.
 - Do not compare holdout MAE across different corpora (120k vs 1M). The 1M holdout is harder.
 - `movetime < 50 ms` is exploratory; `sprt.py` refuses it unless `--allow-short-tc`.
 - Do not compare reports unless engine / config / opening hashes match (`manifest.json`).
+- After an nps/clock speedup, **equal-time SPRTs are stale**; equal-node results are not. Re-run the timed gate before promoting. Binary-vs-binary matches use `sprt.py --engine-b` (same UCI on both sides).
 
 ### Eval (KAT)
 
 - `NSCEKAT1`: 32 horizontally-mirrored king buckets × 768, PS factorization folded at export, 12-dim dense threat residual. MIT-clean.
 - Holdout MAE on 1M Lichess evals plateaus around **114 cp** at 16 epochs (hidden 128, batch 512, lr 4e-4). Target ~70 cp was not reached. **Do not raise `kHidden` until MAE stops falling with more data.**
-- At **equal nodes** (25k/move, N=20) 8-epoch KAT vs internal is a coin flip (4-12-4). At **equal time** (100 ms) it loses SPRT. The failure mode is a **bushier tree / less effective depth**, not a 2× nps collapse. Startpos depth 10: similar nps, ~3× more nodes for KAT.
+- At **equal nodes** (25k/move, N=20) 8-epoch KAT vs internal is a coin flip (4-12-4). At **equal time** (100 ms) it loses SPRT, including **after** the 2× timed-node speedup (H0 13-51-52, score 0.332). The failure mode is a **bushier tree / less effective depth**, not inference cost. Do **not** replay this `kat_candidate.bin` at 100 ms.
 - 120k-corpus MAE 102 cp is not comparable to the 1M holdout.
 
 ### Search controller
@@ -82,6 +83,10 @@ These are the claims we act on until a later log entry supersedes them.
 | --- | --- | --- |
 | Promote KAT 1M×8 | Lost equal-time SPRT | H0 39-112-85, 236 games, 100 ms ([kat_sprt](../experiments/20260813_kat_sprt/report.md)) |
 | Promote KAT 1M×16 | MAE only 117→114; still losing | Inconclusive 36-86-78, LLR −2.11, 200 games ([kat_e16_sprt](../experiments/20260813_kat_e16_sprt/report.md)) |
+| Re-SPRT the same KAT net after 2× nps | Faster inference did not flip equal-time | H0 13-51-52, 116 games, score 0.332 ([kat_sprt_2x](../experiments/20260813_kat_sprt_2x/report.md)) |
+| `UseExtras=false` on the frozen 768 net | extras() is load-bearing here (unlike KAT) | H0 3-87-36, 126 games, score 0.369 ([extras_off_sprt](../experiments/20260813_extras_off_sprt/report.md)) |
+| Hash 32 at 100 ms | Mostly draws; no ±5 Elo | Inconclusive 19-168-13, LLR +0.54, 200 games ([hash32_sprt](../experiments/20260813_hash32_sprt/report.md)) |
+| ID stop when remaining `< last_iter` (was `/ 2`) | Coin flip; reverted | Inconclusive 20-161-19, LLR +0.09, 200 games ([tm_sprt](../experiments/20260813_tm_sprt/report.md)) |
 | More epochs on the same 1M set | MAE flat after epoch 11 | Train history in `nets/kat_candidate.metrics.json` |
 | Raise hidden to 256 at 120k–1M | Memorizes; MAE still data-limited | 16-epoch plateau at 114 cp |
 | HCE `extras()` on top of KAT/HalfKP | Residual fights the net | Gated in `evaluate()` when `uses_king_buckets()` |
@@ -120,15 +125,12 @@ Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plie
 
 ## Next levers
 
-Ordered. Do not skip to a later item to “try something.”
+The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Do not skip to a later item to “try something.”
 
-1. **Better eval labels**, same KAT architecture (hidden 128, extras off). Stream ~5M Lichess evals and/or teacher `go nodes` cp. Retrain; SPRT vs frozen internal **only** if holdout MAE moves (goal ~70 cp) or equal-node score is clearly >0.5 at N≥40.
-2. **Equal-node vs equal-time** on that new net before promotion. If it wins nodes and loses time, shrink the threat residual / table, do not add search.
-3. **Controller re-fit** only after an eval H1. Use research/cutoff telemetry with controller off; keep clamp `[-1, +2]` until Elo/nodo rises at equal time.
-4. **Policy on KAT accumulator** only after KAT (or successor) is the frozen eval.
-5. **SF18 2000 N≥40** with the new frozen baseline; unrestricted SF only after that rung is clearly won.
+1. **Self-distill labels from the current engine**, not more epochs on Lichess PVs and not another 100 ms SPRT of `kat_candidate.bin`. 1M extra epochs already plateaued at 114 cp. Use NSCE (`go nodes`, Hash 16, extras on) as teacher on the existing FEN set (or a 200k–500k slice) via `train/distill.py --nodes`. Train KAT and/or 768 on those cp. Teacher depth now compounds; Lichess dump quality does not. SPRT only if holdout MAE moves a lot (toward ~70) or equal-node N≥40 is clearly >0.5.
+2. **SF18 Elo 2000, N≥40** only after a **promoted** eval. Unrestricted SF still later.
 
-Not next: more ProbCut/IIR/SE constants, larger nets at 1M, another 200-game SPRT of the 16-epoch KAT, another N=20 SF ladder.
+Still not next: replay this KAT net at 100 ms, extras-off on 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess before self-distill.
 
 ---
 
@@ -149,6 +151,11 @@ Not next: more ProbCut/IIR/SE constants, larger nets at 1M, another 200-game SPR
 - LMR telemetry 246k events → `NSCECTL2`. SPRT vs internal **inconclusive** 23-143-34, LLR −0.99. Not promoted. Clamp stays `[-1, +2]`. ([controller_sprt](../experiments/20260813_controller_sprt/report.md))
 - Discarded 2-game controller H1 (LLR ~3500); pentanomial variance floor 0.04 + min 40 games. ([controller_fitted](../experiments/20260813_controller_fitted/report.md))
 - SF18 ladder N=40: Elo 2000 **11-13-16** (0.438, −44 ± 90); Elo 2200 **10-17-13** (0.463, −26 ± 82). Current KPI rung is 2000. Unrestricted SF not played. ([sf18_ladder](../experiments/20260813_sf18_ladder/report.md))
+- Inference/search speed: KAT madd + inlined attacks (`0cb7276`); latched time-up and less per-move clock (`6c94fbb`). Timed searches (~200–700 ms) search about **2× nodes**. Equal-time KAT/controller SPRTs from earlier today are **stale**; equal-node 4-12-4 is not.
+- KAT 1M×16 re-SPRT after 2× nps: **H0** 13-51-52, 116 games, 100 ms, score 0.332. Faster inference did not flip equal-time. Do not replay this net at 100 ms. ([kat_sprt_2x](../experiments/20260813_kat_sprt_2x/report.md))
+- `UseExtras=false` on frozen 768: **H0** 3-87-36, 126 games, 100 ms, score 0.369. extras() is load-bearing on the distilled net. Keep `UseExtras=true` on baseline. ([extras_off_sprt](../experiments/20260813_extras_off_sprt/report.md))
+- Hash 32 vs 16: **inconclusive** 19-168-13, 200 games, LLR +0.54, score 0.515. Keep Hash 16. ([hash32_sprt](../experiments/20260813_hash32_sprt/report.md))
+- ID stop remaining `< last_iter` (was `/ 2`): **inconclusive** 20-161-19, 200 games, LLR +0.09, score 0.503. Not promoted; one-liner reverted. ([tm_sprt](../experiments/20260813_tm_sprt/report.md))
 
 ### 2026-08-02 (historical; some `experiments/20260802_*` trees may be absent locally)
 
