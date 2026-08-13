@@ -8,11 +8,19 @@
 #include <cstdio>
 #include <cstdlib>
 
+static void load_eval_net(const char* path) {
+  using namespace nsce;
+  if (path && path[0] && Nnue::instance().load(path)) return;
+  if (Nnue::instance().load("nets/kat_candidate.bin")) return;
+  if (Nnue::instance().load("nets/nnue_trained.bin")) return;
+  Nnue::instance().load_default_from_hce();
+}
+
 int main(int argc, char** argv) {
   using namespace nsce;
   init_bitboards();
   Zobrist::init();
-  Nnue::instance().load_default_from_hce();
+  load_eval_net(argc > 2 ? argv[2] : nullptr);
 
   int iters = 100000;
   if (argc > 1) iters = std::atoi(argv[1]);

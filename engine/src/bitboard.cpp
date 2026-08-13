@@ -2,13 +2,9 @@
 
 #include <array>
 
-#if defined(__BMI2__)
-#include <immintrin.h>
-#endif
-
 namespace nsce {
-namespace {
 
+namespace bb {
 std::array<Bitboard, SQUARE_NB> KnightAttacks{};
 std::array<Bitboard, SQUARE_NB> KingAttacks{};
 std::array<std::array<Bitboard, SQUARE_NB>, COLOR_NB> PawnAttacks{};
@@ -18,6 +14,9 @@ std::array<Bitboard, SQUARE_NB> BishopMasks{};
 std::array<Bitboard, SQUARE_NB> RookMasks{};
 std::array<std::array<Bitboard, 512>, SQUARE_NB> BishopTable{};
 std::array<std::array<Bitboard, 4096>, SQUARE_NB> RookTable{};
+}  // namespace bb
+
+namespace {
 
 Bitboard sliding_attacks(Square s, Bitboard occupied, const int deltas[4][2]) {
   Bitboard attacks = 0;
@@ -55,22 +54,6 @@ Bitboard relevant_mask(Square square, const int deltas[4][2]) {
   return mask;
 }
 
-unsigned occupancy_index(Bitboard occupied, Bitboard mask) {
-#if defined(__BMI2__)
-  return static_cast<unsigned>(_pext_u64(occupied, mask));
-#else
-  unsigned index = 0;
-  unsigned bit = 0;
-  while (mask) {
-    Bitboard least = mask & (~mask + 1);
-    if (occupied & least) index |= 1U << bit;
-    mask &= mask - 1;
-    ++bit;
-  }
-  return index;
-#endif
-}
-
 template <std::size_t Size>
 void init_slider_table(Square square, Bitboard mask, const int deltas[4][2],
                        std::array<Bitboard, Size>& table) {
@@ -98,22 +81,22 @@ void init_bitboards() {
 
     for (auto& d : knight_d) {
       int nf = f + d[0], nr = r + d[1];
-      if (nf >= 0 && nf <= 7 && nr >= 0 && nr <= 7) KnightAttacks[s] |= square_bb(make_square(nf, nr));
+      if (nf >= 0 && nf <= 7 && nr >= 0 && nr <= 7) bb::KnightAttacks[s] |= square_bb(make_square(nf, nr));
     }
     for (auto& d : king_d) {
       int nf = f + d[0], nr = r + d[1];
-      if (nf >= 0 && nf <= 7 && nr >= 0 && nr <= 7) KingAttacks[s] |= square_bb(make_square(nf, nr));
+      if (nf >= 0 && nf <= 7 && nr >= 0 && nr <= 7) bb::KingAttacks[s] |= square_bb(make_square(nf, nr));
     }
 
-    if (f > 0 && r < 7) PawnAttacks[WHITE][s] |= square_bb(make_square(f - 1, r + 1));
-    if (f < 7 && r < 7) PawnAttacks[WHITE][s] |= square_bb(make_square(f + 1, r + 1));
-    if (f > 0 && r > 0) PawnAttacks[BLACK][s] |= square_bb(make_square(f - 1, r - 1));
-    if (f < 7 && r > 0) PawnAttacks[BLACK][s] |= square_bb(make_square(f + 1, r - 1));
+    if (f > 0 && r < 7) bb::PawnAttacks[WHITE][s] |= square_bb(make_square(f - 1, r + 1));
+    if (f < 7 && r < 7) bb::PawnAttacks[WHITE][s] |= square_bb(make_square(f + 1, r + 1));
+    if (f > 0 && r > 0) bb::PawnAttacks[BLACK][s] |= square_bb(make_square(f - 1, r - 1));
+    if (f < 7 && r > 0) bb::PawnAttacks[BLACK][s] |= square_bb(make_square(f + 1, r - 1));
 
-    BishopMasks[s] = relevant_mask(s, BishopDelta);
-    RookMasks[s] = relevant_mask(s, RookDelta);
-    init_slider_table(s, BishopMasks[s], BishopDelta, BishopTable[s]);
-    init_slider_table(s, RookMasks[s], RookDelta, RookTable[s]);
+    bb::BishopMasks[s] = relevant_mask(s, BishopDelta);
+    bb::RookMasks[s] = relevant_mask(s, RookDelta);
+    init_slider_table(s, bb::BishopMasks[s], BishopDelta, bb::BishopTable[s]);
+    init_slider_table(s, bb::RookMasks[s], RookDelta, bb::RookTable[s]);
   }
 
   for (int s1 = 0; s1 < SQUARE_NB; ++s1) {
@@ -126,33 +109,14 @@ void init_bitboards() {
         Bitboard b = (bishop_attacks_bb(from, 0) & square_bb(to))
                          ? (bishop_attacks_bb(from, occ) & bishop_attacks_bb(to, occ))
                          : (rook_attacks_bb(from, occ) & rook_attacks_bb(to, occ));
-        Between[from][to] = b;
-        Line[from][to] = (bishop_attacks_bb(from, 0) & square_bb(to))
+        bb::Between[from][to] = b;
+        bb::Line[from][to] = (bishop_attacks_bb(from, 0) & square_bb(to))
                              ? (bishop_attacks_bb(from, 0) | square_bb(from)) & (bishop_attacks_bb(to, 0) | square_bb(to))
                              : (rook_attacks_bb(from, 0) | square_bb(from)) & (rook_attacks_bb(to, 0) | square_bb(to));
-        Line[from][to] |= square_bb(from) | square_bb(to);
+        bb::Line[from][to] |= square_bb(from) | square_bb(to);
       }
     }
   }
 }
-
-Bitboard pawn_attacks_bb(Color c, Square s) { return PawnAttacks[c][s]; }
-Bitboard knight_attacks_bb(Square s) { return KnightAttacks[s]; }
-Bitboard king_attacks_bb(Square s) { return KingAttacks[s]; }
-
-Bitboard bishop_attacks_bb(Square s, Bitboard occupied) {
-  return BishopTable[s][occupancy_index(occupied, BishopMasks[s])];
-}
-
-Bitboard rook_attacks_bb(Square s, Bitboard occupied) {
-  return RookTable[s][occupancy_index(occupied, RookMasks[s])];
-}
-
-Bitboard queen_attacks_bb(Square s, Bitboard occupied) {
-  return bishop_attacks_bb(s, occupied) | rook_attacks_bb(s, occupied);
-}
-
-Bitboard between_bb(Square s1, Square s2) { return Between[s1][s2]; }
-Bitboard line_bb(Square s1, Square s2) { return Line[s1][s2]; }
 
 }  // namespace nsce

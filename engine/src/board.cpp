@@ -101,7 +101,7 @@ void Position::move_piece(Square from, Square to) {
   occupied_ ^= from_to;
   board_[to] = pc;
   board_[from] = NO_PIECE;
-  if (refresh_halfkp) Nnue::instance().refresh(*this, nnue_acc_);
+  if (refresh_halfkp) Nnue::instance().update_king_move(nnue_acc_, *this, pc, from, to);
 }
 
 void Position::refresh_nnue() {

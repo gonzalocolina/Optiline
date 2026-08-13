@@ -51,31 +51,42 @@ inline void acc_sub_avx(int16_t* acc, const int16_t* col) {
   }
 }
 
-inline int32_t affine_avx(const int16_t* acc, const int16_t* w1, int32_t bias) {
-  __m256i sum32 = _mm256_setzero_si256();
-  const __m256i zero = _mm256_setzero_si256();
-  const int cap = 127 * NnueNet::kWeightScale;
-  const __m256i vmax = _mm256_set1_epi16(static_cast<int16_t>(cap));
-  for (int h = 0; h < NnueNet::kHidden; h += 16) {
-    __m256i x = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc + h));
-    x = _mm256_max_epi16(x, zero);
-    x = _mm256_min_epi16(x, vmax);
-    __m256i w = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w1 + h));
-    __m256i xl = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(x));
-    __m256i xh = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(x, 1));
-    __m256i wl = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(w));
-    __m256i wh = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 1));
-    sum32 = _mm256_add_epi32(sum32, _mm256_mullo_epi32(xl, wl));
-    sum32 = _mm256_add_epi32(sum32, _mm256_mullo_epi32(xh, wh));
-  }
+inline int32_t hsum_epi32(__m256i sum32) {
   __m128i lo = _mm256_castsi256_si128(sum32);
   __m128i hi = _mm256_extracti128_si256(sum32, 1);
   __m128i s = _mm_add_epi32(lo, hi);
-  __m128i shuf = _mm_shuffle_epi32(s, 0x4E);
-  s = _mm_add_epi32(s, shuf);
-  shuf = _mm_shuffle_epi32(s, 0xB1);
-  s = _mm_add_epi32(s, shuf);
-  return bias + _mm_cvtsi128_si32(s);
+  s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0x4E));
+  s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0xB1));
+  return _mm_cvtsi128_si32(s);
+}
+
+inline int32_t affine_avx(const int16_t* acc, const int16_t* w1, int32_t bias) {
+  __m256i sum32 = _mm256_setzero_si256();
+  const __m256i zero = _mm256_setzero_si256();
+  const __m256i vmax = _mm256_set1_epi16(static_cast<int16_t>(127 * NnueNet::kWeightScale));
+  for (int h = 0; h < NnueNet::kHidden; h += 16) {
+    __m256i x = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc + h));
+    x = _mm256_min_epi16(_mm256_max_epi16(x, zero), vmax);
+    __m256i w = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w1 + h));
+    sum32 = _mm256_add_epi32(sum32, _mm256_madd_epi16(x, w));
+  }
+  return bias + hsum_epi32(sum32);
+}
+
+inline int32_t affine_dual_avx(const int16_t* own, const int16_t* opp, const int16_t* w1, int32_t bias) {
+  __m256i sum32 = _mm256_setzero_si256();
+  const __m256i zero = _mm256_setzero_si256();
+  const __m256i vmax = _mm256_set1_epi16(static_cast<int16_t>(127 * NnueNet::kWeightScale));
+  const int16_t* w_opp = w1 + NnueNet::kHidden;
+  for (int h = 0; h < NnueNet::kHidden; h += 16) {
+    __m256i x0 = _mm256_load_si256(reinterpret_cast<const __m256i*>(own + h));
+    x0 = _mm256_min_epi16(_mm256_max_epi16(x0, zero), vmax);
+    __m256i x1 = _mm256_load_si256(reinterpret_cast<const __m256i*>(opp + h));
+    x1 = _mm256_min_epi16(_mm256_max_epi16(x1, zero), vmax);
+    sum32 = _mm256_add_epi32(sum32, _mm256_madd_epi16(x0, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w1 + h))));
+    sum32 = _mm256_add_epi32(sum32, _mm256_madd_epi16(x1, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w_opp + h))));
+  }
+  return bias + hsum_epi32(sum32);
 }
 #endif
 
@@ -88,8 +99,8 @@ int halfkp_king_bucket(Color perspective, Square king) {
 
 int halfkp_feature(Color perspective, int king_bucket, Piece pc, Square sq) {
   int oriented_sq = perspective == WHITE ? static_cast<int>(sq) : (static_cast<int>(sq) ^ 56);
-  int oriented_pc = static_cast<int>(pc);
-  if (perspective == BLACK) oriented_pc = oriented_pc < 6 ? oriented_pc + 6 : oriented_pc - 6;
+  const int oriented_pc =
+      perspective == BLACK ? static_cast<int>(pc) + (pc < 6 ? 6 : -6) : static_cast<int>(pc);
   return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
 }
 
@@ -106,29 +117,37 @@ int kat_king_bucket(Color perspective, Square king, int& mirror) {
 int kat_feature(Color perspective, int king_bucket, int mirror, Piece pc, Square sq) {
   int oriented_sq = perspective == WHITE ? static_cast<int>(sq) : (static_cast<int>(sq) ^ 56);
   oriented_sq ^= mirror;
-  int oriented_pc = static_cast<int>(pc);
-  if (perspective == BLACK) oriented_pc = oriented_pc < 6 ? oriented_pc + 6 : oriented_pc - 6;
+  const int oriented_pc =
+      perspective == BLACK ? static_cast<int>(pc) + (pc < 6 ? 6 : -6) : static_cast<int>(pc);
   return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
 }
 
+namespace {
+
+template <Color C>
+Bitboard attacks_of_color(const Position& pos, Bitboard occ) {
+  Bitboard pawns = pos.pieces(C, PAWN);
+  Bitboard att = (C == WHITE) ? (shift_ne(pawns) | shift_nw(pawns)) : (shift_se(pawns) | shift_sw(pawns));
+  Bitboard bb = pos.pieces(C, KNIGHT);
+  while (bb) att |= knight_attacks_bb(pop_lsb(bb));
+  bb = pos.pieces(C, BISHOP) | pos.pieces(C, QUEEN);
+  while (bb) att |= bishop_attacks_bb(pop_lsb(bb), occ);
+  bb = pos.pieces(C, ROOK) | pos.pieces(C, QUEEN);
+  while (bb) att |= rook_attacks_bb(pop_lsb(bb), occ);
+  att |= king_attacks_bb(pos.king_square(C));
+  return att;
+}
+
+Bitboard attacks_of_color(const Position& pos, Color c, Bitboard occ) {
+  return c == WHITE ? attacks_of_color<WHITE>(pos, occ) : attacks_of_color<BLACK>(pos, occ);
+}
+
+}  // namespace
+
 void kat_threats(const Position& pos, Color stm, int threats[NnueNet::kThreatDim]) {
-  for (int i = 0; i < NnueNet::kThreatDim; ++i) threats[i] = 0;
   const Bitboard occ = pos.occupied();
-  auto attacks_of = [&](Color c) {
-    Bitboard att = 0;
-    Bitboard pawns = pos.pieces(c, PAWN);
-    att |= (c == WHITE) ? (shift_ne(pawns) | shift_nw(pawns)) : (shift_se(pawns) | shift_sw(pawns));
-    Bitboard knights = pos.pieces(c, KNIGHT);
-    while (knights) att |= knight_attacks_bb(pop_lsb(knights));
-    Bitboard bishops = pos.pieces(c, BISHOP) | pos.pieces(c, QUEEN);
-    while (bishops) att |= bishop_attacks_bb(pop_lsb(bishops), occ);
-    Bitboard rooks = pos.pieces(c, ROOK) | pos.pieces(c, QUEEN);
-    while (rooks) att |= rook_attacks_bb(pop_lsb(rooks), occ);
-    att |= king_attacks_bb(pos.king_square(c));
-    return att;
-  };
-  const Bitboard our_attacks = attacks_of(stm);
-  const Bitboard their_attacks = attacks_of(~stm);
+  const Bitboard our_attacks = attacks_of_color(pos, stm, occ);
+  const Bitboard their_attacks = attacks_of_color(pos, ~stm, occ);
   for (int pt = 0; pt < 6; ++pt) {
     threats[pt] = popcount(pos.pieces(stm, static_cast<PieceType>(pt)) & their_attacks);
     threats[6 + pt] = popcount(pos.pieces(~stm, static_cast<PieceType>(pt)) & our_attacks);
@@ -211,22 +230,53 @@ bool Nnue::load(const std::string& path) {
   return true;
 }
 
+void Nnue::add_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const {
+  if (pc == NO_PIECE) return;
+  const int feature = net_.kat ? kat_feature(perspective, acc.king_bucket[perspective],
+                                             acc.mirror[perspective], pc, sq)
+                               : halfkp_feature(perspective, acc.king_bucket[perspective], pc, sq);
+  const auto& column = net_.halfkp_w0[feature];
+#if defined(__AVX2__)
+  acc_add_avx(acc.half[perspective].data(), column.data());
+#else
+  for (int h = 0; h < NnueNet::kHidden; ++h)
+    acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] + column[h]);
+#endif
+}
+
+void Nnue::remove_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const {
+  if (pc == NO_PIECE) return;
+  const int feature = net_.kat ? kat_feature(perspective, acc.king_bucket[perspective],
+                                             acc.mirror[perspective], pc, sq)
+                               : halfkp_feature(perspective, acc.king_bucket[perspective], pc, sq);
+  const auto& column = net_.halfkp_w0[feature];
+#if defined(__AVX2__)
+  acc_sub_avx(acc.half[perspective].data(), column.data());
+#else
+  for (int h = 0; h < NnueNet::kHidden; ++h)
+    acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] - column[h]);
+#endif
+}
+
+void Nnue::refresh_perspective(const Position& pos, NnueAccumulator& acc, Color perspective) const {
+  int mirror = 0;
+  acc.king_bucket[perspective] = static_cast<uint8_t>(
+      net_.kat ? kat_king_bucket(perspective, pos.king_square(perspective), mirror)
+               : halfkp_king_bucket(perspective, pos.king_square(perspective)));
+  acc.mirror[perspective] = static_cast<uint8_t>(mirror);
+  acc.half[perspective] = net_.b0;
+  Bitboard occ = pos.occupied();
+  while (occ) {
+    const Square sq = pop_lsb(occ);
+    add_piece_for(acc, perspective, pos.piece_on(sq), sq);
+  }
+}
+
 void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.halfkp) {
-    for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
-      int feature = net_.kat ? kat_feature(static_cast<Color>(perspective), acc.king_bucket[perspective],
-                                           acc.mirror[perspective], pc, sq)
-                             : halfkp_feature(static_cast<Color>(perspective),
-                                              acc.king_bucket[perspective], pc, sq);
-      const auto& column = net_.halfkp_w0[feature];
-#if defined(__AVX2__)
-      acc_add_avx(acc.half[perspective].data(), column.data());
-#else
-      for (int h = 0; h < NnueNet::kHidden; ++h)
-        acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] + column[h]);
-#endif
-    }
+    add_piece_for(acc, WHITE, pc, sq);
+    add_piece_for(acc, BLACK, pc, sq);
     return;
   }
   const auto& col = net_.w0[nnue_feature(pc, sq)];
@@ -240,19 +290,8 @@ void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
 void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.halfkp) {
-    for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
-      int feature = net_.kat ? kat_feature(static_cast<Color>(perspective), acc.king_bucket[perspective],
-                                           acc.mirror[perspective], pc, sq)
-                             : halfkp_feature(static_cast<Color>(perspective),
-                                              acc.king_bucket[perspective], pc, sq);
-      const auto& column = net_.halfkp_w0[feature];
-#if defined(__AVX2__)
-      acc_sub_avx(acc.half[perspective].data(), column.data());
-#else
-      for (int h = 0; h < NnueNet::kHidden; ++h)
-        acc.half[perspective][h] = clamp_i16(acc.half[perspective][h] - column[h]);
-#endif
-    }
+    remove_piece_for(acc, WHITE, pc, sq);
+    remove_piece_for(acc, BLACK, pc, sq);
     return;
   }
   const auto& col = net_.w0[nnue_feature(pc, sq)];
@@ -261,6 +300,23 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
 #else
   for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = clamp_i16(acc.v[h] - col[h]);
 #endif
+}
+
+void Nnue::update_king_move(NnueAccumulator& acc, const Position& pos, Piece king, Square from,
+                            Square to) const {
+  const Color us = color_of(king);
+  const Color them = ~us;
+  int mirror = 0;
+  const int bucket =
+      net_.kat ? kat_king_bucket(us, to, mirror) : halfkp_king_bucket(us, to);
+  remove_piece_for(acc, them, king, from);
+  add_piece_for(acc, them, king, to);
+  if (bucket == acc.king_bucket[us] && static_cast<uint8_t>(mirror) == acc.mirror[us]) {
+    remove_piece_for(acc, us, king, from);
+    add_piece_for(acc, us, king, to);
+    return;
+  }
+  refresh_perspective(pos, acc, us);
 }
 
 void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
@@ -275,17 +331,19 @@ void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
       acc.mirror[perspective] = static_cast<uint8_t>(mirror);
       acc.half[perspective] = net_.b0;
     }
-    for (int sq = 0; sq < SQUARE_NB; ++sq) {
-      Piece pc = pos.piece_on(static_cast<Square>(sq));
-      if (pc != NO_PIECE) add_piece(acc, pc, static_cast<Square>(sq));
+    Bitboard occ = pos.occupied();
+    while (occ) {
+      const Square sq = pop_lsb(occ);
+      add_piece(acc, pos.piece_on(sq), sq);
     }
     return;
   }
   acc.v.fill(0);
   for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = net_.b0[h];
-  for (int sq = 0; sq < SQUARE_NB; ++sq) {
-    Piece pc = pos.piece_on(static_cast<Square>(sq));
-    if (pc != NO_PIECE) add_piece(acc, pc, static_cast<Square>(sq));
+  Bitboard occ = pos.occupied();
+  while (occ) {
+    const Square sq = pop_lsb(occ);
+    add_piece(acc, pos.piece_on(sq), sq);
   }
 }
 
@@ -293,8 +351,7 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
   if (net_.halfkp) {
     int32_t sum = net_.b1;
 #if defined(__AVX2__)
-    sum = affine_avx(acc.half[stm].data(), net_.halfkp_w1.data(), net_.b1);
-    sum += affine_avx(acc.half[~stm].data(), net_.halfkp_w1.data() + NnueNet::kHidden, 0);
+    sum = affine_dual_avx(acc.half[stm].data(), acc.half[~stm].data(), net_.halfkp_w1.data(), net_.b1);
 #else
     for (int side = 0; side < 2; ++side) {
       Color perspective = side == 0 ? stm : ~stm;
@@ -326,11 +383,16 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
 int Nnue::evaluate(const Position& pos) const {
   int score = evaluate(pos.nnue_acc(), pos.side_to_move());
   if (!net_.kat) return score;
-  int threats[NnueNet::kThreatDim];
-  kat_threats(pos, pos.side_to_move(), threats);
+  const Color stm = pos.side_to_move();
+  const Bitboard occ = pos.occupied();
+  const Bitboard our_attacks = attacks_of_color(pos, stm, occ);
+  const Bitboard their_attacks = attacks_of_color(pos, ~stm, occ);
+  const int16_t* w = net_.w_threat.data();
   int32_t extra = 0;
-  for (int i = 0; i < NnueNet::kThreatDim; ++i)
-    extra += static_cast<int32_t>(threats[i]) * net_.w_threat[i];
+  for (int pt = 0; pt < 6; ++pt) {
+    extra += popcount(pos.pieces(stm, static_cast<PieceType>(pt)) & their_attacks) * w[pt];
+    extra += popcount(pos.pieces(~stm, static_cast<PieceType>(pt)) & our_attacks) * w[6 + pt];
+  }
   return score + static_cast<int>(extra / NnueNet::kWeightScale);
 }
 

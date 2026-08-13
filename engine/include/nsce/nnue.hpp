@@ -59,6 +59,8 @@ class Nnue {
   void refresh(const Position& pos, NnueAccumulator& acc) const;
   void add_piece(NnueAccumulator& acc, Piece pc, Square sq) const;
   void remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const;
+  void update_king_move(NnueAccumulator& acc, const Position& pos, Piece king, Square from,
+                        Square to) const;
 
   // Score from side-to-move perspective (centipawns).
   int evaluate(const NnueAccumulator& acc, Color stm) const;
@@ -68,6 +70,10 @@ class Nnue {
 
  private:
   Nnue() = default;
+  void add_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const;
+  void remove_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const;
+  void refresh_perspective(const Position& pos, NnueAccumulator& acc, Color perspective) const;
+
   NnueNet net_{};
   bool enabled_ = true;
 };

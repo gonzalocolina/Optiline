@@ -2,7 +2,12 @@
 
 #include "nsce/types.hpp"
 
+#include <array>
 #include <bit>
+
+#if defined(__BMI2__)
+#include <immintrin.h>
+#endif
 
 namespace nsce {
 
@@ -43,14 +48,51 @@ inline Bitboard shift_sw(Bitboard b) { return (b & ~FileABB) >> 9; }
 
 void init_bitboards();
 
-Bitboard pawn_attacks_bb(Color c, Square s);
-Bitboard knight_attacks_bb(Square s);
-Bitboard king_attacks_bb(Square s);
-Bitboard bishop_attacks_bb(Square s, Bitboard occupied);
-Bitboard rook_attacks_bb(Square s, Bitboard occupied);
-Bitboard queen_attacks_bb(Square s, Bitboard occupied);
+namespace bb {
+extern std::array<Bitboard, SQUARE_NB> KnightAttacks;
+extern std::array<Bitboard, SQUARE_NB> KingAttacks;
+extern std::array<std::array<Bitboard, SQUARE_NB>, COLOR_NB> PawnAttacks;
+extern std::array<Bitboard, SQUARE_NB> BishopMasks;
+extern std::array<Bitboard, SQUARE_NB> RookMasks;
+extern std::array<std::array<Bitboard, 512>, SQUARE_NB> BishopTable;
+extern std::array<std::array<Bitboard, 4096>, SQUARE_NB> RookTable;
+extern std::array<std::array<Bitboard, SQUARE_NB>, SQUARE_NB> Between;
+extern std::array<std::array<Bitboard, SQUARE_NB>, SQUARE_NB> Line;
+}  // namespace bb
 
-Bitboard between_bb(Square s1, Square s2);
-Bitboard line_bb(Square s1, Square s2);
+inline unsigned occupancy_index(Bitboard occupied, Bitboard mask) {
+#if defined(__BMI2__)
+  return static_cast<unsigned>(_pext_u64(occupied, mask));
+#else
+  unsigned index = 0;
+  unsigned bit = 0;
+  while (mask) {
+    Bitboard least = mask & (~mask + 1);
+    if (occupied & least) index |= 1U << bit;
+    mask &= mask - 1;
+    ++bit;
+  }
+  return index;
+#endif
+}
+
+inline Bitboard pawn_attacks_bb(Color c, Square s) { return bb::PawnAttacks[c][s]; }
+inline Bitboard knight_attacks_bb(Square s) { return bb::KnightAttacks[s]; }
+inline Bitboard king_attacks_bb(Square s) { return bb::KingAttacks[s]; }
+
+inline Bitboard bishop_attacks_bb(Square s, Bitboard occupied) {
+  return bb::BishopTable[s][occupancy_index(occupied, bb::BishopMasks[s])];
+}
+
+inline Bitboard rook_attacks_bb(Square s, Bitboard occupied) {
+  return bb::RookTable[s][occupancy_index(occupied, bb::RookMasks[s])];
+}
+
+inline Bitboard queen_attacks_bb(Square s, Bitboard occupied) {
+  return bishop_attacks_bb(s, occupied) | rook_attacks_bb(s, occupied);
+}
+
+inline Bitboard between_bb(Square s1, Square s2) { return bb::Between[s1][s2]; }
+inline Bitboard line_bb(Square s1, Square s2) { return bb::Line[s1][s2]; }
 
 }  // namespace nsce
