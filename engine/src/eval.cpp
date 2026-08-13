@@ -66,13 +66,77 @@ constexpr int PST[PIECE_TYPE_NB][SQUARE_NB] = {
 
 Square flip(Square s) { return static_cast<Square>(static_cast<int>(s) ^ 56); }
 
+int extras(const Position& pos) {
+  int score = 10;  // tempo for the side that will move, applied in white-POV then flipped
+
+  const Bitboard wp = pos.pieces(WHITE, PAWN);
+  const Bitboard bp = pos.pieces(BLACK, PAWN);
+
+  if (popcount(pos.pieces(WHITE, BISHOP)) >= 2) score += 35;
+  if (popcount(pos.pieces(BLACK, BISHOP)) >= 2) score -= 35;
+
+  constexpr int kPassed[8] = {0, 8, 12, 20, 35, 60, 100, 0};
+  for (int file = 0; file < 8; ++file) {
+    const Bitboard file_bb = FileABB << file;
+    const int wc = popcount(wp & file_bb);
+    const int bc = popcount(bp & file_bb);
+    if (wc > 1) score -= 12 * (wc - 1);
+    if (bc > 1) score += 12 * (bc - 1);
+  }
+  Bitboard wpc = wp;
+  while (wpc) {
+    Square sq = pop_lsb(wpc);
+    const int file = file_of(sq);
+    const int rank = rank_of(sq);
+    Bitboard span = FileABB << file;
+    if (file > 0) span |= FileABB << (file - 1);
+    if (file < 7) span |= FileABB << (file + 1);
+    const Bitboard ahead = rank < 7 ? ~((1ULL << ((rank + 1) * 8)) - 1) : 0;
+    if (!(bp & span & ahead)) score += kPassed[rank];
+    Bitboard adj = 0;
+    if (file > 0) adj |= FileABB << (file - 1);
+    if (file < 7) adj |= FileABB << (file + 1);
+    if (!(wp & adj)) score -= 10;
+  }
+  Bitboard bpc = bp;
+  while (bpc) {
+    Square sq = pop_lsb(bpc);
+    const int file = file_of(sq);
+    const int rank = rank_of(sq);
+    Bitboard span = FileABB << file;
+    if (file > 0) span |= FileABB << (file - 1);
+    if (file < 7) span |= FileABB << (file + 1);
+    const Bitboard ahead = rank > 0 ? ((1ULL << (rank * 8)) - 1) : 0;
+    if (!(wp & span & ahead)) score -= kPassed[7 - rank];
+    Bitboard adj = 0;
+    if (file > 0) adj |= FileABB << (file - 1);
+    if (file < 7) adj |= FileABB << (file + 1);
+    if (!(bp & adj)) score += 10;
+  }
+
+  auto shield = [&](Color c) {
+    Square king = pos.king_square(c);
+    const int file = file_of(king);
+    Bitboard files = FileABB << file;
+    if (file > 0) files |= FileABB << (file - 1);
+    if (file < 7) files |= FileABB << (file + 1);
+    const Bitboard rank = (c == WHITE) ? Rank2BB : Rank7BB;
+    return popcount(pos.pieces(c, PAWN) & files & rank);
+  };
+  score += 12 * (shield(WHITE) - shield(BLACK));
+
+  return score;
+}
+
 }  // namespace
 
 int evaluate(const Position& pos) {
+  const int extras_white = extras(pos);
   if (Nnue::instance().is_enabled()) {
-    return Nnue::instance().evaluate(pos.nnue_acc(), pos.side_to_move());
+    const int extras_stm = (pos.side_to_move() == WHITE) ? extras_white : -extras_white;
+    return extras_stm + Nnue::instance().evaluate(pos);
   }
-  int score = 0;
+  int score = extras_white;
   for (int sq = 0; sq < SQUARE_NB; ++sq) {
     Piece pc = pos.piece_on(static_cast<Square>(sq));
     if (pc == NO_PIECE) continue;

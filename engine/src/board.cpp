@@ -45,6 +45,8 @@ void Position::clear() {
   halfmove_ = 0;
   fullmove_ = 1;
   key_ = 0;
+  pawn_key_ = 0;
+  nonpawn_key_ = 0;
   checkers_ = 0;
   history_keys_.clear();
   nnue_live_ = false;
@@ -57,6 +59,9 @@ void Position::put_piece(Piece pc, Square s) {
   by_color_[color_of(pc)] |= b;
   by_type_[type_of(pc)] |= b;
   occupied_ |= b;
+  const PieceType pt = type_of(pc);
+  if (pt == PAWN) pawn_key_ ^= Zobrist::psq[pc][s];
+  else if (pt != KING) nonpawn_key_ ^= Zobrist::psq[pc][s];
   if (nnue_live_ && Nnue::instance().is_enabled()) Nnue::instance().add_piece(nnue_acc_, pc, s);
 }
 
@@ -67,18 +72,28 @@ void Position::remove_piece(Square s) {
   by_type_[type_of(pc)] &= ~b;
   occupied_ &= ~b;
   board_[s] = NO_PIECE;
+  if (pc != NO_PIECE) {
+    const PieceType pt = type_of(pc);
+    if (pt == PAWN) pawn_key_ ^= Zobrist::psq[pc][s];
+    else if (pt != KING) nonpawn_key_ ^= Zobrist::psq[pc][s];
+  }
   if (nnue_live_ && Nnue::instance().is_enabled() && pc != NO_PIECE)
     Nnue::instance().remove_piece(nnue_acc_, pc, s);
 }
 
 void Position::move_piece(Square from, Square to) {
   Piece pc = board_[from];
+  const PieceType pt = type_of(pc);
   bool refresh_halfkp =
-      nnue_live_ && Nnue::instance().uses_king_buckets() && type_of(pc) == KING;
+      nnue_live_ && Nnue::instance().uses_king_buckets() && pt == KING;
   if (nnue_live_ && Nnue::instance().is_enabled() && !refresh_halfkp) {
     Nnue::instance().remove_piece(nnue_acc_, pc, from);
     Nnue::instance().add_piece(nnue_acc_, pc, to);
   }
+  if (pt == PAWN)
+    pawn_key_ ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
+  else if (pt != KING)
+    nonpawn_key_ ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
   Bitboard from_to = square_bb(from) | square_bb(to);
   by_color_[color_of(pc)] ^= from_to;
   by_type_[type_of(pc)] ^= from_to;

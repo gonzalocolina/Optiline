@@ -52,3 +52,19 @@ TEST(BoardTest, DetectsThreefoldWithinReversibleWindow) {
   }
   EXPECT_TRUE(pos.is_draw());
 }
+
+TEST(BoardTest, PawnAndNonpawnKeysSurviveUndo) {
+  Position pos;
+  pos.set_startpos();
+  const Key pawn0 = pos.pawn_key();
+  const Key nonpawn0 = pos.nonpawn_key();
+  Move move = parse_uci_move(pos, "e2e4");
+  ASSERT_TRUE(move);
+  StateInfo st;
+  pos.do_move(move, st);
+  EXPECT_NE(pos.pawn_key(), pawn0);
+  EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
+  pos.undo_move(move, st);
+  EXPECT_EQ(pos.pawn_key(), pawn0);
+  EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
+}

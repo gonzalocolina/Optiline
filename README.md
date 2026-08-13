@@ -2,14 +2,16 @@
 
 Motor de ajedrez UCI en C++20. Hipótesis: una política neuronal de presupuesto de búsqueda puede ganar Elo a igual CPU/tiempo frente a Stockfish.
 
-## Estado actual (v0.8 + lab)
+## Estado actual (v0.9)
 
 - Movegen legal pin-aware (doble jaque, evasiones y en-passant) validado con perft
-- PVS/alpha-beta con pool persistente y reparto raíz YBWC
-- Telemetría `NSCE_STATS`, flags de ablación de búsqueda y tablas de ataques magic/PEXT
-- NNUE `768x128x1` entrenada + runtime HalfKP (`NSCEHFKP`) listo para corpus grande
-- **Laboratorio:** aperturas balanceadas, SPRT pentanomial por pares, ablations de técnicas
-- Optimización: AVX2, LTO, `-march=native`, bench multi-FEN y Callgrind/perf helpers
+- PVS/alpha-beta con IIR, extensiones singulares, continuation/capture/correction history
+- QS con movimientos ruidosos legales, TT de hoja y eval estática empaquetada
+- Telemetría `NSCE_STATS`, flags de ablación y tablas de ataques magic/PEXT
+- NNUE `768x128x1` + residual clásico (peones pasados, pareja de alfiles, estructura)
+- Runtime HalfKP (`NSCEHFKP`) y KAT (`NSCEKAT1`: HalfKA-hm 32 + residual táctico)
+- **Laboratorio:** aperturas balanceadas, SPRT pentanomial, ablations
+- Optimización: AVX2, LTO, `-march=native`, pool SMP persistente entre `go`
 
 ## Build
 
@@ -36,7 +38,7 @@ ctest --test-dir build --output-on-failure
 ./build/nsce_bench 10 1 1
 python3 tools/smoke_match.py --games 2
 bash train/run_train_loop.sh
-# Pipeline NNUE / HalfKP: train/README.md
+# Pipeline NNUE / HalfKP / KAT: train/README.md
 # Telemetría y scorecards: docs/measurement.md
 ```
 

@@ -1,0 +1,65 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "018228987752ebcaf90df8013fde1009f31852d8deb13ea16f96fbc3ecfb4012"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "842f4ff668ae4e8597267d565ac234128774e4e840bc5ec0838eda73b2dc0685",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e"
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--engine",
+    "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "--engine-b",
+    "/tmp/nsce-baseline/build/nsce",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/baseline.uci",
+    "--name-a",
+    "nsce09",
+    "--name-b",
+    "nsce08",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--games",
+    "40",
+    "--movetime",
+    "100",
+    "--seed",
+    "20260813",
+    "--outdir",
+    "experiments/20260813_search_v09"
+  ],
+  "created_utc": "2026-08-13T14:06:42.002311+00:00",
+  "git": {
+    "commit": "ec0aeba674ddcb0e184cb7a581a3c374584ecd07",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "engine_b": "/tmp/nsce-baseline/build/nsce",
+    "engine_b_sha256": "81560520bd35afa9cd6040887fbe28373c10c8957191d04145a8b2f74b2ebd74",
+    "exploratory_short_tc": false,
+    "games": 40,
+    "kind": "ablation_match",
+    "max_plies": 60,
+    "movetime_ms": 100
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260813,
+  "toolchain": {
+    "cmake_cache_sha256": "c70c615ff1eac109785fc4f0337f3bbb8dddb8f2595fc141259ea4071b6b3c8f",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

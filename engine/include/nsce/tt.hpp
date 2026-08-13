@@ -14,9 +14,11 @@ enum Bound : uint8_t { BOUND_NONE = 0, BOUND_UPPER = 1, BOUND_LOWER = 2, BOUND_E
 struct TTEntry {
   uint32_t move = 0;
   int16_t score = 0;
+  int16_t eval = 0;
   uint8_t depth = 0;
   uint8_t bound = BOUND_NONE;
   uint8_t generation = 0;
+  bool eval_valid = false;
 };
 
 class TranspositionTable {
@@ -26,7 +28,8 @@ class TranspositionTable {
   void new_search();
 
   bool probe(Key key, TTEntry& entry) const;
-  void store(Key key, int depth, int score, Bound bound, Move move, int ply);
+  void prefetch(Key key) const;
+  void store(Key key, int depth, int score, Bound bound, Move move, int ply, int eval = VALUE_NONE);
 
   static int score_to_tt(int score, int ply);
   static int score_from_tt(int score, int ply);

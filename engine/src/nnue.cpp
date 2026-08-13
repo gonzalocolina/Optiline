@@ -93,6 +93,48 @@ int halfkp_feature(Color perspective, int king_bucket, Piece pc, Square sq) {
   return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
 }
 
+int kat_king_bucket(Color perspective, Square king, int& mirror) {
+  int oriented = perspective == WHITE ? static_cast<int>(king) : (static_cast<int>(king) ^ 56);
+  mirror = 0;
+  if (file_of(static_cast<Square>(oriented)) < 4) {
+    mirror = 7;
+    oriented ^= 7;
+  }
+  return rank_of(static_cast<Square>(oriented)) * 4 + (file_of(static_cast<Square>(oriented)) - 4);
+}
+
+int kat_feature(Color perspective, int king_bucket, int mirror, Piece pc, Square sq) {
+  int oriented_sq = perspective == WHITE ? static_cast<int>(sq) : (static_cast<int>(sq) ^ 56);
+  oriented_sq ^= mirror;
+  int oriented_pc = static_cast<int>(pc);
+  if (perspective == BLACK) oriented_pc = oriented_pc < 6 ? oriented_pc + 6 : oriented_pc - 6;
+  return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
+}
+
+void kat_threats(const Position& pos, Color stm, int threats[NnueNet::kThreatDim]) {
+  for (int i = 0; i < NnueNet::kThreatDim; ++i) threats[i] = 0;
+  const Bitboard occ = pos.occupied();
+  auto attacks_of = [&](Color c) {
+    Bitboard att = 0;
+    Bitboard pawns = pos.pieces(c, PAWN);
+    att |= (c == WHITE) ? (shift_ne(pawns) | shift_nw(pawns)) : (shift_se(pawns) | shift_sw(pawns));
+    Bitboard knights = pos.pieces(c, KNIGHT);
+    while (knights) att |= knight_attacks_bb(pop_lsb(knights));
+    Bitboard bishops = pos.pieces(c, BISHOP) | pos.pieces(c, QUEEN);
+    while (bishops) att |= bishop_attacks_bb(pop_lsb(bishops), occ);
+    Bitboard rooks = pos.pieces(c, ROOK) | pos.pieces(c, QUEEN);
+    while (rooks) att |= rook_attacks_bb(pop_lsb(rooks), occ);
+    att |= king_attacks_bb(pos.king_square(c));
+    return att;
+  };
+  const Bitboard our_attacks = attacks_of(stm);
+  const Bitboard their_attacks = attacks_of(~stm);
+  for (int pt = 0; pt < 6; ++pt) {
+    threats[pt] = popcount(pos.pieces(stm, static_cast<PieceType>(pt)) & their_attacks);
+    threats[6 + pt] = popcount(pos.pieces(~stm, static_cast<PieceType>(pt)) & our_attacks);
+  }
+}
+
 Nnue& Nnue::instance() {
   static Nnue n;
   return n;
@@ -130,28 +172,38 @@ bool Nnue::load(const std::string& path) {
   if (!in) return false;
   char magic[8]{};
   in.read(magic, 8);
+  const bool kat = std::strncmp(magic, "NSCEKAT1", 8) == 0;
   const bool halfkp = std::strncmp(magic, "NSCEHFKP", 8) == 0;
-  if (!halfkp && std::strncmp(magic, "NSCENNUE", 8) != 0) return false;
+  if (!kat && !halfkp && std::strncmp(magic, "NSCENNUE", 8) != 0) return false;
   int32_t hidden = 0, features = 0;
   in.read(reinterpret_cast<char*>(&features), 4);
   in.read(reinterpret_cast<char*>(&hidden), 4);
-  int expected_features = halfkp ? NnueNet::kHalfKpFeatures : NnueNet::kFeatures;
+  const int expected_features =
+      kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures : NnueNet::kFeatures;
   if (features != expected_features || hidden != NnueNet::kHidden) return false;
+  int32_t threat_dim = 0;
+  if (kat) {
+    in.read(reinterpret_cast<char*>(&threat_dim), 4);
+    if (threat_dim != NnueNet::kThreatDim) return false;
+  }
   net_ = NnueNet{};
-  net_.halfkp = halfkp;
-  if (halfkp) {
-    net_.halfkp_w0.resize(NnueNet::kHalfKpFeatures);
-    for (int f = 0; f < NnueNet::kHalfKpFeatures; ++f)
+  net_.kat = kat;
+  net_.halfkp = halfkp || kat;
+  const int input_features = kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures : 0;
+  if (kat || halfkp) {
+    net_.halfkp_w0.resize(input_features);
+    for (int f = 0; f < input_features; ++f)
       in.read(reinterpret_cast<char*>(net_.halfkp_w0[f].data()), NnueNet::kHidden * 2);
   } else {
     for (int f = 0; f < NnueNet::kFeatures; ++f)
       in.read(reinterpret_cast<char*>(net_.w0[f].data()), NnueNet::kHidden * 2);
   }
   in.read(reinterpret_cast<char*>(net_.b0.data()), NnueNet::kHidden * 2);
-  if (halfkp)
+  if (kat || halfkp)
     in.read(reinterpret_cast<char*>(net_.halfkp_w1.data()), 2 * NnueNet::kHidden * 2);
   else
     in.read(reinterpret_cast<char*>(net_.w1.data()), NnueNet::kHidden * 2);
+  if (kat) in.read(reinterpret_cast<char*>(net_.w_threat.data()), NnueNet::kThreatDim * 2);
   in.read(reinterpret_cast<char*>(&net_.b1), 4);
   if (!in) return false;
   net_.loaded = true;
@@ -163,8 +215,10 @@ void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.halfkp) {
     for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
-      int feature =
-          halfkp_feature(static_cast<Color>(perspective), acc.king_bucket[perspective], pc, sq);
+      int feature = net_.kat ? kat_feature(static_cast<Color>(perspective), acc.king_bucket[perspective],
+                                           acc.mirror[perspective], pc, sq)
+                             : halfkp_feature(static_cast<Color>(perspective),
+                                              acc.king_bucket[perspective], pc, sq);
       const auto& column = net_.halfkp_w0[feature];
 #if defined(__AVX2__)
       acc_add_avx(acc.half[perspective].data(), column.data());
@@ -187,8 +241,10 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.halfkp) {
     for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
-      int feature =
-          halfkp_feature(static_cast<Color>(perspective), acc.king_bucket[perspective], pc, sq);
+      int feature = net_.kat ? kat_feature(static_cast<Color>(perspective), acc.king_bucket[perspective],
+                                           acc.mirror[perspective], pc, sq)
+                             : halfkp_feature(static_cast<Color>(perspective),
+                                              acc.king_bucket[perspective], pc, sq);
       const auto& column = net_.halfkp_w0[feature];
 #if defined(__AVX2__)
       acc_sub_avx(acc.half[perspective].data(), column.data());
@@ -210,9 +266,13 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
 void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
   if (net_.halfkp) {
     for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
-      acc.king_bucket[perspective] =
-          static_cast<uint8_t>(halfkp_king_bucket(static_cast<Color>(perspective),
-                                                  pos.king_square(static_cast<Color>(perspective))));
+      int mirror = 0;
+      acc.king_bucket[perspective] = static_cast<uint8_t>(
+          net_.kat ? kat_king_bucket(static_cast<Color>(perspective),
+                                     pos.king_square(static_cast<Color>(perspective)), mirror)
+                   : halfkp_king_bucket(static_cast<Color>(perspective),
+                                        pos.king_square(static_cast<Color>(perspective))));
+      acc.mirror[perspective] = static_cast<uint8_t>(mirror);
       acc.half[perspective] = net_.b0;
     }
     for (int sq = 0; sq < SQUARE_NB; ++sq) {
@@ -261,6 +321,17 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
 #endif
   int score = static_cast<int>(sum / (NnueNet::kWeightScale * NnueNet::kWeightScale));
   return (stm == WHITE) ? score : -score;
+}
+
+int Nnue::evaluate(const Position& pos) const {
+  int score = evaluate(pos.nnue_acc(), pos.side_to_move());
+  if (!net_.kat) return score;
+  int threats[NnueNet::kThreatDim];
+  kat_threats(pos, pos.side_to_move(), threats);
+  int32_t extra = 0;
+  for (int i = 0; i < NnueNet::kThreatDim; ++i)
+    extra += static_cast<int32_t>(threats[i]) * net_.w_threat[i];
+  return score + static_cast<int>(extra / NnueNet::kWeightScale);
 }
 
 }  // namespace nsce

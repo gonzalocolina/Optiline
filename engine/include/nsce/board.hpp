@@ -43,6 +43,8 @@ class Position {
   int halfmove_clock() const { return halfmove_; }
   int fullmove_number() const { return fullmove_; }
   Key key() const { return key_; }
+  Key pawn_key() const { return pawn_key_; }
+  Key nonpawn_key() const { return nonpawn_key_; }
   Bitboard checkers() const { return checkers_; }
   Square king_square(Color c) const { return lsb(pieces(c, KING)); }
   const NnueAccumulator& nnue_acc() const { return nnue_acc_; }
@@ -75,6 +77,8 @@ class Position {
   int halfmove_ = 0;
   int fullmove_ = 1;
   Key key_ = 0;
+  Key pawn_key_ = 0;
+  Key nonpawn_key_ = 0;
   Bitboard checkers_ = 0;
   std::vector<Key> history_keys_;
   NnueAccumulator nnue_acc_{};

@@ -61,22 +61,33 @@ struct SearchStats {
   uint64_t rfp_cutoffs = 0;
   uint64_t futility_prunes = 0;
   uint64_t lmp_prunes = 0;
+  uint64_t see_search_prunes = 0;
+  uint64_t singular_attempts = 0;
+  uint64_t singular_extensions = 0;
+  uint64_t iir_reductions = 0;
+  uint64_t qs_tt_cutoffs = 0;
   uint64_t root_moves = 0;
 
   SearchStats& operator+=(const SearchStats& other);
 };
 
 struct SearchStack {
-  Move killers[2]{};
   Move current_move{};
+  Move excluded{};
   int static_eval = 0;
   bool skip_null = false;
+  Piece moved_piece = NO_PIECE;
 };
 
 struct SearchWorker {
   static constexpr int kMaxPly = 128;
+  static constexpr int kCorrSize = 16384;
   Move killers[kMaxPly][2]{};
   int history[12][SQUARE_NB]{};
+  int capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
+  int16_t continuation[12][SQUARE_NB][12][SQUARE_NB]{};
+  int pawn_corr[COLOR_NB][kCorrSize]{};
+  int nonpawn_corr[COLOR_NB][kCorrSize]{};
   Move countermove[SQUARE_NB][SQUARE_NB]{};
   Move pv[kMaxPly][kMaxPly]{};
   int pv_len[kMaxPly]{};
@@ -117,11 +128,17 @@ class Search {
   bool time_up() const;
   bool count_node(SearchWorker& w);
   void flush_nodes(SearchWorker& w);
-  void score_moves(SearchWorker& w, const Position& pos, MoveList& list, Move tt_move, Move counter, int ply,
-                   int* scores) const;
+  void score_moves(SearchWorker& w, const Position& pos, const SearchStack* ss, MoveList& list, Move tt_move,
+                   Move counter, int ply, int* scores) const;
   void sort_moves(MoveList& list, int* scores) const;
-  void update_quiet_stats(SearchWorker& w, const Position& pos, Move best, const Move* quiets, int quiet_count,
-                          int depth, int ply, Move prev);
+  void update_quiet_stats(SearchWorker& w, const Position& pos, SearchStack* ss, Move best, const Move* quiets,
+                          int quiet_count, int depth, int ply, Move prev);
+  void update_capture_stats(SearchWorker& w, const Position& pos, Move best, const Move* captures, int capture_count,
+                            int depth);
+  int correction(const SearchWorker& w, const Position& pos) const;
+  void update_correction(SearchWorker& w, const Position& pos, int static_eval, int best_score, Bound bound, int depth);
+
+  int lmr_table_[64][64]{};
   int search_root_parallel(int depth, int alpha, int beta);
   void start_helper_pool();
   void stop_helper_pool();

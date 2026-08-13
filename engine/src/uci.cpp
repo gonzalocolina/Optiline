@@ -53,7 +53,7 @@ void Uci::handle_command(const std::string& line) {
   is >> token;
 
   if (token == "uci") {
-    std::cout << "id name NSCE 0.8\n";
+    std::cout << "id name NSCE 0.9\n";
     std::cout << "id author Gonzalo\n";
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
     std::cout << "option name Threads type spin default 1 min 1 max 64\n";

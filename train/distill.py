@@ -17,9 +17,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 from uci_common import UciEngine, load_openings  # noqa: E402
 
 
-def label_position(teacher: UciEngine, fen: str, depth: int) -> dict:
+def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int | None) -> dict:
     teacher.set_position(fen, [])
-    teacher._send(f"go depth {depth}")
+    if nodes:
+        teacher._send(f"go nodes {nodes}")
+    else:
+        teacher._send(f"go depth {depth}")
     lines = teacher._wait_for("bestmove", timeout=120.0)
     score_cp = None
     best = "0000"
@@ -36,6 +39,7 @@ def label_position(teacher: UciEngine, fen: str, depth: int) -> dict:
         "score_cp": score_cp,
         "score_pov": "side_to_move",
         "depth": depth,
+        "nodes": nodes,
     }
 
 
@@ -60,15 +64,19 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--teacher", default="")
     ap.add_argument("--depth", type=int, default=8)
+    ap.add_argument("--nodes", type=int, default=0, help="If >0, label with go nodes N instead of depth")
     ap.add_argument("--positions", type=int, default=2000)
     ap.add_argument("--sampler", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--seed", type=int, default=20260802)
     ap.add_argument("--min-ply", type=int, default=8)
     ap.add_argument("--max-ply", type=int, default=60)
+    ap.add_argument("--resume", action="store_true")
     ap.add_argument("-o", "--output", default=str(ROOT / "train/data/distill.jsonl"))
     args = ap.parse_args()
-    if args.positions <= 0 or args.depth <= 0:
-        ap.error("--positions and --depth must be positive")
+    if args.positions <= 0:
+        ap.error("--positions must be positive")
+    if args.nodes <= 0 and args.depth <= 0:
+        ap.error("need --depth or --nodes")
     if args.min_ply < 0 or args.max_ply < args.min_ply:
         ap.error("invalid ply sampling range")
 
@@ -79,7 +87,10 @@ def main() -> int:
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     openings = load_openings(ROOT / "tools" / "openings.epd")
-    rng = random.Random(args.seed)
+    start = 0
+    if args.resume and out.exists():
+        start = sum(1 for line in out.open() if line.strip())
+        print(f"resuming from {start} existing samples")
 
     eng = UciEngine([teacher_cmd], "teacher")
     sampler = UciEngine([args.sampler], "sampler")
@@ -87,17 +98,20 @@ def main() -> int:
     if "nsce" in teacher_cmd:
         eng.apply_uci_file(ROOT / "tools/configs/baseline.uci")
     try:
-        with out.open("w") as f:
-            for i in range(args.positions):
+        mode = "a" if start else "w"
+        with out.open(mode) as f:
+            for i in range(start, args.positions):
+                rng = random.Random(args.seed + i)
                 opening = openings[i % len(openings)]
                 fen, sampled_ply = sample_position(
                     sampler, opening, rng, args.min_ply, args.max_ply
                 )
-                lab = label_position(eng, fen, args.depth)
+                lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
                 lab["teacher"] = teacher_cmd
                 lab["sampled_ply"] = sampled_ply
                 lab["seed"] = args.seed
                 f.write(json.dumps(lab) + "\n")
+                f.flush()
                 print(f"{i+1}: {lab['bestmove']} cp={lab['score_cp']}")
     finally:
         eng.close()

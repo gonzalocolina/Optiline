@@ -88,12 +88,17 @@ Runtime accepts both formats:
 
 - `NSCENNUE` — current piece-square 768×128×1 network
 - `NSCEHFKP` — 16 king buckets × 768 features × two perspectives
+- `NSCEKAT1` — 32 horizontally-mirrored king buckets × 768 + 12-dim threat residual
 
 Train only after a large labeled corpus:
 
 ```bash
 .venv/bin/python train/train_halfkp.py \
   --data train/data/nnue_stockfish_d8.jsonl \
+  --minimum-samples 50000
+
+.venv/bin/python train/train_kat.py \
+  --data train/data/lichess_evals.jsonl \
   --minimum-samples 50000
 ```
 

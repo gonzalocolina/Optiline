@@ -114,6 +114,25 @@ TEST_F(EngineTest, NoisyMovesIncludeQuietPromotions) {
   }
 }
 
+TEST_F(EngineTest, LegalNoisyIsSubsetOfLegal) {
+  Position pos;
+  pos.set_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+  MoveList legal;
+  MoveList noisy;
+  generate_legal(pos, legal);
+  generate_legal_noisy(pos, noisy);
+  ASSERT_GT(noisy.size, 0);
+  ASSERT_LE(noisy.size, legal.size);
+  for (int i = 0; i < noisy.size; ++i) {
+    bool found = false;
+    for (int j = 0; j < legal.size; ++j) {
+      if (legal.moves[j] == noisy.moves[i]) found = true;
+    }
+    EXPECT_TRUE(found);
+    EXPECT_TRUE(noisy.moves[i].is_capture() || noisy.moves[i].is_ep() || noisy.moves[i].is_promotion());
+  }
+}
+
 TEST_F(EngineTest, CastlingRequiresTheRook) {
   Position pos;
   pos.set_fen("r3k2r/8/8/8/8/8/8/4K2R w KQkq - 0 1");

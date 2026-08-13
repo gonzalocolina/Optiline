@@ -62,6 +62,50 @@ smoke tests only:
 
 Do not promote smoke nets. Prefer a fresh distill of ≥50k positions before any SPRT.
 
+## KAT — HalfKA-hm + tactical residual (`NSCEKAT1`)
+
+Better than the 16-bucket HalfKP path at this project's data scale:
+
+- 32 horizontally-mirrored king buckets (king forced onto files e–h)
+- Train-time piece-square factorization, folded into the sparse table at export
+- 12-dim threat residual (our/their attacked piece counts) — dense, not a sparse explosion
+- Labels from Lichess eval DB (centipawns) or Stockfish teacher search; no GPL nets
+
+```bash
+# ≥50k (then millions) from Lichess evals. Stream; do not download the full 21 GB unless needed.
+curl -L https://database.lichess.org/lichess_db_eval.jsonl.zst \
+  | zstd -d \
+  | .venv/bin/python train/import_lichess_evals.py --limit 120000 \
+      -o train/data/lichess_evals_120k.jsonl
+
+.venv/bin/python train/train_kat.py \
+  --data train/data/lichess_evals_120k.jsonl \
+  --epochs 16 --seed 20260813 \
+  --minimum-samples 50000 \
+  --output nets/kat_candidate.bin
+
+python3 tools/sprt.py \
+  --cfg-a tools/configs/baseline.uci \
+  --cfg-b tools/configs/kat.uci \
+  --openings tools/openings_balanced.epd \
+  --max-games 200
+```
+
+Do not silently replace `EvalFile=internal`. Promote only after a paired SPRT.
+
+Alternative teacher labels (slower, higher quality):
+
+```bash
+.venv/bin/python train/distill.py \
+  --teacher /path/to/stockfish --sampler build/nsce \
+  --nodes 4000 --positions 50000 --resume \
+  -o train/data/sf18_nodes4k.jsonl
+```
+
+Millions-scale next step: keep streaming the Lichess dump (≈395M positions) or
+HuggingFace `mateuszgrzyb/lichess-stockfish-normalized`, then raise hidden size
+only after MAE/SPRT stop moving.
+
 ## Fit policy / controller binaries
 
 ```bash

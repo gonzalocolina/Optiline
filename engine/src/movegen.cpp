@@ -238,9 +238,7 @@ void generate_noisy(const Position& pos, MoveList& list) {
     generate_quiet_promotions<BLACK>(pos, list);
 }
 
-void generate_legal(const Position& pos, MoveList& list) {
-  MoveList pseudo;
-  generate_pseudo_legal(pos, pseudo);
+void filter_legal(const Position& pos, const MoveList& pseudo, MoveList& list) {
   list.size = 0;
 
   const Color us = pos.side_to_move();
@@ -300,6 +298,18 @@ void generate_legal(const Position& pos, MoveList& list) {
   }
 }
 
+void generate_legal(const Position& pos, MoveList& list) {
+  MoveList pseudo;
+  generate_pseudo_legal(pos, pseudo);
+  filter_legal(pos, pseudo, list);
+}
+
+void generate_legal_noisy(const Position& pos, MoveList& list) {
+  MoveList pseudo;
+  generate_noisy(pos, pseudo);
+  filter_legal(pos, pseudo, list);
+}
+
 std::string move_to_uci(Move m) {
   std::string s = square_to_string(m.from()) + square_to_string(m.to());
   if (m.is_promotion()) {
@@ -316,10 +326,10 @@ Move parse_uci_move(const Position& pos, const std::string& uci) {
   PieceType promo = NO_PIECE_TYPE;
   if (uci.size() >= 5) {
     switch (uci[4]) {
-      case 'n': promo = KNIGHT; break;
-      case 'b': promo = BISHOP; break;
-      case 'r': promo = ROOK; break;
-      case 'q': promo = QUEEN; break;
+      case 'n': case 'N': promo = KNIGHT; break;
+      case 'b': case 'B': promo = BISHOP; break;
+      case 'r': case 'R': promo = ROOK; break;
+      case 'q': case 'Q': promo = QUEEN; break;
       default: break;
     }
   }

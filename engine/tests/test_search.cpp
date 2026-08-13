@@ -143,6 +143,22 @@ TEST(SearchTest, AspirationWindowsReusePool) {
   EXPECT_TRUE(info.best_move);
 }
 
+TEST(SearchTest, FindsMateInTwoWithSingularSearch) {
+  init_bitboards();
+  Zobrist::init();
+
+  Position pos;
+  pos.set_fen("r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4");
+  Search search;
+  search.set_position(pos);
+  search.set_silent(true);
+  SearchLimits limits;
+  limits.depth = 6;
+  SearchInfo info = search.go(limits);
+  ASSERT_TRUE(info.best_move);
+  EXPECT_EQ(move_to_uci(info.best_move), "h5f7");
+}
+
 TEST(SearchTest, SetThreadsResizePool) {
   init_bitboards();
   Zobrist::init();

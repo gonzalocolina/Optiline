@@ -96,3 +96,20 @@ TEST(TranspositionTableTest, GenerationWrapDoesNotClearTable) {
   ASSERT_TRUE(table.probe(key, entry));
   EXPECT_EQ(entry.score, 42);
 }
+
+TEST(TranspositionTableTest, StoresAndProbesStaticEval) {
+  TranspositionTable table;
+  table.resize(1);
+  const Key key = 0x1111;
+  table.store(key, 6, 40, BOUND_EXACT, Move::make(SQ_E2, SQ_E4), 0, 96);
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_TRUE(entry.eval_valid);
+  EXPECT_EQ(entry.eval, 96);
+
+  table.store(key, 7, 55, BOUND_LOWER, Move::make(SQ_D2, SQ_D4), 0, VALUE_NONE);
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_TRUE(entry.eval_valid);
+  EXPECT_EQ(entry.eval, 96);
+}

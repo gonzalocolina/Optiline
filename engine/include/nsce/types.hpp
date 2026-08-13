@@ -141,6 +141,7 @@ constexpr int MAX_MOVES = 256;
 constexpr int VALUE_MATE = 32000;
 constexpr int VALUE_DRAW = 0;
 constexpr int VALUE_INFINITE = 32001;
+constexpr int VALUE_NONE = 32002;
 
 inline int mate_in(int ply) { return VALUE_MATE - ply; }
 inline int mated_in(int ply) { return -VALUE_MATE + ply; }
