@@ -59,7 +59,8 @@ bash tools/profile_engine.sh
 Los runners usan aperturas emparejadas con colores invertidos, SPRT pentanomial
 por pares y escriben un `manifest.json` reproducible. Baseline y protocolo:
 [docs/experiments.md](docs/experiments.md). Medición de arquitectura:
-[docs/measurement.md](docs/measurement.md).
+[docs/measurement.md](docs/measurement.md). Conocimiento acumulado del laboratorio:
+[docs/knowledge.md](docs/knowledge.md).
 
 ## Licencia
 

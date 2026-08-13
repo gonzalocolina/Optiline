@@ -1,5 +1,8 @@
 # Experimental protocol and frozen baseline
 
+Compiled claims, rejections, and ladder state: [docs/knowledge.md](knowledge.md).
+Update that file after every SPRT, ladder, or diagnostic — do not only write `experiments/*/report.md`.
+
 ## Baseline (canonical)
 
 | Setting | Value |

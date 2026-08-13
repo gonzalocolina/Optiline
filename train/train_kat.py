@@ -258,14 +258,24 @@ def forward(rows, w0, w_ps, b0, w1, b1, w_threat):
     return predictions, caches
 
 
-def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed):
+def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, init_path=None, checkpoint_path=None):
     rng = np.random.default_rng(seed)
-    w0 = rng.normal(0.0, 0.02, (FEATURES, HIDDEN)).astype(np.float32)
-    w_ps = rng.normal(0.0, 0.03, (PS_FEATURES, HIDDEN)).astype(np.float32)
-    b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
-    w1 = rng.normal(0.0, 0.04, 2 * HIDDEN).astype(np.float32)
-    b1 = 0.0
-    w_threat = rng.normal(0.0, 0.15, THREAT_DIM).astype(np.float32)
+    if init_path:
+        packed = np.load(init_path)
+        w0 = packed["w0"].astype(np.float32)
+        w_ps = packed["w_ps"].astype(np.float32)
+        b0 = packed["b0"].astype(np.float32)
+        w1 = packed["w1"].astype(np.float32)
+        b1 = float(packed["b1"])
+        w_threat = packed["w_threat"].astype(np.float32)
+        print(f"init from {init_path}", flush=True)
+    else:
+        w0 = rng.normal(0.0, 0.02, (FEATURES, HIDDEN)).astype(np.float32)
+        w_ps = rng.normal(0.0, 0.03, (PS_FEATURES, HIDDEN)).astype(np.float32)
+        b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
+        w1 = rng.normal(0.0, 0.04, 2 * HIDDEN).astype(np.float32)
+        b1 = 0.0
+        w_threat = rng.normal(0.0, 0.15, THREAT_DIM).astype(np.float32)
     mw0 = np.zeros_like(w0)
     mps = np.zeros_like(w_ps)
     mb0 = np.zeros_like(b0)
@@ -332,6 +342,19 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed):
         if row["rmse_cp"] < best_rmse:
             best_rmse = row["rmse_cp"]
             best = (w0.copy(), w_ps.copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
+        if checkpoint_path:
+            Path(checkpoint_path).parent.mkdir(parents=True, exist_ok=True)
+            np.savez(
+                checkpoint_path,
+                w0=best[0],
+                w_ps=best[1],
+                b0=best[2],
+                w1=best[3],
+                b1=np.float32(best[4]),
+                w_threat=best[5],
+                epoch=np.int32(epoch),
+            )
+            print(f"wrote checkpoint {checkpoint_path}", flush=True)
     return *best, history
 
 
@@ -375,6 +398,8 @@ def main() -> int:
     parser.add_argument("--target-clip", type=float, default=2000.0)
     parser.add_argument("--minimum-samples", type=int, default=50000)
     parser.add_argument("--seed", type=int, default=20260813)
+    parser.add_argument("--init", default="", help="optional float checkpoint (.npz) to continue from")
+    parser.add_argument("--checkpoint", default="", help="write best float weights here after each epoch")
     args = parser.parse_args()
 
     rows, dataset_sha256 = load_dataset(Path(args.data), args.target_clip)
@@ -386,7 +411,14 @@ def main() -> int:
         bucket = int.from_bytes(hashlib.sha256(row[7].encode()).digest()[:4], "little") % 10
         (validation_rows if bucket == 0 else train_rows).append(row)
     w0, w_ps, b0, w1, b1, w_threat, history = train(
-        train_rows, validation_rows, args.epochs, args.batch_size, args.learning_rate, args.seed
+        train_rows,
+        validation_rows,
+        args.epochs,
+        args.batch_size,
+        args.learning_rate,
+        args.seed,
+        init_path=args.init or None,
+        checkpoint_path=args.checkpoint or None,
     )
     folded = fold_factorization(w0, w_ps)
     quantization = export_network(Path(args.output), folded, b0, w1, b1, w_threat)

@@ -147,8 +147,18 @@ class UciEngine:
 
     def go_depth(self, fen: str, moves: list[str], depth: int) -> str:
         self.set_position(fen, moves)
+        t0 = time.monotonic()
         self._send(f"go depth {depth}")
         lines = self._wait_for("bestmove", timeout=120.0)
+        self.last_time_ms = int((time.monotonic() - t0) * 1000)
+        return self._parse_search(lines)
+
+    def go_nodes(self, fen: str, moves: list[str], nodes: int) -> str:
+        self.set_position(fen, moves)
+        t0 = time.monotonic()
+        self._send(f"go nodes {nodes}")
+        lines = self._wait_for("bestmove", timeout=max(30.0, nodes / 50_000.0 + 30.0))
+        self.last_time_ms = int((time.monotonic() - t0) * 1000)
         return self._parse_search(lines)
 
     def _parse_search(self, lines: list[str]) -> str:

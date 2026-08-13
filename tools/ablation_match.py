@@ -29,6 +29,7 @@ def play_game(
     adjudication_cp: int = 800,
     adjudication_plies: int = 6,
     adjudication_min_ply: int = 20,
+    nodes: int = 0,
 ) -> tuple[str, dict]:
     """Return result from white's POV: '1-0', '0-1', '1/2-1/2'."""
     white.new_game()
@@ -54,7 +55,7 @@ def play_game(
 
     for ply in range(max_plies):
         engine = white if ply % 2 == 0 else black
-        mv = engine.go_movetime(fen, moves, movetime)
+        mv = engine.go_nodes(fen, moves, nodes) if nodes > 0 else engine.go_movetime(fen, moves, movetime)
         if ply % 2 == 0:
             nodes_w += engine.last_nodes
             time_w_ms += engine.last_time_ms
@@ -104,6 +105,7 @@ def match(
     adjudication_cp: int = 800,
     adjudication_plies: int = 6,
     engine_path_b: Path | None = None,
+    nodes: int = 0,
 ) -> dict:
     engine_path_b = engine_path_b or engine_path
     a = UciEngine([str(engine_path)], name_a)
@@ -119,7 +121,7 @@ def match(
         for i, (pair_id, fen, a_is_white) in enumerate(schedule):
             if a_is_white:
                 res, meta = play_game(
-                    a, b, fen, movetime, max_plies, adjudication_cp, adjudication_plies
+                    a, b, fen, movetime, max_plies, adjudication_cp, adjudication_plies, nodes=nodes
                 )
                 # a is white
                 if res == "1-0":
@@ -134,7 +136,7 @@ def match(
                 total_time_b += meta["time_b_ms"]
             else:
                 res, meta = play_game(
-                    b, a, fen, movetime, max_plies, adjudication_cp, adjudication_plies
+                    b, a, fen, movetime, max_plies, adjudication_cp, adjudication_plies, nodes=nodes
                 )
                 # a is black
                 if res == "0-1":
@@ -163,7 +165,7 @@ def match(
                     "termination": meta["termination"],
                 }
             )
-            print(f"  game {i+1}/{games}: A_score so far {w}+{d}/2 / {i+1}")
+            print(f"  game {i+1}/{games}: A_score so far {w}+{d}/2 / {i+1}", flush=True)
 
         score = (w + 0.5 * d) / games
         elo, err = elo_from_wdl(w, d, l)
@@ -178,6 +180,7 @@ def match(
             "pairs": games // 2,
             "seed": seed,
             "movetime_ms": movetime,
+            "nodes_per_move": nodes,
             "adjudication_cp": adjudication_cp,
             "adjudication_plies": adjudication_plies,
             "W": w,
@@ -334,6 +337,12 @@ def main() -> int:
     ap.add_argument("--outdir", default="")
     ap.add_argument("--games", type=int, default=100, help="even number; each opening is played with both colors")
     ap.add_argument("--movetime", type=int, default=100)
+    ap.add_argument(
+        "--nodes",
+        type=int,
+        default=0,
+        help="if >0, equal-node match (go nodes N) instead of movetime",
+    )
     ap.add_argument("--max-plies", type=int, default=60)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--adjudication-cp", type=int, default=800)
@@ -396,6 +405,7 @@ def main() -> int:
         args.adjudication_cp,
         args.adjudication_plies,
         engine_b,
+        args.nodes,
     )
     write_report(outdir, [r], engine, args.games, args.movetime)
     manifest = build_manifest(
@@ -408,6 +418,7 @@ def main() -> int:
             "kind": "ablation_match",
             "games": args.games,
             "movetime_ms": args.movetime,
+            "nodes_per_move": args.nodes,
             "exploratory_short_tc": args.movetime < 50,
             "max_plies": args.max_plies,
             "adjudication_cp": args.adjudication_cp,
