@@ -61,12 +61,20 @@ class UciEngine:
         if moves:
             cmd += " moves " + " ".join(moves)
         self._send(cmd)
+        self._send("legalmoves")
+        legal_line = self._wait_for("legalmoves")
+        legal = set(legal_line.split()[1:])
         self._send(f"go depth {depth}")
         line = self._wait_for("bestmove", timeout=120.0)
         parts = line.split()
         if len(parts) < 2:
             raise RuntimeError(f"bad bestmove: {line}")
-        return parts[1]
+        best = parts[1]
+        if best not in ("0000", "(none)", "none") and best not in legal:
+            raise RuntimeError(f"{self.name}: illegal bestmove {best}; legal={sorted(legal)}")
+        if legal and best in ("0000", "(none)", "none"):
+            raise RuntimeError(f"{self.name}: missing bestmove for non-terminal position")
+        return best
 
     def close(self) -> None:
         try:

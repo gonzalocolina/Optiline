@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 
 #if defined(__AVX2__)
@@ -122,32 +123,9 @@ int kat_feature(Color perspective, int king_bucket, int mirror, Piece pc, Square
   return king_bucket * NnueNet::kFeatures + oriented_pc * 64 + oriented_sq;
 }
 
-namespace {
-
-template <Color C>
-Bitboard attacks_of_color(const Position& pos, Bitboard occ) {
-  Bitboard pawns = pos.pieces(C, PAWN);
-  Bitboard att = (C == WHITE) ? (shift_ne(pawns) | shift_nw(pawns)) : (shift_se(pawns) | shift_sw(pawns));
-  Bitboard bb = pos.pieces(C, KNIGHT);
-  while (bb) att |= knight_attacks_bb(pop_lsb(bb));
-  bb = pos.pieces(C, BISHOP) | pos.pieces(C, QUEEN);
-  while (bb) att |= bishop_attacks_bb(pop_lsb(bb), occ);
-  bb = pos.pieces(C, ROOK) | pos.pieces(C, QUEEN);
-  while (bb) att |= rook_attacks_bb(pop_lsb(bb), occ);
-  att |= king_attacks_bb(pos.king_square(C));
-  return att;
-}
-
-Bitboard attacks_of_color(const Position& pos, Color c, Bitboard occ) {
-  return c == WHITE ? attacks_of_color<WHITE>(pos, occ) : attacks_of_color<BLACK>(pos, occ);
-}
-
-}  // namespace
-
 void kat_threats(const Position& pos, Color stm, int threats[NnueNet::kThreatDim]) {
-  const Bitboard occ = pos.occupied();
-  const Bitboard our_attacks = attacks_of_color(pos, stm, occ);
-  const Bitboard their_attacks = attacks_of_color(pos, ~stm, occ);
+  const Bitboard our_attacks = pos.attacks(stm);
+  const Bitboard their_attacks = pos.attacks(~stm);
   for (int pt = 0; pt < 6; ++pt) {
     threats[pt] = popcount(pos.pieces(stm, static_cast<PieceType>(pt)) & their_attacks);
     threats[6 + pt] = popcount(pos.pieces(~stm, static_cast<PieceType>(pt)) & our_attacks);
@@ -197,6 +175,7 @@ bool Nnue::load(const std::string& path) {
   int32_t hidden = 0, features = 0;
   in.read(reinterpret_cast<char*>(&features), 4);
   in.read(reinterpret_cast<char*>(&hidden), 4);
+  if (!in) return false;
   const int expected_features =
       kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures : NnueNet::kFeatures;
   if (features != expected_features || hidden != NnueNet::kHidden) return false;
@@ -205,10 +184,21 @@ bool Nnue::load(const std::string& path) {
     in.read(reinterpret_cast<char*>(&threat_dim), 4);
     if (threat_dim != NnueNet::kThreatDim) return false;
   }
+  if (!in) return false;
+  const int input_features = kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures : 0;
+  const int serialized_features = kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures
+                                                                         : NnueNet::kFeatures;
+  std::error_code size_error;
+  const uintmax_t file_size = std::filesystem::file_size(path, size_error);
+  if (size_error) return false;
+  const uintmax_t expected_size =
+      8 + 4 + 4 + (kat ? 4 : 0) + static_cast<uintmax_t>(serialized_features) * NnueNet::kHidden * 2 +
+      static_cast<uintmax_t>(NnueNet::kHidden) * 2 + static_cast<uintmax_t>(kat || halfkp ? 2 : 1) *
+          NnueNet::kHidden * 2 + (kat ? NnueNet::kThreatDim * 2 : 0) + 4;
+  if (file_size != expected_size) return false;
   net_ = NnueNet{};
   net_.kat = kat;
   net_.halfkp = halfkp || kat;
-  const int input_features = kat ? NnueNet::kKatFeatures : halfkp ? NnueNet::kHalfKpFeatures : 0;
   if (kat || halfkp) {
     net_.halfkp_w0.resize(input_features);
     for (int f = 0; f < input_features; ++f)
@@ -384,9 +374,8 @@ int Nnue::evaluate(const Position& pos) const {
   int score = evaluate(pos.nnue_acc(), pos.side_to_move());
   if (!net_.kat) return score;
   const Color stm = pos.side_to_move();
-  const Bitboard occ = pos.occupied();
-  const Bitboard our_attacks = attacks_of_color(pos, stm, occ);
-  const Bitboard their_attacks = attacks_of_color(pos, ~stm, occ);
+  const Bitboard our_attacks = pos.attacks(stm);
+  const Bitboard their_attacks = pos.attacks(~stm);
   const int16_t* w = net_.w_threat.data();
   int32_t extra = 0;
   for (int pt = 0; pt < 6; ++pt) {

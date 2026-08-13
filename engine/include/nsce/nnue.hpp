@@ -46,6 +46,7 @@ struct NnueAccumulator {
 
 class Nnue {
  public:
+  Nnue() = default;
   static Nnue& instance();
 
   bool load(const std::string& path);
@@ -69,7 +70,6 @@ class Nnue {
   const NnueNet& net() const { return net_; }
 
  private:
-  Nnue() = default;
   void add_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const;
   void remove_piece_for(NnueAccumulator& acc, Color perspective, Piece pc, Square sq) const;
   void refresh_perspective(const Position& pos, NnueAccumulator& acc, Color perspective) const;

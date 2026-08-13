@@ -2,6 +2,7 @@
 
 #include "nsce/types.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <mutex>
@@ -14,6 +15,7 @@ class Position;
 // Learned search budget controller: suggests LMR reduction delta and prune probability.
 class SearchController {
  public:
+  SearchController() = default;
   static SearchController& instance();
 
   bool load_default();
@@ -49,7 +51,7 @@ class SearchController {
   bool enabled_ = true;
   std::ofstream telemetry_;
   std::mutex telemetry_mu_;
-  bool telemetry_enabled_ = false;
+  std::atomic<bool> telemetry_enabled_{false};
 };
 
 }  // namespace nsce

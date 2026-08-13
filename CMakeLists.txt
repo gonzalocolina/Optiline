@@ -27,8 +27,10 @@ if(NSCE_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
 elseif(NSCE_TSAN)
-  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
-  add_link_options(-fsanitize=thread)
+  # Some Linux distributions build PIE executables by default; TSan's
+  # shadow-memory reservation conflicts with that mapping layout.
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -fno-pie)
+  add_link_options(-fsanitize=thread -no-pie)
 endif()
 
 add_library(nsce_engine
@@ -125,6 +127,22 @@ target_link_libraries(nsce_bench PRIVATE nsce_engine)
 
 add_executable(nsce_bench_nnue engine/benches/bench_nnue_latency.cpp)
 target_link_libraries(nsce_bench_nnue PRIVATE nsce_engine)
+
+add_executable(nsce_bench_components engine/benches/bench_components.cpp)
+target_link_libraries(nsce_bench_components PRIVATE nsce_engine)
+
+add_test(
+  NAME SearchBenchSmoke
+  COMMAND $<TARGET_FILE:nsce_bench> 5 1 1 internal
+)
+add_test(
+  NAME NnueBenchSmoke
+  COMMAND $<TARGET_FILE:nsce_bench_nnue> 1000 internal
+)
+add_test(
+  NAME ComponentsBenchSmoke
+  COMMAND $<TARGET_FILE:nsce_bench_components> 1000 internal
+)
 
 # Optional PGO helpers (manual two-pass):
 #   cmake -DNSCE_PGO_GENERATE=ON ... && build && ./nsce bench 8

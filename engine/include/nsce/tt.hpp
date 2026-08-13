@@ -26,6 +26,7 @@ class TranspositionTable {
   void resize(std::size_t mb);
   void clear();
   void new_search();
+  int hashfull() const;
 
   bool probe(Key key, TTEntry& entry) const;
   void prefetch(Key key) const;

@@ -9,7 +9,9 @@
 #include "nsce/policy.hpp"
 #include "nsce/zobrist.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,12 +22,16 @@ namespace nsce {
 Uci::Uci() {
   init_bitboards();
   Zobrist::init();
-  if (!Nnue::instance().load("nets/nnue_trained.bin")) Nnue::instance().load_default_from_hce();
-  PolicyNet::instance().load_default();
-  PolicyNet::instance().set_enabled(false);
-  SearchController::instance().load_default();
-  SearchController::instance().set_enabled(false);
+  if (!context_.nnue.load("nets/nnue_trained.bin")) context_.nnue.load_default_from_hce();
+  context_.policy.load_default();
+  context_.policy.set_enabled(false);
+  context_.controller.load_default();
+  context_.controller.set_enabled(false);
   pos_.set_startpos();
+  pos_.set_nnue(&context_.nnue);
+  pos_.set_use_extras(context_.use_extras);
+  search_.set_policy(&context_.policy);
+  search_.set_controller(&context_.controller);
   search_.set_hash_mb(16);
   search_.set_position(pos_);
 }
@@ -56,6 +62,7 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "id name NSCE 0.10\n";
     std::cout << "id author Gonzalo\n";
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
+    std::cout << "option name Clear Hash type button\n";
     std::cout << "option name Threads type spin default 1 min 1 max 64\n";
     std::cout << "option name UseNNUE type check default true\n";
     std::cout << "option name UsePolicy type check default false\n";
@@ -83,11 +90,20 @@ void Uci::handle_command(const std::string& line) {
     search_.set_position(pos_);
   } else if (token == "position") {
     stop_search();
-    handle_position(is);
+    const std::string previous_fen = pos_.fen();
+    try {
+      handle_position(is);
+    } catch (const std::exception& error) {
+      pos_.set_fen(previous_fen);
+      search_.set_position(pos_);
+      std::cout << "info string invalid position: " << error.what() << std::endl;
+    }
   } else if (token == "go") {
     handle_go(is);
   } else if (token == "stop") {
     stop_search();
+  } else if (token == "ponderhit") {
+    search_.ponder_hit();
   } else if (token == "setoption") {
     stop_search();
     handle_setoption(is);
@@ -124,6 +140,8 @@ void Uci::handle_command(const std::string& line) {
     std::cout << std::endl;
   } else if (token == "eval") {
     std::cout << "eval " << evaluate(pos_) << std::endl;
+  } else if (token == "hashfull") {
+    std::cout << "hashfull " << search_.hashfull() << std::endl;
   } else if (token == "quit") {
     stop_search();
   }
@@ -180,9 +198,18 @@ void Uci::handle_go(std::istringstream& is) {
       is >> limits.movestogo;
     else if (token == "infinite")
       limits.infinite = true;
+    else if (token == "ponder")
+      limits.ponder = true;
+    else if (token == "searchmoves") {
+      while (is >> token) {
+        Move move = parse_uci_move(pos_, token);
+        if (move) limits.searchmoves.push_back(move);
+      }
+      break;
+    }
   }
   if (limits.depth == 0 && limits.movetime_ms == 0 && limits.wtime == 0 && limits.btime == 0 && limits.nodes == 0 &&
-      !limits.infinite)
+      !limits.infinite && !limits.ponder)
     limits.depth = 6;
 
   search_.set_position(pos_);
@@ -203,17 +230,23 @@ void Uci::handle_setoption(std::istringstream& is) {
     name += token;
   }
   is >> value;
-  if (name == "Hash") search_.set_hash_mb(static_cast<std::size_t>(std::stoul(value)));
-  else if (name == "Threads") search_.set_threads(std::stoi(value));
+  try {
+    if (name == "Hash") {
+      const auto hash = std::clamp<std::size_t>(std::stoul(value), 1, 4096);
+      search_.set_hash_mb(hash);
+    } else if (name == "Threads") {
+      search_.set_threads(std::clamp(std::stoi(value), 1, 64));
+    }
   else if (name == "UseNNUE") {
     bool on = (value == "true" || value == "1");
-    Nnue::instance().set_enabled(on);
+    context_.nnue.set_enabled(on);
+    pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
     search_.set_position(pos_);
   } else if (name == "UsePolicy") {
-    PolicyNet::instance().set_enabled(value == "true" || value == "1");
+    context_.policy.set_enabled(value == "true" || value == "1");
   } else if (name == "UseSearchController") {
-    SearchController::instance().set_enabled(value == "true" || value == "1");
+    context_.controller.set_enabled(value == "true" || value == "1");
   } else if (name == "UseTT") {
     search_.set_use_tt(value == "true" || value == "1");
   } else if (name == "UseSEE") {
@@ -233,27 +266,39 @@ void Uci::handle_setoption(std::istringstream& is) {
   } else if (name == "UseProbCut") {
     search_.set_use_probcut(value == "true" || value == "1");
   } else if (name == "UseExtras") {
-    set_use_extras(value == "true" || value == "1");
+    context_.use_extras = value == "true" || value == "1";
+    pos_.set_use_extras(context_.use_extras);
   } else if (name == "EvalFile") {
     if (value == "<internal>" || value == "internal" || value == "hce") {
-      Nnue::instance().load_default_from_hce();
+      context_.nnue.load_default_from_hce();
     } else {
-      Nnue::instance().load(value);
+      if (!context_.nnue.load(value)) {
+        std::cout << "info string error loading EvalFile " << value << std::endl;
+        return;
+      }
     }
+    pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
     search_.set_position(pos_);
   } else if (name == "PolicyFile") {
     if (value == "<internal>" || value == "internal")
-      PolicyNet::instance().load_default();
-    else
-      PolicyNet::instance().load(value);
+      context_.policy.load_default();
+    else if (!context_.policy.load(value))
+      std::cout << "info string error loading PolicyFile " << value << std::endl;
   } else if (name == "ControllerFile") {
     if (value == "<internal>" || value == "internal")
-      SearchController::instance().load_default();
-    else
-      SearchController::instance().load(value);
+      context_.controller.load_default();
+    else if (!context_.controller.load(value))
+      std::cout << "info string error loading ControllerFile " << value << std::endl;
   } else if (name == "TelemetryFile") {
-    SearchController::instance().set_telemetry(value);
+    context_.controller.set_telemetry(value);
+  } else if (name == "Clear Hash") {
+    search_.clear_hash();
+  } else {
+    std::cout << "info string unknown option " << name << std::endl;
+  }
+  } catch (const std::exception& error) {
+    std::cout << "info string invalid option " << name << ": " << error.what() << std::endl;
   }
 }
 

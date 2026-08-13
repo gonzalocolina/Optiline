@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nsce/board.hpp"
+#include "nsce/context.hpp"
 #include "nsce/search.hpp"
 
 #include <sstream>
@@ -23,6 +24,7 @@ class Uci {
   void handle_go(std::istringstream& is);
   void handle_setoption(std::istringstream& is);
 
+  EngineContext context_;
   Position pos_;
   Search search_;
   std::thread search_thread_;

@@ -51,6 +51,45 @@ def _run(command: list[str], cwd: Path) -> str:
         return "unavailable"
 
 
+def _resolve_artifact(root: Path, value: str) -> Path | None:
+    value = value.strip()
+    if not value or value.lower() in {"internal", "hce", "<internal>", "<empty>"}:
+        return None
+    path = Path(value)
+    if not path.is_absolute():
+        path = root / path
+    return path.resolve()
+
+
+def _config_options(root: Path, configs: list[Path]) -> dict[str, str]:
+    resolved: dict[str, str] = {}
+    for config in configs:
+        if not config.exists():
+            continue
+        for line in config.read_text().splitlines():
+            parts = line.strip().split()
+            if len(parts) < 5 or parts[0].lower() != "setoption" or parts[1].lower() != "name":
+                continue
+            try:
+                value_index = parts.index("value")
+            except ValueError:
+                continue
+            name = " ".join(parts[2:value_index])
+            resolved[name] = " ".join(parts[value_index + 1 :])
+    return resolved
+
+
+def _cpu_governor() -> str | None:
+    governors = sorted(Path("/sys/devices/system/cpu").glob("cpu[0-9]*/cpufreq/scaling_governor"))
+    values = []
+    for path in governors:
+        try:
+            values.append(path.read_text().strip())
+        except OSError:
+            pass
+    return ",".join(sorted(set(values))) if values else None
+
+
 def build_manifest(
     root: Path,
     engine: Path,
@@ -62,8 +101,25 @@ def build_manifest(
     engine = engine.resolve()
     config_paths = [path.resolve() for path in configs]
     cache = engine.parent / "CMakeCache.txt"
+    options = _config_options(root, config_paths)
+    referenced: dict[str, str] = {}
+    for option in ("EvalFile", "PolicyFile", "ControllerFile"):
+        artifact = _resolve_artifact(root, options.get(option, ""))
+        if artifact is not None and artifact.exists():
+            referenced[str(artifact)] = sha256_file(artifact)
+    engine_b = None
+    if extra and extra.get("engine_b"):
+        engine_b = Path(str(extra["engine_b"])).resolve()
+        if engine_b.exists():
+            referenced[str(engine_b)] = sha256_file(engine_b)
+    affinity = None
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            affinity = sorted(os.sched_getaffinity(0))
+        except OSError:
+            pass
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "command": sys.argv,
         "seed": seed,
@@ -77,6 +133,8 @@ def build_manifest(
             "processor": platform.processor(),
             "python": platform.python_version(),
             "cpu_count": os.cpu_count(),
+            "affinity": affinity,
+            "cpu_governor": _cpu_governor(),
         },
         "toolchain": {
             "cxx": _run(["c++", "--version"], root).splitlines()[0],
@@ -85,9 +143,18 @@ def build_manifest(
         "artifacts": {
             "engine": str(engine),
             "engine_sha256": sha256_file(engine),
+            "engine_b": str(engine_b) if engine_b is not None else None,
+            "engine_b_sha256": sha256_file(engine_b) if engine_b is not None and engine_b.exists() else None,
             "configs": {str(path): sha256_file(path) for path in config_paths},
             "openings": str(openings.resolve()),
             "openings_sha256": sha256_file(openings),
+            "referenced_files": referenced,
+        },
+        "resolved_options": options,
+        "environment": {
+            key: value
+            for key, value in os.environ.items()
+            if key.startswith(("NSCE_", "OMP_", "GOMP_", "MKL_"))
         },
         "parameters": extra or {},
     }

@@ -63,7 +63,7 @@ void SearchController::set_telemetry(const std::string& path) {
   }
 }
 
-bool SearchController::telemetry_open() const { return telemetry_enabled_; }
+bool SearchController::telemetry_open() const { return telemetry_enabled_.load(std::memory_order_relaxed); }
 
 void SearchController::log_decision(uint64_t key, int depth, int move_index, int reduce, int score, bool cutoff,
                                     int hist, bool improving, bool cut_node, bool quiet, bool researched) {

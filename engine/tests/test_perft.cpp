@@ -6,6 +6,9 @@
 
 #include <gtest/gtest.h>
 
+#include <utility>
+#include <vector>
+
 using namespace nsce;
 
 class EngineTest : public ::testing::Test {
@@ -153,4 +156,28 @@ TEST_F(EngineTest, EnPassantCannotExposeHorizontalRookCheck) {
 
   EXPECT_EQ(list.size, 4);
   for (Move move : list) EXPECT_NE(move_to_uci(move), "g5f6");
+}
+
+TEST_F(EngineTest, RandomizedMakeUnmakeRestoresPosition) {
+  Position pos;
+  pos.set_startpos();
+  const std::string initial = pos.fen();
+  std::vector<std::pair<Move, StateInfo>> history;
+  uint64_t state = 0x9e3779b97f4a7c15ULL;
+  for (int ply = 0; ply < 256; ++ply) {
+    MoveList legal;
+    generate_legal(pos, legal);
+    if (legal.size == 0) break;
+    state = state * 6364136223846793005ULL + 1;
+    Move move = legal.moves[state % static_cast<uint64_t>(legal.size)];
+    StateInfo info;
+    pos.do_move(move, info);
+    history.emplace_back(move, info);
+  }
+  while (!history.empty()) {
+    const auto [move, info] = history.back();
+    history.pop_back();
+    pos.undo_move(move, info);
+  }
+  EXPECT_EQ(pos.fen(), initial);
 }

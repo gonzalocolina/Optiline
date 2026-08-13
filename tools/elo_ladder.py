@@ -33,7 +33,7 @@ def weak_nsce_rung(engine: Path, games: int, movetime: int, outdir: Path, seed: 
 
 
 def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: Path, seed: int) -> dict:
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings = load_openings(ROOT / "tools" / "openings_balanced.epd")
     cfg = ROOT / "tools" / "configs" / "baseline.uci"
     hi = UciEngine([str(engine)], f"d{d_hi}")
     lo = UciEngine([str(engine)], f"d{d_lo}")
@@ -291,7 +291,7 @@ def main() -> int:
         ROOT,
         engine,
         configs,
-        ROOT / "tools" / "openings.epd",
+        openings_path,
         args.seed,
         {
             "kind": "elo_ladder",

@@ -134,7 +134,6 @@ int extras(const Position& pos) {
   };
   score += 12 * (shield(WHITE) - shield(BLACK));
 
-  Bitboard attacks[COLOR_NB]{w_pawn_att, b_pawn_att};
   int mobility[COLOR_NB]{};
   for (int c = 0; c < COLOR_NB; ++c) {
     const Color us = static_cast<Color>(c);
@@ -143,20 +142,17 @@ int extras(const Position& pos) {
     Bitboard kn = pos.pieces(us, KNIGHT);
     while (kn) {
       const Bitboard att = knight_attacks_bb(pop_lsb(kn));
-      attacks[us] |= att;
       mobility[us] += 4 * popcount(att & usable);
     }
     Bitboard bi = pos.pieces(us, BISHOP);
     while (bi) {
       const Bitboard att = bishop_attacks_bb(pop_lsb(bi), occ);
-      attacks[us] |= att;
       mobility[us] += 3 * popcount(att & usable);
     }
     Bitboard ro = pos.pieces(us, ROOK);
     while (ro) {
       const Square s = pop_lsb(ro);
       const Bitboard att = rook_attacks_bb(s, occ);
-      attacks[us] |= att;
       mobility[us] += 2 * popcount(att & ~pos.pieces(us));
       const Bitboard file = FileBB[file_of(s)];
       const bool own_pawn = pos.pieces(us, PAWN) & file;
@@ -168,10 +164,8 @@ int extras(const Position& pos) {
     Bitboard q = pos.pieces(us, QUEEN);
     while (q) {
       const Bitboard att = queen_attacks_bb(pop_lsb(q), occ);
-      attacks[us] |= att;
       mobility[us] += popcount(att & ~pos.pieces(us));
     }
-    attacks[us] |= king_attacks_bb(pos.king_square(us));
   }
   score += mobility[WHITE] - mobility[BLACK];
 
@@ -189,13 +183,13 @@ int extras(const Position& pos) {
   };
   score += outpost(WHITE, w_pawn_att, b_pawn_att) - outpost(BLACK, b_pawn_att, w_pawn_att);
 
-  score -= 10 * popcount(king_attacks_bb(pos.king_square(WHITE)) & attacks[BLACK]);
-  score += 10 * popcount(king_attacks_bb(pos.king_square(BLACK)) & attacks[WHITE]);
+  score -= 10 * popcount(king_attacks_bb(pos.king_square(WHITE)) & pos.attacks(BLACK));
+  score += 10 * popcount(king_attacks_bb(pos.king_square(BLACK)) & pos.attacks(WHITE));
 
   const Bitboard w_hang = pos.pieces(WHITE) & ~pos.pieces(WHITE, KING) & ~pos.pieces(WHITE, PAWN) &
-                          attacks[BLACK] & ~attacks[WHITE];
+                          pos.attacks(BLACK) & ~pos.attacks(WHITE);
   const Bitboard b_hang = pos.pieces(BLACK) & ~pos.pieces(BLACK, KING) & ~pos.pieces(BLACK, PAWN) &
-                          attacks[WHITE] & ~attacks[BLACK];
+                          pos.attacks(WHITE) & ~pos.attacks(BLACK);
   score -= 12 * popcount(w_hang);
   score += 12 * popcount(b_hang);
 
@@ -204,16 +198,16 @@ int extras(const Position& pos) {
 
 }  // namespace
 
-bool g_use_extras = true;
+thread_local bool legacy_use_extras = true;
 
-void set_use_extras(bool on) { g_use_extras = on; }
-bool use_extras() { return g_use_extras; }
+void set_use_extras(bool on) { legacy_use_extras = on; }
+bool use_extras() { return legacy_use_extras; }
 
 int evaluate(const Position& pos) {
-  if (Nnue::instance().is_enabled()) {
-    const int nnue = Nnue::instance().evaluate(pos);
+  if (pos.nnue().is_enabled()) {
+    const int nnue = pos.nnue().evaluate(pos);
     // Trained king-bucket nets already see structure/threats; HCE extras fight the net.
-    if (Nnue::instance().uses_king_buckets() || !g_use_extras) return nnue;
+    if (pos.nnue().uses_king_buckets() || !pos.use_extras()) return nnue;
     const int extras_white = extras(pos);
     const int extras_stm = (pos.side_to_move() == WHITE) ? extras_white : -extras_white;
     return extras_stm + nnue;
@@ -239,7 +233,7 @@ int piece_value(PieceType pt) {
 int non_pawn_material(const Position& pos, Color c) {
   int npm = 0;
   for (PieceType pt : {KNIGHT, BISHOP, ROOK, QUEEN}) {
-    npm += piece_value(pt) * popcount(pos.pieces(c, pt));
+    npm += piece_value(pt) * pos.piece_count(c, pt);
   }
   return npm;
 }

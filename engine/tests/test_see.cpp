@@ -49,3 +49,13 @@ TEST(StaticExchangeTest, SafeQuietIsZero) {
   ASSERT_TRUE(move);
   EXPECT_EQ(static_exchange_eval(pos, move), 0);
 }
+
+TEST(StaticExchangeTest, ThresholdMatchesExactForSimplePositions) {
+  Position pos;
+  pos.set_fen("4k3/8/8/3q4/4P3/8/8/4K3 w - - 0 1");
+  Move move = parse_uci_move(pos, "e4d5");
+  ASSERT_TRUE(move);
+  const int exact = static_exchange_eval(pos, move);
+  for (int threshold = -1000; threshold <= 1000; threshold += 50)
+    EXPECT_EQ(see_ge(pos, move, threshold), exact >= threshold) << "threshold=" << threshold;
+}

@@ -5,23 +5,42 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
-static void load_eval_net(const char* path) {
+static bool load_eval_net(const char* path, std::string& identity) {
   using namespace nsce;
-  if (path && path[0] && Nnue::instance().load(path)) return;
-  if (Nnue::instance().load("nets/kat_candidate.bin")) return;
-  if (Nnue::instance().load("nets/nnue_trained.bin")) return;
-  Nnue::instance().load_default_from_hce();
+  identity = (path && path[0]) ? path : "internal";
+  if (identity == "internal" || identity == "hce") {
+    return Nnue::instance().load_default_from_hce();
+  }
+  return Nnue::instance().load(identity);
+}
+
+static uint64_t file_fingerprint(const std::string& path) {
+  if (path == "internal" || path == "hce") return 0;
+  std::ifstream in(path, std::ios::binary);
+  if (!in) return 0;
+  uint64_t hash = 1469598103934665603ULL;
+  char byte = 0;
+  while (in.get(byte)) {
+    hash ^= static_cast<unsigned char>(byte);
+    hash *= 1099511628211ULL;
+  }
+  return hash;
 }
 
 int main(int argc, char** argv) {
   using namespace nsce;
   init_bitboards();
   Zobrist::init();
-  load_eval_net(argc > 4 ? argv[4] : nullptr);
+  std::string eval_identity;
+  if (!load_eval_net(argc > 4 ? argv[4] : nullptr, eval_identity)) {
+    std::cerr << "nsce_bench: unable to load EvalFile " << eval_identity << '\n';
+    return 2;
+  }
 
   int depth = 5;
   if (argc > 1) depth = std::atoi(argv[1]);
@@ -52,6 +71,11 @@ int main(int argc, char** argv) {
   else
     limits.depth = depth;
 
+  Position warmup;
+  warmup.set_startpos();
+  search.set_position(warmup);
+  search.go(limits);
+
   auto t0 = std::chrono::steady_clock::now();
   uint64_t total_nodes = 0;
   SearchStats total_stats{};
@@ -75,7 +99,8 @@ int main(int argc, char** argv) {
   std::cout << "nsce_bench positions=" << fens.size() * repetitions
             << (movetime > 0 ? " movetime=" : " depth=") << (movetime > 0 ? movetime : depth)
             << " threads=" << threads << " nodes=" << total_nodes << " time_ms=" << ms << " nps=" << nps
-            << " best=" << last_best.raw << " score=" << last_score;
+            << " best=" << last_best.raw << " score=" << last_score << " eval_file=" << eval_identity
+            << " eval_fingerprint=" << std::hex << file_fingerprint(eval_identity) << std::dec;
 #if defined(NSCE_STATS)
   double first_cut = total_stats.beta_cutoffs
                          ? 100.0 * static_cast<double>(total_stats.first_move_cutoffs) / total_stats.beta_cutoffs

@@ -5,6 +5,10 @@
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
+#include <thread>
+#include <vector>
+
 using namespace nsce;
 
 TEST(BoardTest, PiecePlacement) {
@@ -67,4 +71,22 @@ TEST(BoardTest, PawnAndNonpawnKeysSurviveUndo) {
   pos.undo_move(move, st);
   EXPECT_EQ(pos.pawn_key(), pawn0);
   EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
+}
+
+TEST(BoardTest, RejectsMalformedFen) {
+  Position pos;
+  EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8 w - - 0 1"), std::runtime_error);
+  EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8/8 x - - 0 1"), std::runtime_error);
+  EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8/8 w - z9 0 1"), std::runtime_error);
+}
+
+TEST(BoardTest, ConcurrentInitializationProducesValidPositions) {
+  std::vector<std::thread> workers;
+  for (int i = 0; i < 8; ++i) {
+    workers.emplace_back([] {
+      Position pos;
+      EXPECT_EQ(pos.fen(), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    });
+  }
+  for (auto& worker : workers) worker.join();
 }

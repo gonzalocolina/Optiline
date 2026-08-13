@@ -130,4 +130,33 @@ int static_exchange_eval(const Position& pos, Move move) {
   return gain[0];
 }
 
+bool static_exchange_eval_ge(const Position& pos, Move move, int threshold) {
+  if (move.is_castle()) return threshold <= 0;
+  const Color us = pos.side_to_move();
+  const Square from = move.from();
+  const Square target = move.to();
+  const Piece moving = pos.piece_on(from);
+  if (moving == NO_PIECE) return false;
+
+  int immediate_gain = 0;
+  Square captured_square = target;
+  Piece captured = NO_PIECE;
+  if (move.is_ep()) {
+    captured_square = static_cast<Square>(target + (us == WHITE ? -8 : 8));
+    captured = pos.piece_on(captured_square);
+  } else if (move.is_capture()) {
+    captured = pos.piece_on(target);
+  }
+  if (captured != NO_PIECE) immediate_gain += SeeValue[type_of(captured)];
+  if (move.is_promotion()) immediate_gain += SeeValue[move.promotion()] - SeeValue[PAWN];
+
+  Bitboard occupied = pos.occupied() & ~square_bb(from);
+  occupied |= square_bb(target);
+  if (captured != NO_PIECE) occupied &= ~square_bb(captured_square);
+  const Bitboard opponent_attackers = pos.attackers_to(target, occupied) & pos.pieces(~us);
+  if (!opponent_attackers) return immediate_gain >= threshold;
+
+  return static_exchange_eval(pos, move) >= threshold;
+}
+
 }  // namespace nsce

@@ -11,7 +11,9 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <mutex>
+#include <string>
 #include <utility>
 
 #if defined(__AVX2__)
@@ -36,6 +38,24 @@ constexpr int RFPMargin(int depth) { return 100 * depth; }
 int history_bonus(int depth) { return std::min(16 * depth * depth + 8 * depth, 1200); }
 
 int draw_score(uint64_t nodes) { return static_cast<int>(1 - static_cast<int>(nodes & 2)); }
+
+std::string uci_score(int score) {
+  if (score >= VALUE_MATE - 256) {
+    const int plies = VALUE_MATE - score;
+    return "mate " + std::to_string((plies + 1) / 2);
+  }
+  if (score <= -VALUE_MATE + 256) {
+    const int plies = VALUE_MATE + score;
+    return "mate -" + std::to_string((plies + 1) / 2);
+  }
+  return "cp " + std::to_string(score);
+}
+
+int64_t steady_now_ns() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 
 void history_update(int& entry, int bonus) {
   entry += bonus - entry * std::abs(bonus) / 512;
@@ -127,6 +147,8 @@ SearchStats& SearchStats::operator+=(const SearchStats& other) {
 }
 
 Search::Search() {
+  policy_ = &PolicyNet::instance();
+  controller_ = &SearchController::instance();
   tt_.resize(16);
   for (int depth = 1; depth < 64; ++depth)
     for (int moves = 1; moves < 64; ++moves) {
@@ -139,6 +161,23 @@ Search::Search() {
 Search::~Search() { stop_helper_pool(); }
 
 void Search::set_position(const Position& pos) { root_ = pos; }
+
+void Search::set_policy(PolicyNet* policy) { policy_ = policy ? policy : &PolicyNet::instance(); }
+
+void Search::set_controller(SearchController* controller) {
+  controller_ = controller ? controller : &SearchController::instance();
+}
+
+void Search::prepare() {
+  cancelled_.store(false, std::memory_order_relaxed);
+  time_expired_.store(false, std::memory_order_relaxed);
+  ponder_hit_requested_.store(false, std::memory_order_relaxed);
+  pondering_.store(false, std::memory_order_relaxed);
+}
+
+void Search::stop() { cancelled_.store(true, std::memory_order_relaxed); }
+
+void Search::ponder_hit() { ponder_hit_requested_.store(true, std::memory_order_relaxed); }
 
 void Search::set_threads(int n) {
   stop_helper_pool();
@@ -217,20 +256,28 @@ void Search::wait_helper_job() {
 }
 
 bool Search::time_up() const {
-  if (stop_.load(std::memory_order_relaxed)) return true;
   if (nodes_limit_ > 0 && static_cast<int64_t>(nodes_.load(std::memory_order_relaxed)) >= nodes_limit_)
     return true;
-  if (maximum_ms_ <= 0) return false;
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count();
-  return ms >= maximum_ms_;
+  if (pondering_.load(std::memory_order_relaxed)) return false;
+  return maximum_ms_ > 0 && steady_now_ns() >= deadline_ns_.load(std::memory_order_relaxed);
 }
 
 bool Search::count_node(SearchWorker& w) {
   ++w.nodes;
-  if ((w.nodes & 1023ULL) != 0) return stop_.load(std::memory_order_relaxed);
+  if (stopped()) return true;
+  if (pondering_.load(std::memory_order_relaxed) &&
+      ponder_hit_requested_.exchange(false, std::memory_order_relaxed)) {
+    pondering_.store(false, std::memory_order_relaxed);
+    const int64_t now = steady_now_ns();
+    start_ns_.store(now, std::memory_order_relaxed);
+    deadline_ns_.store(now + static_cast<int64_t>(maximum_ms_) * 1'000'000LL, std::memory_order_relaxed);
+    time_expired_.store(false, std::memory_order_relaxed);
+  }
+  const uint64_t check_interval = nodes_limit_ > 0 ? 32ULL : 256ULL;
+  if ((w.nodes & (check_interval - 1)) != 0) return false;
   flush_nodes(w);
   if (time_up()) {
-    stop_.store(true, std::memory_order_relaxed);
+    time_expired_.store(true, std::memory_order_relaxed);
     return true;
   }
   return false;
@@ -281,7 +328,7 @@ void Search::update_correction(SearchWorker& w, const Position& pos, int static_
 
 void Search::score_moves(SearchWorker& w, const Position& pos, const SearchStack* ss, MoveList& list, Move tt_move,
                          Move counter, int ply, int* scores) const {
-  const bool use_policy = PolicyNet::instance().is_enabled();
+  const bool use_policy = policy_ && policy_->is_enabled();
   for (int i = 0; i < list.size; ++i) {
     Move m = list.moves[i];
     int s = 0;
@@ -316,7 +363,7 @@ void Search::score_moves(SearchWorker& w, const Position& pos, const SearchStack
         s = w.history[pc][m.to()];
         s += continuation_score(w, ss, ply, pc, m.to());
       }
-      if (use_policy) s += PolicyNet::instance().score_move(pos, m) * 5 / 4;
+      if (use_policy) s += policy_->score_move(pos, m) * 5 / 4;
     }
     scores[i] = s;
   }
@@ -663,13 +710,25 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     }
   }
 
+  MoveList list;
+  generate_legal(pos, list);
+  if (root_node && !root_moves_.empty()) {
+    MoveList restricted;
+    for (Move move : list)
+      if (std::find(root_moves_.begin(), root_moves_.end(), move) != root_moves_.end()) restricted.add(move);
+    list = restricted;
+  }
+  NSCE_STAT_ADD(w, generated_moves, list.size);
+  if (root_node) NSCE_STAT_ADD(w, root_moves, list.size);
+
   if (use_probcut_ && !excluded && !root_node && !pv_node && !in_check && depth >= 4 &&
       eval < VALUE_MATE - 256 && beta < VALUE_MATE - 256) {
     const int pc_beta = beta + 170 - 50 * static_cast<int>(improving);
     if (!(found && tte.bound == BOUND_UPPER && tt_score < pc_beta)) {
       NSCE_STAT_INC(w, probcut_attempts);
       MoveList noisy;
-      generate_legal_noisy(pos, noisy);
+      for (Move move : list)
+        if (move.is_capture() || move.is_ep() || move.is_promotion()) noisy.add(move);
       int pc_scores[MAX_MOVES];
       score_moves(w, pos, ss, noisy, tt_move, Move{}, ply, pc_scores);
       const int pc_depth = std::max(1, depth - 4 - static_cast<int>(improving));
@@ -695,9 +754,6 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     }
   }
 
-  MoveList list;
-  generate_legal(pos, list);
-  NSCE_STAT_ADD(w, generated_moves, list.size);
   if (list.size == 0) {
     if (in_check) return mated_in(ply);
     return draw_score(w.nodes);
@@ -742,8 +798,8 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
 
     int lmp_limit = improving ? (5 + depth * depth) : (3 + depth * depth);
     if (hist > 0) lmp_limit += 2;
-    if (SearchController::instance().is_enabled()) {
-      int ps = SearchController::instance().prune_score(depth, moves_searched, eval, alpha);
+    if (controller_ && controller_->is_enabled()) {
+      int ps = controller_->prune_score(depth, moves_searched, eval, alpha);
       if (ps > 600) lmp_limit = std::max(2, lmp_limit - 1);
     }
     if (use_lmp_ && !root_node && !in_check && is_quiet && depth <= 6 && moves_searched >= lmp_limit &&
@@ -793,8 +849,10 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     ss->current_move = m;
     ss->moved_piece = moving;
     if (extension < 2) (ss + 1)->double_extensions = ss->double_extensions;
-    int pol = PolicyNet::instance().is_enabled() ? PolicyNet::instance().score_move(pos, m) : 0;
+    int pol = policy_ && policy_->is_enabled() ? policy_->score_move(pos, m) : 0;
     Key key_before = pos.key();
+    const int controller_see_sign =
+        (controller_ && controller_->is_enabled() && !is_quiet) ? (see_ge(pos, m, 0) ? 1 : -1) : 0;
 
     StateInfo st;
     pos.do_move(m, st);
@@ -819,10 +877,9 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
       if (tt_capture && is_quiet) ++R;
       if (hist > 400) --R;
       if (hist < -200) ++R;
-      if (SearchController::instance().is_enabled()) {
-        const int see_sign = is_quiet ? 0 : (see_ge(pos, m, 0) ? 1 : -1);
-        R += SearchController::instance().reduction_delta(depth, moves_searched, eval, alpha, beta, is_quiet, pol,
-                                                          hist, improving, cut_node, see_sign);
+      if (controller_ && controller_->is_enabled()) {
+        R += controller_->reduction_delta(depth, moves_searched, eval, alpha, beta, is_quiet, pol, hist,
+                                           improving, cut_node, controller_see_sign);
       }
       R = std::clamp(R, 1, new_depth);
       score = -search(pos, w, ss + 1, new_depth - R, -alpha - 1, -alpha, ply + 1, true);
@@ -834,9 +891,9 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
       }
       if (score > alpha && score < beta && pv_node)
         score = -search(pos, w, ss + 1, new_depth, -beta, -alpha, ply + 1, false);
-      if (SearchController::instance().telemetry_open())
-        SearchController::instance().log_decision(key_before, depth, moves_searched, R, score, score >= beta, hist,
-                                                  improving, cut_node, is_quiet, researched);
+      if (controller_ && controller_->telemetry_open())
+        controller_->log_decision(key_before, depth, moves_searched, R, score, score >= beta, hist, improving,
+                                  cut_node, is_quiet, researched);
     } else if (!pv_node || moves_searched > 0) {
       score = -search(pos, w, ss + 1, new_depth, -alpha - 1, -alpha, ply + 1, !cut_node);
       if (pv_node && score > alpha && score < beta)
@@ -894,13 +951,13 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
 int Search::search_root_parallel(int depth, int alpha, int beta) {
   std::mutex best_mutex;
   int best_score = -VALUE_INFINITE;
+  int best_depth = -1;
   Move best_move{};
   std::array<Move, SearchWorker::kMaxPly> best_pv{};
   int best_pv_len = 0;
   const int original_alpha = alpha;
 
   auto run = [&](SearchWorker& worker, int depth_offset) {
-    NSCE_STAT_INC(worker, root_moves);
     Position pos = root_;
     SearchStack stack[SearchWorker::kMaxPly + SearchWorker::kStackPad + 2]{};
     SearchStack* ss = stack + SearchWorker::kStackPad;
@@ -909,7 +966,8 @@ int Search::search_root_parallel(int depth, int alpha, int beta) {
     flush_nodes(worker);
     if (stopped() || worker.pv_len[0] <= 0) return;
     std::lock_guard<std::mutex> lock(best_mutex);
-    if (score > best_score) {
+    if (local_depth > best_depth || (local_depth == best_depth && score > best_score)) {
+      best_depth = local_depth;
       best_score = score;
       best_move = worker.pv[0][0];
       best_pv_len = worker.pv_len[0];
@@ -925,7 +983,8 @@ int Search::search_root_parallel(int depth, int alpha, int beta) {
         break;
       }
     }
-    run(worker, (index % 3) - 1);
+    constexpr int offsets[] = {-1, 0, 1, -2, 2};
+    run(worker, offsets[index % (sizeof(offsets) / sizeof(offsets[0]))]);
   });
   run(main_worker_, 0);
   wait_helper_job();
@@ -945,8 +1004,11 @@ SearchInfo Search::go(const SearchLimits& limits) {
 }
 
 SearchInfo Search::go_prepared(const SearchLimits& limits) {
+  prepare();
   nodes_.store(0, std::memory_order_relaxed);
-  start_ = std::chrono::steady_clock::now();
+  const int64_t start_ns = steady_now_ns();
+  start_ns_.store(start_ns, std::memory_order_relaxed);
+  deadline_ns_.store(std::numeric_limits<int64_t>::max(), std::memory_order_relaxed);
   tt_.new_search();
   std::memset(main_worker_.killers, 0, sizeof(main_worker_.killers));
   main_worker_.nodes = 0;
@@ -964,6 +1026,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
   maximum_ms_ = 0;
   use_soft_time_ = false;
   nodes_limit_ = limits.nodes;
+  root_moves_ = limits.searchmoves;
   if (!limits.infinite && limits.movetime_ms > 0) {
     optimum_ms_ = limits.movetime_ms;
     maximum_ms_ = limits.movetime_ms;
@@ -977,6 +1040,9 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     maximum_ms_ = std::min(available, std::max(3 * optimum_ms_, optimum_ms_ + 50));
     use_soft_time_ = true;
   }
+  if (limits.ponder) pondering_.store(true, std::memory_order_relaxed);
+  if (maximum_ms_ > 0)
+    deadline_ns_.store(start_ns + static_cast<int64_t>(maximum_ms_) * 1'000'000LL, std::memory_order_relaxed);
 
   int max_depth = limits.depth > 0 ? limits.depth : 64;
   start_helper_pool();
@@ -1060,7 +1126,8 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
       stable_best_iterations = 0;
     }
 
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count();
+    const int64_t ms =
+        (steady_now_ns() - start_ns_.load(std::memory_order_relaxed)) / 1'000'000LL;
     uint64_t nodes = nodes_.load(std::memory_order_relaxed);
     uint64_t nps = ms > 0 ? nodes * 1000ULL / static_cast<uint64_t>(ms) : nodes;
 
@@ -1072,7 +1139,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     if (pv_str.empty() && best) pv_str = move_to_uci(best);
 
     if (!silent_)
-      std::cout << "info depth " << depth << " score cp " << score << " nodes " << nodes << " nps " << nps
+      std::cout << "info depth " << depth << " score " << uci_score(score) << " nodes " << nodes << " nps " << nps
                 << " time " << ms << " pv " << pv_str << std::endl;
 
     info.best_move = best;
@@ -1081,7 +1148,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     info.nodes = nodes;
     info.time_ms = static_cast<int>(ms);
 
-    if (limits.depth == 0 && maximum_ms_ > 0 && best) {
+    if (limits.depth == 0 && maximum_ms_ > 0 && best && !pondering_.load(std::memory_order_relaxed)) {
       const int last_iter = static_cast<int>(ms - prev_ms);
       const int remaining = maximum_ms_ - static_cast<int>(ms);
       prev_ms = ms;
@@ -1091,8 +1158,8 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     }
 
     if (limits.nodes > 0 && static_cast<int64_t>(nodes) >= limits.nodes) break;
-    if (maximum_ms_ > 0 && ms >= maximum_ms_) break;
-    if (use_soft_time_ && optimum_ms_ > 0) {
+    if (!pondering_.load(std::memory_order_relaxed) && maximum_ms_ > 0 && ms >= maximum_ms_) break;
+    if (!pondering_.load(std::memory_order_relaxed) && use_soft_time_ && optimum_ms_ > 0) {
       int soft_limit = optimum_ms_;
       if (stable_best_iterations >= 2)
         soft_limit = std::max(1, 4 * optimum_ms_ / 5);
@@ -1103,7 +1170,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
     if (limits.depth > 0 && depth >= limits.depth) break;
   }
 
-  stop_.store(true, std::memory_order_relaxed);
+  cancelled_.store(true, std::memory_order_relaxed);
   flush_nodes(main_worker_);
   last_stats_ = main_worker_.stats;
   for (const auto& worker : helper_workers_) last_stats_ += worker->stats;
@@ -1127,8 +1194,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
               << last_stats_.probcut_attempts << std::endl;
 #endif
   info.nodes = nodes_.load(std::memory_order_relaxed);
-  info.time_ms = static_cast<int>(
-      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_).count());
+  info.time_ms = static_cast<int>((steady_now_ns() - start_ns_.load(std::memory_order_relaxed)) / 1'000'000LL);
 
   if (!info.best_move) {
     MoveList list;
@@ -1142,7 +1208,7 @@ uint64_t Search::bench(int depth) {
   root_.set_startpos();
   SearchLimits limits;
   limits.depth = depth;
-  stop_.store(false);
+  prepare();
   auto info = go(limits);
   return info.nodes;
 }

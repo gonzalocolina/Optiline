@@ -20,6 +20,9 @@ jobs:
           - name: tsan
             build_type: RelWithDebInfo
             extra: -DNSCE_LTO=OFF -DNSCE_TSAN=ON
+          - name: stats
+            build_type: Release
+            extra: -DNSCE_LTO=OFF -DNSCE_STATS=ON
     name: engine-${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4

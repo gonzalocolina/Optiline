@@ -7,20 +7,24 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
-static void load_eval_net(const char* path) {
+static bool load_eval_net(const char* path, std::string& identity) {
   using namespace nsce;
-  if (path && path[0] && Nnue::instance().load(path)) return;
-  if (Nnue::instance().load("nets/kat_candidate.bin")) return;
-  if (Nnue::instance().load("nets/nnue_trained.bin")) return;
-  Nnue::instance().load_default_from_hce();
+  identity = (path && path[0]) ? path : "internal";
+  if (identity == "internal" || identity == "hce") return Nnue::instance().load_default_from_hce();
+  return Nnue::instance().load(identity);
 }
 
 int main(int argc, char** argv) {
   using namespace nsce;
   init_bitboards();
   Zobrist::init();
-  load_eval_net(argc > 2 ? argv[2] : nullptr);
+  std::string eval_identity;
+  if (!load_eval_net(argc > 2 ? argv[2] : nullptr, eval_identity)) {
+    std::fprintf(stderr, "nsce_bench_nnue: unable to load EvalFile %s\n", eval_identity.c_str());
+    return 2;
+  }
 
   int iters = 100000;
   if (argc > 1) iters = std::atoi(argv[1]);
@@ -36,6 +40,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < iters; ++i) sink += evaluate(pos);
   auto t1 = std::chrono::steady_clock::now();
   double ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / iters;
-  std::printf("nnue_eval_latency_ns=%.1f iters=%d sink=%d\n", ns, iters, sink);
+  std::printf("nnue_eval_latency_ns=%.1f iters=%d sink=%d eval_file=%s\n", ns, iters, sink,
+              eval_identity.c_str());
   return 0;
 }

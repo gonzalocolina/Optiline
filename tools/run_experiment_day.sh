@@ -15,9 +15,9 @@ python3 "$ROOT/tools/elo_ladder.py" --outdir "$OUT" --games "${LADDER_GAMES:-6}"
 echo "== SPRT controller vs baseline =="
 python3 "$ROOT/tools/sprt.py" --outdir "$OUT" --cfg-a "$ROOT/tools/configs/baseline.uci" \
   --cfg-b "$ROOT/tools/configs/controller.uci" --name-b controller \
-  --movetime "${MOVETIME:-80}" --max-games "${SPRT_GAMES:-20}" --max-plies 40
+  --movetime "${MOVETIME:-80}" --max-games "${SPRT_GAMES:-40}" --max-plies 40
 
 echo "== NNUE latency =="
-"$ROOT/build/nsce_bench_nnue" 200000 | tee "$OUT/nnue_latency.txt"
+"$ROOT/build/nsce_bench_nnue" 200000 internal | tee "$OUT/nnue_latency.txt"
 
 echo "Done. See $OUT/report.md"

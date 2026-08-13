@@ -27,10 +27,13 @@ def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int |
     score_cp = None
     best = "0000"
     for line in lines:
-        if line.startswith("info ") and " score cp " in line:
+        if line.startswith("info ") and "score" in line:
             parts = line.split()
             if "cp" in parts:
                 score_cp = int(parts[parts.index("cp") + 1])
+            elif "mate" in parts:
+                mate = int(parts[parts.index("mate") + 1])
+                score_cp = (32000 - min(abs(mate) * 2, 255)) * (1 if mate > 0 else -1)
         if line.startswith("bestmove"):
             best = line.split()[1]
     return {
@@ -62,7 +65,12 @@ def sample_position(
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--teacher", default="")
+    ap.add_argument(
+        "--teacher",
+        default=str(ROOT / "build" / "nsce"),
+        help="teacher binary; default is the current local NSCE build",
+    )
+    ap.add_argument("--teacher-config", default=str(ROOT / "tools/configs/baseline.uci"))
     ap.add_argument("--depth", type=int, default=8)
     ap.add_argument("--nodes", type=int, default=0, help="If >0, label with go nodes N instead of depth")
     ap.add_argument("--positions", type=int, default=2000)
@@ -80,13 +88,12 @@ def main() -> int:
     if args.min_ply < 0 or args.max_ply < args.min_ply:
         ap.error("invalid ply sampling range")
 
-    teacher_cmd = args.teacher or os.environ.get("STOCKFISH") or shutil.which("stockfish")
-    if not teacher_cmd:
-        local_sf = ROOT / "third_party" / "stockfish" / "stockfish"
-        teacher_cmd = str(local_sf) if local_sf.exists() else str(ROOT / "build" / "nsce")
+    teacher_cmd = args.teacher or os.environ.get("STOCKFISH") or str(ROOT / "build" / "nsce")
+    if not Path(teacher_cmd).exists() and shutil.which(teacher_cmd) is None:
+        raise RuntimeError(f"teacher not found: {teacher_cmd}")
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings = load_openings(ROOT / "tools" / "openings_balanced.epd")
     start = 0
     if args.resume and out.exists():
         start = sum(1 for line in out.open() if line.strip())
@@ -94,9 +101,9 @@ def main() -> int:
 
     eng = UciEngine([teacher_cmd], "teacher")
     sampler = UciEngine([args.sampler], "sampler")
-    eng.apply_options({"Threads": "1", "Hash": "128"})
+    eng.apply_options({"Threads": "1", "Hash": "16"})
     if "nsce" in teacher_cmd:
-        eng.apply_uci_file(ROOT / "tools/configs/baseline.uci")
+        eng.apply_uci_file(Path(args.teacher_config))
     try:
         mode = "a" if start else "w"
         with out.open(mode) as f:

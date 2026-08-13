@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ablation_match import play_game  # noqa: E402
-from experiment_common import build_manifest, paired_schedule, write_manifest  # noqa: E402
+from experiment_common import build_manifest, paired_schedule, sha256_file, write_manifest  # noqa: E402
 from uci_common import UciEngine, load_openings  # noqa: E402
 
 
@@ -118,7 +118,7 @@ def main() -> int:
         help="do not accept H0/H1 before this many games (even, pair-aligned)",
     )
     ap.add_argument("--max-plies", type=int, default=60)
-    ap.add_argument("--openings", default=str(ROOT / "tools/openings.epd"))
+    ap.add_argument("--openings", default=str(ROOT / "tools/openings_balanced.epd"))
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--adjudication-cp", type=int, default=800)
     ap.add_argument("--adjudication-plies", type=int, default=6)
@@ -155,11 +155,20 @@ def main() -> int:
     openings_path = Path(args.openings)
     openings = load_openings(openings_path)
     schedule = paired_schedule(openings, args.max_games, args.seed)
-
-    a = UciEngine([str(engine)], args.name_a)
-    b = UciEngine([str(engine_b)], args.name_b)
-    a.apply_uci_file(Path(args.cfg_a))
-    b.apply_uci_file(Path(args.cfg_b))
+    config_identity = {
+        "cfg_a_sha256": sha256_file(Path(args.cfg_a)),
+        "cfg_b_sha256": sha256_file(Path(args.cfg_b)),
+        "openings_sha256": sha256_file(openings_path),
+        "engine_sha256": sha256_file(engine),
+        "engine_b_sha256": sha256_file(engine_b),
+        "max_plies": args.max_plies,
+        "adjudication_cp": args.adjudication_cp,
+        "adjudication_plies": args.adjudication_plies,
+        "elo0": args.elo0,
+        "elo1": args.elo1,
+        "alpha": args.alpha,
+        "beta": args.beta,
+    }
 
     # Bounds: accept H1 if LLR >= A, accept H0 if LLR <= B
     A = math.log((1 - args.beta) / args.alpha)
@@ -185,6 +194,10 @@ def main() -> int:
         if prior.get("movetime_ms") != args.movetime:
             print("--resume movetime mismatch", file=sys.stderr)
             return 1
+        for key, expected in config_identity.items():
+            if prior.get("identity", {}).get(key) != expected:
+                print(f"--resume identity mismatch: {key}", file=sys.stderr)
+                return 1
         history = list(prior.get("history", []))
         # Only resume from an even game count so opening/color pairs stay balanced.
         if len(history) % 2:
@@ -200,6 +213,11 @@ def main() -> int:
         if decision != "inconclusive" or start_index >= args.max_games:
             print(json.dumps({"decision": decision, "W": w, "D": d, "L": l}, indent=2))
             return 0
+
+    a = UciEngine([str(engine)], args.name_a)
+    b = UciEngine([str(engine_b)], args.name_b)
+    a.apply_uci_file(Path(args.cfg_a))
+    b.apply_uci_file(Path(args.cfg_b))
 
     def snapshot() -> dict:
         out = {
@@ -221,12 +239,37 @@ def main() -> int:
             "exploratory_short_tc": args.movetime < 50,
             "adjudication_cp": args.adjudication_cp,
             "adjudication_plies": args.adjudication_plies,
+            "identity": config_identity,
             "cfg_a": args.cfg_a,
             "cfg_b": args.cfg_b,
             "history": history,
         }
         output_path.write_text(json.dumps(out, indent=2) + "\n")
         return out
+
+    manifest_extra = {
+        "kind": "sprt",
+        "max_games": args.max_games,
+        "min_games": args.min_games,
+        "movetime_ms": args.movetime,
+        "exploratory_short_tc": args.movetime < 50,
+        "max_plies": args.max_plies,
+        "elo0": args.elo0,
+        "elo1": args.elo1,
+        "alpha": args.alpha,
+        "beta": args.beta,
+        "adjudication_cp": args.adjudication_cp,
+        "adjudication_plies": args.adjudication_plies,
+        "openings": str(openings_path),
+        "llr_model": "pair_normal_pentanomial",
+        "engine_b": str(engine_b),
+    }
+
+    def write_current_manifest() -> None:
+        write_manifest(
+            outdir / "manifest.json",
+            build_manifest(ROOT, engine, [Path(args.cfg_a), Path(args.cfg_b)], openings_path, args.seed, manifest_extra),
+        )
 
     try:
         for i, (pair_id, fen, b_is_black) in enumerate(schedule):
@@ -281,6 +324,7 @@ def main() -> int:
                     "candidate_is_white": candidate_is_white,
                     "result": res,
                     "termination": meta["termination"],
+                    "overruns": meta.get("overruns_w", 0) + meta.get("overruns_b", 0),
                     "W": w,
                     "D": d,
                     "L": l,
@@ -301,33 +345,10 @@ def main() -> int:
     finally:
         a.close()
         b.close()
+        snapshot()
+        write_current_manifest()
 
     out = snapshot()
-    manifest = build_manifest(
-        ROOT,
-        engine,
-        [Path(args.cfg_a), Path(args.cfg_b)],
-        openings_path,
-        args.seed,
-        {
-            "kind": "sprt",
-            "max_games": args.max_games,
-            "min_games": args.min_games,
-            "movetime_ms": args.movetime,
-            "exploratory_short_tc": args.movetime < 50,
-            "max_plies": args.max_plies,
-            "elo0": args.elo0,
-            "elo1": args.elo1,
-            "alpha": args.alpha,
-            "beta": args.beta,
-            "adjudication_cp": args.adjudication_cp,
-            "adjudication_plies": args.adjudication_plies,
-            "openings": str(openings_path),
-            "llr_model": "pair_normal_pentanomial",
-            "engine_b": str(engine_b),
-        },
-    )
-    write_manifest(outdir / "manifest.json", manifest)
     print(json.dumps({k: out[k] for k in ("decision", "W", "D", "L")}, indent=2))
     return 0
 

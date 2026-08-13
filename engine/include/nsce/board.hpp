@@ -5,6 +5,7 @@
 #include "nsce/types.hpp"
 
 #include <array>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@ struct StateInfo {
   Piece captured = NO_PIECE;
   Key key = 0;
   Bitboard checkers = 0;
+  std::size_t repetition_start = 0;
 };
 
 class Position {
@@ -35,6 +37,7 @@ class Position {
   Bitboard pieces(Color c) const { return by_color_[c]; }
   Bitboard pieces(PieceType pt) const { return by_type_[pt]; }
   Bitboard pieces(Color c, PieceType pt) const { return by_color_[c] & by_type_[pt]; }
+  int piece_count(Color c, PieceType pt) const { return piece_counts_[c][pt]; }
   Bitboard occupied() const { return occupied_; }
   Piece piece_on(Square s) const { return board_[s]; }
   Color side_to_move() const { return side_; }
@@ -56,11 +59,16 @@ class Position {
 
   Bitboard attackers_to(Square s, Bitboard occ) const;
   Bitboard attackers_to(Square s) const { return attackers_to(s, occupied_); }
+  Bitboard attacks(Color c) const;
   bool is_square_attacked(Square s, Color by, Bitboard occ) const;
 
   void put_piece(Piece pc, Square s);
   void remove_piece(Square s);
   void move_piece(Square from, Square to);
+  void set_nnue(Nnue* nnue);
+  Nnue& nnue() const { return *nnue_; }
+  void set_use_extras(bool on) { use_extras_ = on; }
+  bool use_extras() const { return use_extras_; }
 
  private:
   void clear();
@@ -72,6 +80,7 @@ class Position {
   std::array<Piece, SQUARE_NB> board_{};
   std::array<Bitboard, COLOR_NB> by_color_{};
   std::array<Bitboard, PIECE_TYPE_NB> by_type_{};
+  std::array<std::array<uint8_t, PIECE_TYPE_NB>, COLOR_NB> piece_counts_{};
   Bitboard occupied_ = 0;
   Color side_ = WHITE;
   CastlingRights castling_ = NO_CASTLING;
@@ -84,9 +93,14 @@ class Position {
   Bitboard checkers_ = 0;
   mutable Bitboard blockers_for_king_ = 0;
   mutable bool blockers_valid_ = false;
+  mutable std::array<Bitboard, COLOR_NB> attacks_cache_{};
+  mutable bool attacks_valid_ = false;
   std::vector<Key> history_keys_;
+  std::size_t repetition_start_ = 0;
   NnueAccumulator nnue_acc_{};
+  Nnue* nnue_ = nullptr;
   bool nnue_live_ = false;
+  bool use_extras_ = true;
 };
 
 }  // namespace nsce

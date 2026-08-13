@@ -49,6 +49,8 @@ def play_game(
             "nodes_b": nodes_b,
             "time_w_ms": time_w_ms,
             "time_b_ms": time_b_ms,
+            "overruns_w": white.overruns,
+            "overruns_b": black.overruns,
             "plies": len(moves),
             "termination": termination,
         }
@@ -333,7 +335,7 @@ def main() -> int:
     ap.add_argument("--engine-b", default="", help="optional second binary for engine-vs-engine matches")
     ap.add_argument("--matrix", action="store_true")
     ap.add_argument("--search-matrix", action="store_true", help="ablate TT/SEE/pruning/search features")
-    ap.add_argument("--openings", default=str(ROOT / "tools/openings.epd"))
+    ap.add_argument("--openings", default=str(ROOT / "tools/openings_balanced.epd"))
     ap.add_argument("--outdir", default="")
     ap.add_argument("--games", type=int, default=100, help="even number; each opening is played with both colors")
     ap.add_argument("--movetime", type=int, default=100)

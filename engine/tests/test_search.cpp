@@ -203,4 +203,39 @@ TEST(SearchTest, LoadsFittedControllerFormat) {
   std::filesystem::remove(path);
 }
 
+TEST(SearchTest, HonorsSearchMovesAndNodeLimit) {
+  init_bitboards();
+  Zobrist::init();
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_silent(true);
+
+  SearchLimits limits;
+  limits.nodes = 2048;
+  Move only = parse_uci_move(pos, "e2e4");
+  ASSERT_TRUE(only);
+  limits.searchmoves.push_back(only);
+  SearchInfo info = search.go(limits);
+  EXPECT_EQ(info.best_move, only);
+  EXPECT_LE(info.nodes, 2080U);
+}
+
+TEST(SearchTest, TimeLimitStopsWithinBound) {
+  init_bitboards();
+  Zobrist::init();
+  Position pos;
+  pos.set_startpos();
+  Search search;
+  search.set_position(pos);
+  search.set_threads(4);
+  search.set_silent(true);
+  SearchLimits limits;
+  limits.movetime_ms = 20;
+  SearchInfo info = search.go(limits);
+  EXPECT_TRUE(info.best_move);
+  EXPECT_LT(info.time_ms, 200);
+}
+
 

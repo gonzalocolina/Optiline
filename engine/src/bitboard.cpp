@@ -1,6 +1,7 @@
 #include "nsce/bitboard.hpp"
 
 #include <array>
+#include <mutex>
 
 namespace nsce {
 
@@ -67,9 +68,8 @@ void init_slider_table(Square square, Bitboard mask, const int deltas[4][2],
 }  // namespace
 
 void init_bitboards() {
-  static bool done = false;
-  if (done) return;
-  done = true;
+  static std::once_flag once;
+  std::call_once(once, [] {
 
   const int knight_d[8][2] = {{1, 2}, {2, 1}, {2, -1}, {1, -2}, {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}};
   const int king_d[8][2] = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}};
@@ -117,6 +117,7 @@ void init_bitboards() {
       }
     }
   }
+  });
 }
 
 }  // namespace nsce

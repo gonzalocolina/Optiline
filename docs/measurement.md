@@ -12,7 +12,11 @@ NSCE now separates four measurement layers:
 ```bash
 cmake -S . -B build-stats -DCMAKE_BUILD_TYPE=Release -DNSCE_STATS=ON -DNSCE_LTO=OFF
 cmake --build build-stats -j
-./build-stats/nsce_bench 10 1 1
+./build-stats/nsce_bench 10 1 1 internal
+./build-stats/nsce_bench_components 100000 internal
+
+# Repeat with median/MAD instead of trusting one run.
+python3 tools/bench.py --depth 8 --runs 20 --eval-file internal
 ```
 
 Counters are local to each worker and aggregated after search:
@@ -77,10 +81,21 @@ Use the multi-position bench with thread count as the second argument:
 
 ```bash
 ./build-stats/nsce_bench 10 1 1
-./build-stats/nsce_bench 10 4 1
+./build-stats/nsce_bench 10 4 1 internal
 ```
 
 Root workers are now persistent for the whole `go`. Report wall-time, nodes and CPU efficiency separately; more nodes alone is not a strength claim.
+
+The benchmark no longer falls back to whichever network happens to exist in
+`nets/`. Pass `internal`, `nets/nnue_trained.bin`, or another explicit
+`EvalFile`; the output records the selected file and a deterministic file
+fingerprint. For release comparisons, build both a portable target
+(`-DNSCE_NATIVE=OFF -DNSCE_AVX2=OFF`) and a host-tuned target, and never compare
+their raw NPS as if they were the same binary.
+
+UCI exposes `Clear Hash` and `hashfull`; experiment manifests record resolved
+options, model hashes, engine-B hashes, opening hashes, CPU affinity, and the
+active toolchain.
 
 ## HalfKP / king-bucket path
 
@@ -111,3 +126,22 @@ The default minimum (50k) intentionally rejects the current 2k bootstrap. A smok
 - `tools/sprt.py` now uses a **pair-level pentanomial** LLR and refuses resume from the older trinomial model.
 
 Promotion still requires a fresh pre-registered SPRT at a non-exploratory time control.
+
+For the next evaluation candidate, label a held-out/diverse corpus with the
+current NSCE baseline rather than extending the plateaued Lichess run:
+
+```bash
+python3 train/distill.py --teacher ./build/nsce --nodes 25000 \
+  --positions 200000 --output train/data/nsce_nodes25k.jsonl
+```
+
+Train and validate a candidate from that dataset first; only then run a
+paired equal-node gate followed by an equal-time SPRT.
+
+Before promoting a result, run:
+
+```bash
+python3 tools/promotion_gate.py \
+  --sprt experiments/<run>/sprt_<candidate>.json \
+  --manifest experiments/<run>/manifest.json
+```

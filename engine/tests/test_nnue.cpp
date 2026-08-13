@@ -1,4 +1,5 @@
 #include "nsce/board.hpp"
+#include "nsce/context.hpp"
 #include "nsce/nnue.hpp"
 #include "nsce/movegen.hpp"
 #include "nsce/zobrist.hpp"
@@ -51,10 +52,28 @@ TEST(NnueTest, EvalFinite) {
   int e = evaluate(pos);
   EXPECT_GT(e, -5000);
   EXPECT_LT(e, 5000);
-  set_use_extras(false);
+  pos.set_use_extras(false);
   EXPECT_EQ(evaluate(pos), Nnue::instance().evaluate(pos));
-  set_use_extras(true);
+  pos.set_use_extras(true);
   EXPECT_NE(evaluate(pos), Nnue::instance().evaluate(pos));
+}
+
+TEST(NnueTest, PositionCanUseIndependentEngineContext) {
+  init_bitboards();
+  Zobrist::init();
+  EngineContext first;
+  EngineContext second;
+  ASSERT_TRUE(first.nnue.load_default_from_hce());
+  ASSERT_TRUE(second.nnue.load_default_from_hce());
+
+  Position a;
+  Position b;
+  a.set_nnue(&first.nnue);
+  b.set_nnue(&second.nnue);
+  a.set_startpos();
+  b.set_startpos();
+  EXPECT_EQ(a.nnue().net().loaded, b.nnue().net().loaded);
+  EXPECT_EQ(evaluate(a), evaluate(b));
 }
 
 TEST(NnueTest, LoadsHalfKpAndKeepsKingMoveAccumulatorIncremental) {

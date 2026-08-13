@@ -45,6 +45,17 @@ void TranspositionTable::new_search() {
   ++generation_;
 }
 
+int TranspositionTable::hashfull() const {
+  if (size_ == 0) return 0;
+  const std::size_t clusters = std::min<std::size_t>(size_, 1000);
+  std::size_t used = 0;
+  for (std::size_t i = 0; i < clusters; ++i)
+    for (const Slot& slot : table_[i].slots)
+      if (slot.payload.load(std::memory_order_relaxed) != 0) ++used;
+  if (used == 0) return 0;
+  return std::max(1, static_cast<int>((used * 1000) / (clusters * 4)));
+}
+
 void TranspositionTable::prefetch(Key key) const {
   if (size_ == 0) return;
 #if defined(__GNUC__) || defined(__clang__)
@@ -61,9 +72,10 @@ bool TranspositionTable::probe(Key key, TTEntry& entry) const {
   __builtin_prefetch(&cluster, 0, 3);
 #endif
   for (const Slot& slot : cluster.slots) {
-    const uint64_t verification = slot.verification.load(std::memory_order_acquire);
     const uint64_t payload = slot.payload.load(std::memory_order_relaxed);
-    if (payload == 0 || (verification ^ payload) != key) continue;
+    if (payload == 0) continue;
+    const uint64_t verification = slot.verification.load(std::memory_order_acquire);
+    if ((verification ^ payload) != key) continue;
 
     entry.move = static_cast<uint32_t>(payload) & Move::kEncodingMask;
     entry.score = static_cast<int16_t>(static_cast<uint16_t>(payload >> 24));

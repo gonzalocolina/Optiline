@@ -17,6 +17,9 @@
 
 namespace nsce {
 
+class PolicyNet;
+class SearchController;
+
 struct SearchLimits {
   int depth = 0;
   int64_t nodes = 0;
@@ -27,6 +30,8 @@ struct SearchLimits {
   int binc = 0;
   int movestogo = 0;
   bool infinite = false;
+  bool ponder = false;
+  std::vector<Move> searchmoves;
 };
 
 struct SearchInfo {
@@ -108,11 +113,16 @@ class Search {
 
   void set_position(const Position& pos);
   SearchInfo go(const SearchLimits& limits);
-  void prepare() { stop_.store(false, std::memory_order_relaxed); }
+  void prepare();
   SearchInfo go_prepared(const SearchLimits& limits);
-  void stop() { stop_.store(true, std::memory_order_relaxed); }
+  void stop();
   void set_hash_mb(std::size_t mb) { tt_.resize(mb); }
+  void clear_hash() { tt_.clear(); }
+  int hashfull() const { return tt_.hashfull(); }
   void set_threads(int n);
+  void set_policy(PolicyNet* policy);
+  void set_controller(SearchController* controller);
+  void ponder_hit();
   void set_use_tt(bool on) { use_tt_ = on; }
   void set_use_see(bool on) { use_see_ = on; }
   void set_use_lmr(bool on) { use_lmr_ = on; }
@@ -132,7 +142,9 @@ class Search {
              bool cut_node);
   int quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta, int ply);
   bool time_up() const;
-  bool stopped() const { return stop_.load(std::memory_order_relaxed); }
+  bool stopped() const {
+    return cancelled_.load(std::memory_order_relaxed) || time_expired_.load(std::memory_order_relaxed);
+  }
   bool count_node(SearchWorker& w);
   void flush_nodes(SearchWorker& w);
   void score_moves(SearchWorker& w, const Position& pos, const SearchStack* ss, MoveList& list, Move tt_move,
@@ -158,9 +170,11 @@ class Search {
 
   Position root_;
   TranspositionTable tt_;
-  std::atomic<bool> stop_{false};
+  std::atomic<bool> cancelled_{false};
+  std::atomic<bool> time_expired_{false};
   std::atomic<uint64_t> nodes_{0};
-  std::chrono::steady_clock::time_point start_{};
+  std::atomic<int64_t> start_ns_{0};
+  std::atomic<int64_t> deadline_ns_{0};
   int optimum_ms_ = 0;
   int maximum_ms_ = 0;
   bool use_soft_time_ = false;
@@ -176,7 +190,12 @@ class Search {
   bool use_rfp_ = true;
   bool use_probcut_ = true;
   bool silent_ = false;
+  PolicyNet* policy_ = nullptr;
+  SearchController* controller_ = nullptr;
   int root_depth_ = 0;
+  std::vector<Move> root_moves_;
+  std::atomic<bool> ponder_hit_requested_{false};
+  std::atomic<bool> pondering_{false};
   SearchWorker main_worker_{};
   SearchStats last_stats_{};
   std::vector<std::unique_ptr<SearchWorker>> helper_workers_;

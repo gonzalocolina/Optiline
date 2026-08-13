@@ -46,6 +46,7 @@ def main() -> int:
 
     baseline = UciEngine([args.engine], "baseline")
     trained = UciEngine([args.engine], "trained")
+    baseline.apply_options({"EvalFile": "internal", "UseExtras": "true"})
     trained.apply_options({"EvalFile": args.network})
     baseline_errors: list[int] = []
     trained_errors: list[int] = []
@@ -61,7 +62,10 @@ def main() -> int:
     report = {
         "split": "sha256(fen) modulo 10 == 0",
         "dataset_sha256": hashlib.sha256(Path(args.data).read_bytes()).hexdigest(),
+        "engine_sha256": hashlib.sha256(Path(args.engine).read_bytes()).hexdigest(),
         "network_sha256": hashlib.sha256(Path(args.network).read_bytes()).hexdigest(),
+        "baseline_options": {"EvalFile": "internal", "UseExtras": True},
+        "trained_options": {"EvalFile": str(Path(args.network).resolve()), "UseExtras": True},
         "baseline": summarize(baseline_errors),
         "trained": summarize(trained_errors),
     }

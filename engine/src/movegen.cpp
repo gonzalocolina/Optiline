@@ -245,6 +245,18 @@ void filter_legal(const Position& pos, const MoveList& pseudo, MoveList& list) {
   const int check_count = popcount(checkers);
   const Bitboard pinned = pos.blockers_for_king();
 
+  // Most search nodes are not in check, have no pinned piece, and do not
+  // expose an en-passant discovered check. In that common case every
+  // non-king pseudo move is legal; avoid the full filtering branch tree.
+  if (check_count == 0 && pinned == 0 && pos.ep_square() == SQ_NONE) {
+    for (int i = 0; i < pseudo.size; ++i) {
+      Move move = pseudo.moves[i];
+      if (type_of(pos.piece_on(move.from())) == KING && !legal_king_move(pos, move)) continue;
+      list.add(move);
+    }
+    return;
+  }
+
   Bitboard evasion_mask = ~Bitboard{0};
   Square checker = SQ_NONE;
   if (check_count == 1) {

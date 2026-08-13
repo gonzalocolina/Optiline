@@ -21,6 +21,16 @@ TEST(TranspositionTableTest, StoresAndProbesEntry) {
   EXPECT_FALSE(table.probe(key ^ 1, entry));
 }
 
+TEST(TranspositionTableTest, ReportsOccupancyAndClears) {
+  TranspositionTable table;
+  table.resize(1);
+  EXPECT_EQ(table.hashfull(), 0);
+  table.store(7, 4, 12, BOUND_EXACT, Move::make(SQ_A2, SQ_A3), 0);
+  EXPECT_GT(table.hashfull(), 0);
+  table.clear();
+  EXPECT_EQ(table.hashfull(), 0);
+}
+
 TEST(TranspositionTableTest, PreservesDeeperNonExactEntry) {
   TranspositionTable table;
   table.resize(1);

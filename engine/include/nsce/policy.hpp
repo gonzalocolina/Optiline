@@ -14,6 +14,7 @@ class Position;
 class PolicyNet {
  public:
   static constexpr int kPieceTo = 12 * 64;  // piece on from-sq embedding target
+  PolicyNet() = default;
   static PolicyNet& instance();
 
   bool load_default();
