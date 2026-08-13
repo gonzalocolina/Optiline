@@ -28,10 +28,23 @@ FEATURES = KING_BUCKETS * PS_FEATURES
 THREAT_DIM = 12
 SCALE = 64
 PIECES = {piece: index for index, piece in enumerate("PNBRQKpnbrqk")}
+_PIECE_OF = [-1] * 128
+for _char, _index in PIECES.items():
+    _PIECE_OF[ord(_char)] = _index
 KNIGHT_DELTA = (17, 15, 10, 6, -6, -10, -15, -17)
 KING_DELTA = (1, -1, 8, -8, 9, 7, -7, -9)
 BISHOP_DELTA = (9, 7, -7, -9)
 ROOK_DELTA = (1, -1, 8, -8)
+# N, S, E, W, NE, NW, SE, SW
+_SLIDE_DELTA = (8, -8, 1, -1, 9, 7, -7, -9)
+_BISHOP_DIRS = (4, 5, 6, 7)
+_ROOK_DIRS = (0, 1, 2, 3)
+_RAYS = [[0] * 64 for _ in range(8)]
+_KNIGHT_ATT = [0] * 64
+_KING_ATT = [0] * 64
+_PAWN_ATT = [[0] * 64, [0] * 64]
+_BUCKET_MIRROR = [0] * 64
+_BUCKET_ID = [0] * 64
 
 
 def _file(square: int) -> int:
@@ -45,8 +58,8 @@ def _rank(square: int) -> int:
 def _step_ok(origin: int, dest: int, delta: int) -> bool:
     if dest < 0 or dest > 63:
         return False
-    df = abs(_file(dest) - _file(origin))
-    dr = abs(_rank(dest) - _rank(origin))
+    df = abs((dest & 7) - (origin & 7))
+    dr = abs((dest >> 3) - (origin >> 3))
     if delta in (1, -1):
         return dr == 0 and df == 1
     if delta in (8, -8):
@@ -56,40 +69,133 @@ def _step_ok(origin: int, dest: int, delta: int) -> bool:
     return False
 
 
+def _init_attack_tables() -> None:
+    for sq in range(64):
+        oriented = sq
+        mirror = 0
+        if (oriented & 7) < 4:
+            mirror = 7
+            oriented ^= 7
+        _BUCKET_MIRROR[sq] = mirror
+        _BUCKET_ID[sq] = (oriented >> 3) * 4 + ((oriented & 7) - 4)
+        for d, delta in enumerate(_SLIDE_DELTA):
+            ray = 0
+            prev, dest = sq, sq + delta
+            while _step_ok(prev, dest, delta):
+                ray |= 1 << dest
+                prev, dest = dest, dest + delta
+            _RAYS[d][sq] = ray
+        knight = 0
+        for delta in KNIGHT_DELTA:
+            dest = sq + delta
+            if 0 <= dest < 64 and {abs((dest & 7) - (sq & 7)), abs((dest >> 3) - (sq >> 3))} == {1, 2}:
+                knight |= 1 << dest
+        _KNIGHT_ATT[sq] = knight
+        king = 0
+        for delta in KING_DELTA:
+            dest = sq + delta
+            if _step_ok(sq, dest, delta):
+                king |= 1 << dest
+        _KING_ATT[sq] = king
+        wp = bp = 0
+        for dest in (sq + 7, sq + 9):
+            if 0 <= dest < 64 and abs((dest & 7) - (sq & 7)) == 1:
+                wp |= 1 << dest
+        for dest in (sq - 7, sq - 9):
+            if 0 <= dest < 64 and abs((dest & 7) - (sq & 7)) == 1:
+                bp |= 1 << dest
+        _PAWN_ATT[0][sq] = wp
+        _PAWN_ATT[1][sq] = bp
+
+
+_init_attack_tables()
+
+_RANK_ATT = [[0] * 256 for _ in range(8)]
+for _file_i in range(8):
+    for _occ in range(256):
+        _att = 0
+        _x = _file_i - 1
+        while _x >= 0:
+            _att |= 1 << _x
+            if _occ & (1 << _x):
+                break
+            _x -= 1
+        _x = _file_i + 1
+        while _x <= 7:
+            _att |= 1 << _x
+            if _occ & (1 << _x):
+                break
+            _x += 1
+        _RANK_ATT[_file_i][_occ] = _att
+
+
 def parse_fen(fen: str) -> tuple[list[tuple[int, int]], list[int], int]:
-    fields = fen.split()
+    raw = fen.encode("ascii")
     pieces: list[tuple[int, int]] = []
+    append = pieces.append
     kings = [-1, -1]
-    for fen_rank, row in enumerate(fields[0].split("/")):
-        file = 0
-        rank = 7 - fen_rank
-        for char in row:
-            if char.isdigit():
-                file += int(char)
-                continue
-            piece = PIECES[char]
-            square = rank * 8 + file
-            pieces.append((piece, square))
-            if piece == 5:
-                kings[0] = square
-            elif piece == 11:
-                kings[1] = square
-            file += 1
+    square = 56
+    piece_of = _PIECE_OF
+    i = 0
+    n = len(raw)
+    while i < n:
+        code = raw[i]
+        i += 1
+        if code == 32:
+            break
+        if code == 47:
+            square -= 16
+            continue
+        if 49 <= code <= 56:
+            square += code - 48
+            continue
+        piece = piece_of[code]
+        append((piece, square))
+        if piece == 5:
+            kings[0] = square
+        elif piece == 11:
+            kings[1] = square
+        square += 1
     if kings[0] < 0 or kings[1] < 0:
         raise ValueError(f"FEN lacks a king: {fen}")
-    return pieces, kings, 0 if fields[1] == "w" else 1
+    stm = 0 if i < n and raw[i] == 119 else 1
+    return pieces, kings, stm
 
 
 def kat_king_bucket(perspective: int, king: int) -> tuple[int, int]:
     oriented = king if perspective == 0 else king ^ 56
-    mirror = 0
-    if _file(oriented) < 4:
-        mirror = 7
-        oriented ^= 7
-    return _rank(oriented) * 4 + (_file(oriented) - 4), mirror
+    return _BUCKET_ID[oriented], _BUCKET_MIRROR[oriented]
+
+
+def _rank_attacks(square: int, occupied: int) -> int:
+    shift = square & ~7
+    return _RANK_ATT[square & 7][(occupied >> shift) & 0xFF] << shift
+
+
+def _slide(square: int, occupied: int, dirs: tuple[int, ...]) -> int:
+    rays = _RAYS
+    deltas = _SLIDE_DELTA
+    if dirs is _ROOK_DIRS:
+        attacks = _rank_attacks(square, occupied)
+        dirs = (0, 1)
+    else:
+        attacks = 0
+    for d in dirs:
+        ray = rays[d][square]
+        blockers = occupied & ray
+        if blockers:
+            blocker = (blockers & -blockers).bit_length() - 1 if deltas[d] > 0 else blockers.bit_length() - 1
+            attacks |= ray ^ rays[d][blocker]
+        else:
+            attacks |= ray
+    return attacks
 
 
 def ray_attacks(origin: int, occupied: int, deltas: tuple[int, ...]) -> int:
+    if deltas is BISHOP_DELTA or deltas == BISHOP_DELTA:
+        return _slide(origin, occupied, _BISHOP_DIRS)
+    if deltas is ROOK_DELTA or deltas == ROOK_DELTA:
+        return _slide(origin, occupied, _ROOK_DIRS)
     attacks = 0
     for delta in deltas:
         square = origin
@@ -106,83 +212,146 @@ def ray_attacks(origin: int, occupied: int, deltas: tuple[int, ...]) -> int:
 
 def color_attacks(pieces: list[tuple[int, int]], color: int, occupied: int) -> int:
     attacks = 0
+    pawn = _PAWN_ATT[color]
+    knight = _KNIGHT_ATT
+    king = _KING_ATT
     for piece, square in pieces:
         if piece // 6 != color:
             continue
         ptype = piece % 6
         if ptype == 0:
-            if color == 0:
-                for dest in (square + 7, square + 9):
-                    if 0 <= dest < 64 and abs(_file(dest) - _file(square)) == 1:
-                        attacks |= 1 << dest
-            else:
-                for dest in (square - 7, square - 9):
-                    if 0 <= dest < 64 and abs(_file(dest) - _file(square)) == 1:
-                        attacks |= 1 << dest
+            attacks |= pawn[square]
         elif ptype == 1:
-            for delta in KNIGHT_DELTA:
-                dest = square + delta
-                if 0 <= dest < 64 and {abs(_file(dest) - _file(square)), abs(_rank(dest) - _rank(square))} == {1, 2}:
-                    attacks |= 1 << dest
+            attacks |= knight[square]
         elif ptype == 2:
-            attacks |= ray_attacks(square, occupied, BISHOP_DELTA)
+            attacks |= _slide(square, occupied, _BISHOP_DIRS)
         elif ptype == 3:
-            attacks |= ray_attacks(square, occupied, ROOK_DELTA)
+            attacks |= _slide(square, occupied, _ROOK_DIRS)
         elif ptype == 4:
-            attacks |= ray_attacks(square, occupied, BISHOP_DELTA) | ray_attacks(square, occupied, ROOK_DELTA)
+            attacks |= _slide(square, occupied, _BISHOP_DIRS) | _slide(square, occupied, _ROOK_DIRS)
         else:
-            for delta in KING_DELTA:
-                dest = square + delta
-                if _step_ok(square, dest, delta):
-                    attacks |= 1 << dest
+            attacks |= king[square]
     return attacks
 
 
-def threat_vector(pieces: list[tuple[int, int]], stm: int) -> np.ndarray:
+def _threat_counts(pieces: list[tuple[int, int]], stm: int) -> list[int]:
     occupied = 0
-    by_type = [[0] * 6 for _ in range(2)]
+    by_type = [0] * 12
     for piece, square in pieces:
-        occupied |= 1 << square
-        by_type[piece // 6][piece % 6] |= 1 << square
-    our = color_attacks(pieces, stm, occupied)
-    their = color_attacks(pieces, 1 - stm, occupied)
-    threats = np.zeros(THREAT_DIM, dtype=np.float32)
+        bit = 1 << square
+        occupied |= bit
+        by_type[piece] |= bit
+    att = [0, 0]
+    pawn = _PAWN_ATT
+    knight = _KNIGHT_ATT
+    king = _KING_ATT
+    for piece, square in pieces:
+        color = piece // 6
+        ptype = piece - color * 6
+        if ptype == 0:
+            att[color] |= pawn[color][square]
+        elif ptype == 1:
+            att[color] |= knight[square]
+        elif ptype == 2:
+            att[color] |= _slide(square, occupied, _BISHOP_DIRS)
+        elif ptype == 3:
+            att[color] |= _slide(square, occupied, _ROOK_DIRS)
+        elif ptype == 4:
+            att[color] |= _slide(square, occupied, _BISHOP_DIRS) | _slide(square, occupied, _ROOK_DIRS)
+        else:
+            att[color] |= king[square]
+    our, their = att[stm], att[1 - stm]
+    ours = stm * 6
+    theirs = (1 - stm) * 6
+    counts = [0] * THREAT_DIM
     for ptype in range(6):
-        threats[ptype] = (by_type[stm][ptype] & their).bit_count()
-        threats[6 + ptype] = (by_type[1 - stm][ptype] & our).bit_count()
-    return threats
+        counts[ptype] = (by_type[ours + ptype] & their).bit_count()
+        counts[6 + ptype] = (by_type[theirs + ptype] & our).bit_count()
+    return counts
+
+
+def threat_vector(pieces: list[tuple[int, int]], stm: int) -> np.ndarray:
+    return np.asarray(_threat_counts(pieces, stm), dtype=np.float32)
+
+
+def _feature_lists(fen: str):
+    pieces, kings, stm = parse_fen(fen)
+    white_kp: list[int] = []
+    black_kp: list[int] = []
+    white_ps: list[int] = []
+    black_ps: list[int] = []
+    wb, wm = kat_king_bucket(0, kings[0])
+    bb, bm = kat_king_bucket(1, kings[1])
+    wbase = wb * PS_FEATURES
+    bbase = bb * PS_FEATURES
+    for piece, square in pieces:
+        wsq = square ^ wm
+        bsq = (square ^ 56) ^ bm
+        bpc = piece + 6 if piece < 6 else piece - 6
+        wps = piece * 64 + wsq
+        bps = bpc * 64 + bsq
+        white_ps.append(wps)
+        black_ps.append(bps)
+        white_kp.append(wbase + wps)
+        black_kp.append(bbase + bps)
+    return white_kp, black_kp, white_ps, black_ps, _threat_counts(pieces, stm), stm
 
 
 def active_features(fen: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    pieces, kings, stm = parse_fen(fen)
-    kp: list[np.ndarray] = []
-    ps: list[np.ndarray] = []
-    for perspective in (0, 1):
-        bucket, mirror = kat_king_bucket(perspective, kings[perspective])
-        kp_idx: list[int] = []
-        ps_idx: list[int] = []
-        for piece, square in pieces:
-            oriented_sq = square if perspective == 0 else square ^ 56
-            oriented_sq ^= mirror
-            oriented_pc = piece + 6 if perspective == 1 and piece < 6 else piece - 6 if perspective == 1 else piece
-            ps_i = oriented_pc * 64 + oriented_sq
-            kp_idx.append(bucket * PS_FEATURES + ps_i)
-            ps_idx.append(ps_i)
-        kp.append(np.asarray(kp_idx, dtype=np.int32))
-        ps.append(np.asarray(ps_idx, dtype=np.int32))
-    return kp[0], kp[1], ps[0], ps[1], threat_vector(pieces, stm), stm
+    white_kp, black_kp, white_ps, black_ps, threats, stm = _feature_lists(fen)
+    return (
+        np.asarray(white_kp, dtype=np.int32),
+        np.asarray(black_kp, dtype=np.int32),
+        np.asarray(white_ps, dtype=np.int32),
+        np.asarray(black_ps, dtype=np.int32),
+        np.asarray(threats, dtype=np.float32),
+        stm,
+    )
 
 
 def _row_from_line(line: str, target_clip: float):
-    if not line.strip():
+    if not line:
         return None
-    record = json.loads(line)
-    if record.get("score_cp") is None:
-        return None
-    fen = record["fen"]
-    white_kp, black_kp, white_ps, black_ps, threats, stm = active_features(fen)
-    score = float(np.clip(record["score_cp"], -target_clip, target_clip))
-    if record.get("score_pov", "side_to_move") == "white" and stm == 1:
+    fen = None
+    score = None
+    pov = "side_to_move"
+    try:
+        start = line.index('"fen":"') + 7
+        end = line.index('"', start)
+        fen = line[start:end]
+        start = line.index('"score_cp":', end) + 11
+        n = len(line)
+        while start < n and line[start] == " ":
+            start += 1
+        if line.startswith("null", start):
+            return None
+        stop = start
+        if stop < n and line[stop] in "+-":
+            stop += 1
+        while stop < n and line[stop].isdigit():
+            stop += 1
+        if stop < n and line[stop] == ".":
+            stop += 1
+            while stop < n and line[stop].isdigit():
+                stop += 1
+        score = float(line[start:stop])
+        marker = line.find('"score_pov":"', stop)
+        if marker >= 0:
+            pov_start = marker + 13
+            pov = line[pov_start : line.index('"', pov_start)]
+    except ValueError:
+        record = json.loads(line)
+        if record.get("score_cp") is None:
+            return None
+        fen = record["fen"]
+        score = float(record["score_cp"])
+        pov = record.get("score_pov", "side_to_move")
+    white_kp, black_kp, white_ps, black_ps, threats, stm = _feature_lists(fen)
+    if score > target_clip:
+        score = target_clip
+    elif score < -target_clip:
+        score = -target_clip
+    if pov == "white" and stm == 1:
         score = -score
     key = " ".join(fen.split()[:4])
     return key, (white_kp, black_kp, white_ps, black_ps, threats, stm, score, fen)
@@ -197,43 +366,48 @@ def _parse_chunk(lines: list[str], target_clip: float):
     return rows
 
 
+_LOAD_LINES: list[str] = []
+_LOAD_CLIP = 2000.0
+
+
+def _parse_range(start_end: tuple[int, int]):
+    start, end = start_end
+    return _parse_chunk(_LOAD_LINES[start:end], _LOAD_CLIP)
+
+
 def load_dataset(path: Path, target_clip: float, workers: int = 0):
     import os
+    import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor
 
-    hasher = hashlib.sha256()
-    chunks: list[list[str]] = []
-    current: list[str] = []
-    n_lines = 0
+    global _LOAD_LINES, _LOAD_CLIP
     print(f"loading {path}", flush=True)
-    with path.open("rb") as handle:
-        for raw in handle:
-            hasher.update(raw)
-            current.append(raw.decode("utf-8"))
-            n_lines += 1
-            if len(current) >= 4000:
-                chunks.append(current)
-                current = []
-        if current:
-            chunks.append(current)
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    _LOAD_LINES = raw.decode("utf-8").splitlines()
+    _LOAD_CLIP = target_clip
+    n_lines = len(_LOAD_LINES)
+    ranges = [(i, min(i + 4000, n_lines)) for i in range(0, n_lines, 4000)]
 
     if workers <= 0:
         workers = max(1, min(8, (os.cpu_count() or 2) - 1))
     unique: dict[str, tuple] = {}
-    if workers == 1 or len(chunks) <= 1:
-        for index, chunk in enumerate(chunks, start=1):
-            for key, row in _parse_chunk(chunk, target_clip):
-                unique[key] = row
-            print(f"parsed chunk {index}/{len(chunks)} unique={len(unique)}", flush=True)
+    if workers == 1 or len(ranges) <= 1:
+        chunks = [_parse_range(span) for span in ranges]
     else:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(_parse_chunk, chunk, target_clip) for chunk in chunks]
-            for index, future in enumerate(futures, start=1):
-                for key, row in future.result():
-                    unique[key] = row
-                print(f"parsed chunk {index}/{len(chunks)} unique={len(unique)}", flush=True)
+        try:
+            ctx = mp.get_context("fork")
+        except ValueError:
+            ctx = mp.get_context()
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
+            chunks = list(pool.map(_parse_range, ranges, chunksize=1))
+    for index, parsed in enumerate(chunks, start=1):
+        for key, row in parsed:
+            unique[key] = row
+        print(f"parsed chunk {index}/{len(ranges)} unique={len(unique)}", flush=True)
+    _LOAD_LINES = []
     print(f"loaded {len(unique)} unique / {n_lines} lines", flush=True)
-    return list(unique.values()), hasher.hexdigest()
+    return list(unique.values()), digest
 
 
 def prediction_metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
@@ -244,34 +418,111 @@ def prediction_metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, 
     }
 
 
+def _offsets_from_lengths(lengths: np.ndarray) -> np.ndarray:
+    offsets = np.empty(len(lengths), dtype=np.intp)
+    offsets[0] = 0
+    if len(lengths) > 1:
+        np.cumsum(lengths[:-1], out=offsets[1:])
+    return offsets
+
+
+def _packed_sum(weight: np.ndarray, index_lists) -> np.ndarray:
+    concat = np.concatenate(index_lists)
+    lengths = np.fromiter((len(idx) for idx in index_lists), dtype=np.intp, count=len(index_lists))
+    return np.add.reduceat(weight[concat], _offsets_from_lengths(lengths), axis=0)
+
+
+def _scatter_padded(dest: np.ndarray, padded: np.ndarray, lengths: np.ndarray, rows: np.ndarray) -> None:
+    mask = np.arange(padded.shape[1]) < lengths[:, None]
+    np.add.at(dest, padded[mask], np.repeat(rows, lengths, axis=0))
+
+
+def _unpack_rows(rows):
+    n = len(rows)
+    white_kp = np.empty(n, dtype=object)
+    black_kp = np.empty(n, dtype=object)
+    white_ps = np.empty(n, dtype=object)
+    black_ps = np.empty(n, dtype=object)
+    white_kp[:] = [row[0] for row in rows]
+    black_kp[:] = [row[1] for row in rows]
+    white_ps[:] = [row[2] for row in rows]
+    black_ps[:] = [row[3] for row in rows]
+    threats = np.stack([row[4] for row in rows])
+    stm = np.fromiter((row[5] for row in rows), dtype=np.int8, count=n)
+    target = np.fromiter((row[6] for row in rows), dtype=np.float32, count=n)
+    return white_kp, black_kp, white_ps, black_ps, threats, stm, target
+
+
+def _unpack_padded(rows):
+    n = len(rows)
+    max_p = max(len(row[0]) for row in rows)
+    white_kp = np.full((n, max_p), FEATURES, dtype=np.int32)
+    black_kp = np.full((n, max_p), FEATURES, dtype=np.int32)
+    white_ps = np.full((n, max_p), PS_FEATURES, dtype=np.int32)
+    black_ps = np.full((n, max_p), PS_FEATURES, dtype=np.int32)
+    lengths = np.empty(n, dtype=np.intp)
+    threats = np.empty((n, THREAT_DIM), dtype=np.float32)
+    stm = np.empty(n, dtype=np.int8)
+    target = np.empty(n, dtype=np.float32)
+    for i, row in enumerate(rows):
+        length = len(row[0])
+        lengths[i] = length
+        white_kp[i, :length] = row[0]
+        black_kp[i, :length] = row[1]
+        white_ps[i, :length] = row[2]
+        black_ps[i, :length] = row[3]
+        threats[i] = row[4]
+        stm[i] = row[5]
+        target[i] = row[6]
+    return white_kp, black_kp, white_ps, black_ps, lengths, threats, stm, target
+
+
+def _forward_padded(white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat):
+    white = w0[white_kp].sum(axis=1) + w_ps[white_ps].sum(axis=1) + b0
+    black = w0[black_kp].sum(axis=1) + w_ps[black_ps].sum(axis=1) + b0
+    own_acc = np.where(stm[:, None] == 0, white, black)
+    opp_acc = np.where(stm[:, None] == 0, black, white)
+    own = np.clip(own_acc, 0.0, 127.0)
+    opponent = np.clip(opp_acc, 0.0, 127.0)
+    predictions = own @ w1[:HIDDEN] + opponent @ w1[HIDDEN:] + b1 + threats @ w_threat
+    return predictions.astype(np.float32, copy=False), white, black, own, opponent, own_acc, opp_acc
+
+
+def _forward_parts(white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat):
+    white = b0 + _packed_sum(w0, white_kp) + _packed_sum(w_ps, white_ps)
+    black = b0 + _packed_sum(w0, black_kp) + _packed_sum(w_ps, black_ps)
+    own_acc = np.where(stm[:, None] == 0, white, black)
+    opp_acc = np.where(stm[:, None] == 0, black, white)
+    own = np.clip(own_acc, 0.0, 127.0)
+    opponent = np.clip(opp_acc, 0.0, 127.0)
+    predictions = own @ w1[:HIDDEN] + opponent @ w1[HIDDEN:] + b1 + threats @ w_threat
+    return predictions.astype(np.float32, copy=False), white, black, own, opponent, own_acc, opp_acc
+
+
 def forward(rows, w0, w_ps, b0, w1, b1, w_threat):
-    predictions = np.empty(len(rows), dtype=np.float32)
-    caches = []
-    for index, (white_kp, black_kp, white_ps, black_ps, threats, stm, _target, _fen) in enumerate(rows):
-        white = b0 + w0[white_kp].sum(axis=0) + w_ps[white_ps].sum(axis=0)
-        black = b0 + w0[black_kp].sum(axis=0) + w_ps[black_ps].sum(axis=0)
-        accumulators = (white, black)
-        own = np.clip(accumulators[stm], 0.0, 127.0)
-        opponent = np.clip(accumulators[1 - stm], 0.0, 127.0)
-        predictions[index] = own @ w1[:HIDDEN] + opponent @ w1[HIDDEN:] + b1 + threats @ w_threat
-        caches.append(accumulators)
-    return predictions, caches
+    white_kp, black_kp, white_ps, black_ps, threats, stm, _target = _unpack_rows(rows)
+    predictions, white, black, _own, _opp, _oa, _opa = _forward_parts(
+        white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat
+    )
+    return predictions, (white, black)
 
 
 def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, init_path=None, checkpoint_path=None):
     rng = np.random.default_rng(seed)
+    w0 = np.zeros((FEATURES + 1, HIDDEN), dtype=np.float32)
+    w_ps = np.zeros((PS_FEATURES + 1, HIDDEN), dtype=np.float32)
     if init_path:
         packed = np.load(init_path)
-        w0 = packed["w0"].astype(np.float32)
-        w_ps = packed["w_ps"].astype(np.float32)
+        w0[:FEATURES] = packed["w0"].astype(np.float32)
+        w_ps[:PS_FEATURES] = packed["w_ps"].astype(np.float32)
         b0 = packed["b0"].astype(np.float32)
         w1 = packed["w1"].astype(np.float32)
         b1 = float(packed["b1"])
         w_threat = packed["w_threat"].astype(np.float32)
         print(f"init from {init_path}", flush=True)
     else:
-        w0 = rng.normal(0.0, 0.02, (FEATURES, HIDDEN)).astype(np.float32)
-        w_ps = rng.normal(0.0, 0.03, (PS_FEATURES, HIDDEN)).astype(np.float32)
+        w0[:FEATURES] = rng.normal(0.0, 0.02, (FEATURES, HIDDEN)).astype(np.float32)
+        w_ps[:PS_FEATURES] = rng.normal(0.0, 0.03, (PS_FEATURES, HIDDEN)).astype(np.float32)
         b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
         w1 = rng.normal(0.0, 0.04, 2 * HIDDEN).astype(np.float32)
         b1 = 0.0
@@ -284,64 +535,79 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, 
     mth = np.zeros_like(w_threat)
     history = []
     best_rmse = float("inf")
-    best = (w0.copy(), w_ps.copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
+    best = (w0[:FEATURES].copy(), w_ps[:PS_FEATURES].copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
+    train_wkp, train_bkp, train_wps, train_bps, train_len, train_threats, train_stm, train_target = _unpack_padded(
+        train_rows
+    )
+    val_wkp, val_bkp, val_wps, val_bps, _val_len, val_threats, val_stm, val_target = _unpack_padded(validation_rows)
+    clip_lo = np.float32(-200.0)
+    clip_hi = np.float32(200.0)
+    lr = np.float32(learning_rate)
+    step0 = np.empty_like(mw0)
+    step_ps = np.empty_like(mps)
 
     for epoch in range(1, epochs + 1):
         print(f"epoch {epoch}/{epochs} train={len(train_rows)} val={len(validation_rows)}", flush=True)
         order = rng.permutation(len(train_rows))
         for start in range(0, len(order), batch_size):
-            batch = [train_rows[i] for i in order[start : start + batch_size]]
-            prediction, caches = forward(batch, w0, w_ps, b0, w1, b1, w_threat)
-            target = np.asarray([row[6] for row in batch], dtype=np.float32)
+            sel = order[start : start + batch_size]
+            n_batch = len(sel)
+            white_kp, black_kp = train_wkp[sel], train_bkp[sel]
+            white_ps, black_ps = train_wps[sel], train_bps[sel]
+            lengths, threats, stm, target = train_len[sel], train_threats[sel], train_stm[sel], train_target[sel]
+            prediction, _white, _black, own, opponent, own_acc, opp_acc = _forward_padded(
+                white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat
+            )
             error = prediction - target
-            grad_prediction = np.where(np.abs(error) <= 200.0, error, 200.0 * np.sign(error))
-            grad_prediction /= len(batch)
-            grad_w0 = np.zeros_like(w0)
-            grad_ps = np.zeros_like(w_ps)
-            grad_b0 = np.zeros_like(b0)
-            grad_w1 = np.zeros_like(w1)
-            grad_b1 = float(np.sum(grad_prediction))
-            grad_th = np.zeros_like(w_threat)
+            grad = np.clip(error, clip_lo, clip_hi)
+            grad /= np.float32(n_batch)
+            own_mask = (own_acc > 0.0) & (own_acc < 127.0)
+            opp_mask = (opp_acc > 0.0) & (opp_acc < 127.0)
+            grad_own = grad[:, None] * w1[:HIDDEN] * own_mask
+            grad_opp = grad[:, None] * w1[HIDDEN:] * opp_mask
+            stm_col = stm[:, None] == 0
+            grad_white = np.where(stm_col, grad_own, grad_opp)
+            grad_black = np.where(stm_col, grad_opp, grad_own)
+            grad_b0 = grad_own.sum(axis=0) + grad_opp.sum(axis=0)
+            grad_w1 = np.concatenate((own.T @ grad, opponent.T @ grad))
+            grad_b1 = float(grad.sum())
+            grad_th = threats.T @ grad
 
-            for row, accumulator, grad in zip(batch, caches, grad_prediction):
-                white_kp, black_kp, white_ps, black_ps, threats, stm, _t, _f = row
-                own_acc, opponent_acc = accumulator[stm], accumulator[1 - stm]
-                own = np.clip(own_acc, 0.0, 127.0)
-                opponent = np.clip(opponent_acc, 0.0, 127.0)
-                grad_w1[:HIDDEN] += grad * own
-                grad_w1[HIDDEN:] += grad * opponent
-                grad_th += grad * threats
-                grad_own = grad * w1[:HIDDEN] * ((own_acc > 0.0) & (own_acc < 127.0))
-                grad_opp = grad * w1[HIDDEN:] * ((opponent_acc > 0.0) & (opponent_acc < 127.0))
-                kp = (white_kp, black_kp)
-                ps = (white_ps, black_ps)
-                np.add.at(grad_w0, kp[stm], grad_own)
-                np.add.at(grad_w0, kp[1 - stm], grad_opp)
-                np.add.at(grad_ps, ps[stm], grad_own)
-                np.add.at(grad_ps, ps[1 - stm], grad_opp)
-                grad_b0 += grad_own + grad_opp
-
-            mw0 = 0.9 * mw0 + grad_w0
-            mps = 0.9 * mps + grad_ps
-            mb0 = 0.9 * mb0 + grad_b0
-            mw1 = 0.9 * mw1 + grad_w1
+            np.multiply(mw0, 0.9, out=mw0)
+            np.multiply(mps, 0.9, out=mps)
+            _scatter_padded(mw0, white_kp, lengths, grad_white)
+            _scatter_padded(mw0, black_kp, lengths, grad_black)
+            _scatter_padded(mps, white_ps, lengths, grad_white)
+            _scatter_padded(mps, black_ps, lengths, grad_black)
+            np.multiply(mb0, 0.9, out=mb0)
+            np.add(mb0, grad_b0, out=mb0)
+            np.multiply(mw1, 0.9, out=mw1)
+            np.add(mw1, grad_w1, out=mw1)
             mb1 = 0.9 * mb1 + grad_b1
-            mth = 0.9 * mth + grad_th
-            w0 -= learning_rate * mw0
-            w_ps -= learning_rate * mps
-            b0 -= learning_rate * mb0
-            w1 -= learning_rate * mw1
-            b1 -= learning_rate * mb1
-            w_threat -= learning_rate * mth
+            np.multiply(mth, 0.9, out=mth)
+            np.add(mth, grad_th, out=mth)
+            np.multiply(mw0, lr, out=step0)
+            np.subtract(w0, step0, out=w0)
+            np.multiply(mps, lr, out=step_ps)
+            np.subtract(w_ps, step_ps, out=w_ps)
+            b0 -= lr * mb0
+            w1 -= lr * mw1
+            b1 -= float(lr) * mb1
+            w_threat -= lr * mth
+            w0[-1] = 0
+            w_ps[-1] = 0
+            mw0[-1] = 0
+            mps[-1] = 0
 
-        validation_prediction, _ = forward(validation_rows, w0, w_ps, b0, w1, b1, w_threat)
-        validation_target = np.asarray([row[6] for row in validation_rows], dtype=np.float32)
-        row = {"epoch": epoch, **prediction_metrics(validation_prediction, validation_target)}
+        validation_prediction, *_ = _forward_padded(
+            val_wkp, val_bkp, val_wps, val_bps, val_threats, val_stm, w0, w_ps, b0, w1, b1, w_threat
+        )
+        row = {"epoch": epoch, **prediction_metrics(validation_prediction, val_target)}
         history.append(row)
         print(json.dumps(row, sort_keys=True), flush=True)
         if row["rmse_cp"] < best_rmse:
             best_rmse = row["rmse_cp"]
-            best = (w0.copy(), w_ps.copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
+            best = (w0[:FEATURES].copy(), w_ps[:PS_FEATURES].copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
         if checkpoint_path:
             Path(checkpoint_path).parent.mkdir(parents=True, exist_ok=True)
             np.savez(
@@ -359,11 +625,7 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, 
 
 
 def fold_factorization(w0: np.ndarray, w_ps: np.ndarray) -> np.ndarray:
-    folded = w0.copy()
-    for bucket in range(KING_BUCKETS):
-        start = bucket * PS_FEATURES
-        folded[start : start + PS_FEATURES] += w_ps
-    return folded
+    return (w0.reshape(KING_BUCKETS, PS_FEATURES, HIDDEN) + w_ps).reshape(FEATURES, HIDDEN)
 
 
 def export_network(path: Path, w0: np.ndarray, b0: np.ndarray, w1: np.ndarray, b1: float, w_threat: np.ndarray):
