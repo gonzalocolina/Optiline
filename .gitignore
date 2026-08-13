@@ -24,11 +24,13 @@ third_party/stockfish/
 !third_party/stockfish/README.md
 experiments/**/*.json
 experiments/**/*.txt
+experiments/**/*.log
+experiments/profiles/
+*.callgrind
 !experiments/**/manifest.json
 !experiments/**/ablation_summary.json
 !experiments/**/match_*.json
 !experiments/**/sprt_*.json
 !experiments/**/elo_ladder.json
 !experiments/**/report.md
-!experiments/**/controller_hypothesis.md
 !experiments/**/kpi_weekly.md
