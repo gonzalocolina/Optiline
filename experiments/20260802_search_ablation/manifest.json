@@ -1,0 +1,60 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_futility.uci": "b7041d5b651f4250c5ada4137442347f6f7065ff3b34affae25623c30d2f3170",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_lmp.uci": "5dc1fb8000ac57739c8a0c6861b9b5d9f4085d55cd582838ac6788087d4a9701",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_lmr.uci": "34348a82d46e72e0fec7b56fc6b0dd893add4602f903b96657a42ee718341929",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_nullmove.uci": "c327fd9adf3a462dc58191adb2f2423c491edd7f155d2bcc36f2d2f5638ade10",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_razoring.uci": "130c7b0db7acc1ea216350efe39b5ef1cfe3a5f379085cae7e088e0698b1dcb5",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_rfp.uci": "5377b009830d906c3cf46f43968f0061c9c16aed22c428515359579e8f47ab62",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_see.uci": "4090e93cb3a07969c0210f063dfdbe7f099612d51aafe29f1731cff34396cd5d",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260802_search_ablation/no_tt.uci": "82b8c6ae6a0d03b08e5761f7164d6a6653503717a528d9406bff0f1a661a07c3",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "018228987752ebcaf90df8013fde1009f31852d8deb13ea16f96fbc3ecfb4012"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "81560520bd35afa9cd6040887fbe28373c10c8957191d04145a8b2f74b2ebd74",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e"
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--search-matrix",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--games",
+    "40",
+    "--movetime",
+    "100",
+    "--seed",
+    "20260802",
+    "--outdir",
+    "experiments/20260802_search_ablation"
+  ],
+  "created_utc": "2026-08-02T21:51:33.906858+00:00",
+  "git": {
+    "commit": "13f0accdb06d7e7e05778884ee0429dad9f722ef",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "exploratory_short_tc": false,
+    "games_per_match": 40,
+    "kind": "search_ablation_matrix",
+    "max_plies": 60,
+    "movetime_ms": 100
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260802,
+  "toolchain": {
+    "cmake_cache_sha256": "6de4bc31c282821905e142cd95c377d0c86f58b7d286cb5693184fdc8329d1ef",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}
