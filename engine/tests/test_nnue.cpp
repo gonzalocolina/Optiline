@@ -174,5 +174,14 @@ TEST(NnueTest, LoadsKatAndKeepsMirroredKingMoveIncremental) {
   EXPECT_EQ(pos.nnue_acc().half, refreshed.half);
   EXPECT_EQ(pos.nnue_acc().king_bucket, refreshed.king_bucket);
   EXPECT_EQ(pos.nnue_acc().mirror, refreshed.mirror);
+
+  // King-bucket nets must not receive the classical extras residual.
+  Nnue::instance().load_default_from_hce();
+  pos.set_startpos();
+  const int hce = evaluate(pos);
+  ASSERT_TRUE(Nnue::instance().load(path.string()));
+  pos.set_startpos();
+  EXPECT_EQ(evaluate(pos), Nnue::instance().evaluate(pos));
+  EXPECT_NE(hce, evaluate(pos));
   std::filesystem::remove(path);
 }

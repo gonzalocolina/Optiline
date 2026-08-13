@@ -1,0 +1,63 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "3f7588cd1d2f6d04a8867b68d12881b1546c3961eaccba1024c8975c195eaedf"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "321212d1091e578e630967fd83f8fa75b28d703f5a329f0d788934342e7eabc8",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings.epd",
+    "openings_sha256": "dd42f8d02ffce27ba7e807459441bd364ff51981a2d3f602b9411069e43d4fb3"
+  },
+  "command": [
+    "tools/elo_ladder.py",
+    "--only-stockfish",
+    "--engine",
+    "build/nsce",
+    "--games",
+    "40",
+    "--movetime",
+    "100",
+    "--max-plies",
+    "120",
+    "--sf-elo",
+    "2000",
+    "--seed",
+    "20260813",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--nsce-config",
+    "tools/configs/baseline.uci",
+    "--outdir",
+    "experiments/20260813_sf18_2000"
+  ],
+  "created_utc": "2026-08-13T16:51:24.073641+00:00",
+  "git": {
+    "commit": "719ec85ff0efbdfdda10e90c7d246d316298fcfa",
+    "dirty": true
+  },
+  "parameters": {
+    "games_per_rung": 40,
+    "kind": "elo_ladder",
+    "max_plies": 120,
+    "movetime_ms": 100,
+    "nsce_config": "tools/configs/baseline.uci",
+    "only_stockfish": true,
+    "openings": "tools/openings_balanced.epd",
+    "oracle": "nsce_status",
+    "stockfish": "/tmp/sf18extract/stockfish/stockfish-ubuntu-x86-64-avx2",
+    "stockfish_elo": 2000
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260813,
+  "toolchain": {
+    "cmake_cache_sha256": "2a98ea75bb635b4471f0c2e4f10be8016bff36cd0539380b977d00eef3f0b535",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

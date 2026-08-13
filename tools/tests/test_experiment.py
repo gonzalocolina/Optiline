@@ -47,6 +47,37 @@ class StatisticsTest(unittest.TestCase):
         self.assertLess(pentanomial_llr([12, 8, 4, 2, 1], -5, 5), 0.0)
         self.assertAlmostEqual(pentanomial_llr([0, 0, 20, 0, 0], -5, 5), 0.0)
 
+    def test_pentanomial_does_not_explode_on_one_pair(self) -> None:
+        # A 0.75 pair used to yield LLR ≈ 3500 and stop SPRT after two games.
+        self.assertLess(abs(pentanomial_llr([0, 0, 0, 1, 0], -5, 5)), 1.0)
+        self.assertLess(abs(pentanomial_llr([0, 0, 0, 0, 1], -5, 5)), 1.0)
+
+
+class FitControllerTest(unittest.TestCase):
+    def test_fits_nscectl2_from_synthetic_telemetry(self) -> None:
+        import struct
+        from pathlib import Path
+
+        out = Path("/tmp/nsce_ctl2_synth.bin")
+        packed = struct.pack(
+            "<8s10i",
+            b"NSCECTL2",
+            40,
+            50,
+            1,
+            20,
+            -1,
+            -120,
+            10,
+            -8,
+            12,
+            0,
+        )
+        out.write_bytes(packed)
+        raw = out.read_bytes()
+        self.assertTrue(raw.startswith(b"NSCECTL2"))
+        self.assertEqual(len(raw), 8 + 10 * 4)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,3 +12,4 @@ setoption name UseFutility value true
 setoption name UseLMP value true
 setoption name UseRazoring value true
 setoption name UseRFP value true
+setoption name UseProbCut value true

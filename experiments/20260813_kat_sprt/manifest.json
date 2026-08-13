@@ -1,0 +1,75 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "3f7588cd1d2f6d04a8867b68d12881b1546c3961eaccba1024c8975c195eaedf",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/kat.uci": "7dee5373efddfd576247c7072899f6f1ac9767fce17d2b0a1dcc43123e6d66a0"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_sha256": "321212d1091e578e630967fd83f8fa75b28d703f5a329f0d788934342e7eabc8",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e"
+  },
+  "command": [
+    "tools/sprt.py",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/kat.uci",
+    "--name-a",
+    "baseline",
+    "--name-b",
+    "kat",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--elo0",
+    "-5",
+    "--elo1",
+    "5",
+    "--min-games",
+    "40",
+    "--max-games",
+    "400",
+    "--movetime",
+    "100",
+    "--max-plies",
+    "80",
+    "--seed",
+    "20260813",
+    "--outdir",
+    "experiments/20260813_kat_sprt"
+  ],
+  "created_utc": "2026-08-13T16:45:14.751737+00:00",
+  "git": {
+    "commit": "719ec85ff0efbdfdda10e90c7d246d316298fcfa",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "alpha": 0.05,
+    "beta": 0.05,
+    "elo0": -5.0,
+    "elo1": 5.0,
+    "exploratory_short_tc": false,
+    "kind": "sprt",
+    "llr_model": "pair_normal_pentanomial",
+    "max_games": 400,
+    "max_plies": 80,
+    "min_games": 40,
+    "movetime_ms": 100,
+    "openings": "tools/openings_balanced.epd"
+  },
+  "platform": {
+    "cpu_count": 16,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "schema_version": 1,
+  "seed": 20260813,
+  "toolchain": {
+    "cmake_cache_sha256": "2a98ea75bb635b4471f0c2e4f10be8016bff36cd0539380b977d00eef3f0b535",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

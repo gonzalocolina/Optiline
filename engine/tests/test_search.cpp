@@ -1,9 +1,12 @@
 #include "nsce/bitboard.hpp"
+#include "nsce/controller.hpp"
 #include "nsce/movegen.hpp"
 #include "nsce/search.hpp"
 #include "nsce/zobrist.hpp"
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <thread>
 
@@ -182,4 +185,22 @@ TEST(SearchTest, SetThreadsResizePool) {
   EXPECT_TRUE(info.best_move);
   EXPECT_GT(info.depth, 0);
 }
+
+TEST(SearchTest, LoadsFittedControllerFormat) {
+  init_bitboards();
+  Zobrist::init();
+  auto path = std::filesystem::temp_directory_path() / "nsce_ctl2.bin";
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write("NSCECTL2", 8);
+    int32_t values[10] = {40, 50, 1, 20, -1, -120, 10, -8, 12, 0};
+    out.write(reinterpret_cast<const char*>(values), sizeof(values));
+  }
+  ASSERT_TRUE(SearchController::instance().load(path.string()));
+  const int delta = SearchController::instance().reduction_delta(8, 12, 40, -30, 70, true, 0, -800, false, true, -1);
+  EXPECT_GE(delta, -1);
+  EXPECT_LE(delta, 2);
+  std::filesystem::remove(path);
+}
+
 

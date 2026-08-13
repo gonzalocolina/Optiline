@@ -24,7 +24,7 @@ Bitboard attackers_to(Square target, Bitboard occupied, Bitboard pieces[COLOR_NB
 }  // namespace
 
 int static_exchange_eval(const Position& pos, Move move) {
-  if (!move.is_capture() && !move.is_ep() && !move.is_promotion()) return 0;
+  if (move.is_castle()) return 0;
 
   Bitboard pieces[COLOR_NB][PIECE_TYPE_NB]{};
   for (int color = 0; color < COLOR_NB; ++color)

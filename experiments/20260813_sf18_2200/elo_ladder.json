@@ -1,0 +1,17 @@
+[
+  {
+    "rung": "stockfish_elo_2200",
+    "W": 10,
+    "D": 17,
+    "L": 13,
+    "score": 0.4625,
+    "elo": -26.106692605036592,
+    "elo_err": 82.43066261535606,
+    "skipped": false,
+    "stockfish": "/tmp/sf18extract/stockfish/stockfish-ubuntu-x86-64-avx2",
+    "openings": "tools/openings_balanced.epd",
+    "max_plies": 120,
+    "nsce_config": "tools/configs/baseline.uci",
+    "oracle": "nsce_status"
+  }
+]

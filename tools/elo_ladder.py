@@ -103,7 +103,15 @@ def resolve_stockfish() -> str | None:
 
 
 def stockfish_rung(
-    engine: Path, games: int, movetime: int, outdir: Path, sf_elo: int, seed: int
+    engine: Path,
+    games: int,
+    movetime: int,
+    outdir: Path,
+    sf_elo: int,
+    seed: int,
+    openings_path: Path | None = None,
+    max_plies: int = 120,
+    nsce_config: Path | None = None,
 ) -> dict | None:
     sf = resolve_stockfish()
     if not sf:
@@ -112,12 +120,13 @@ def stockfish_rung(
             "skipped": True,
             "reason": "stockfish not in PATH; install to enable this rung",
         }
-    # Use cutechess if available, else simple UCI loop
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    book = openings_path or (ROOT / "tools" / "openings_balanced.epd")
+    cfg = nsce_config or (ROOT / "tools" / "configs" / "baseline.uci")
+    openings = load_openings(book)
     nsce = UciEngine([str(engine)], "NSCE")
     stock = UciEngine([sf], "SF")
     try:
-        nsce.apply_uci_file(ROOT / "tools" / "configs" / "baseline.uci")
+        nsce.apply_uci_file(cfg)
         stock.apply_options(
             {
                 "UCI_LimitStrength": "true",
@@ -132,10 +141,19 @@ def stockfish_rung(
             stock.new_game()
             moves: list[str] = []
             result = "1/2-1/2"
-            for ply in range(60):
+            for ply in range(max_plies):
                 eng = (nsce if a_white else stock) if ply % 2 == 0 else (stock if a_white else nsce)
                 mv = eng.go_movetime(fen, moves, movetime)
                 if mv in ("0000", "(none)", "none"):
+                    st = nsce.status(fen, moves)
+                    if st == "checkmate":
+                        white_won = ply % 2 == 1
+                        if a_white:
+                            result = "1-0" if white_won else "0-1"
+                        else:
+                            result = "0-1" if white_won else "1-0"
+                    elif st in ("stalemate", "draw"):
+                        result = "1/2-1/2"
                     break
                 moves.append(mv)
                 st = nsce.status(fen, moves)
@@ -155,7 +173,7 @@ def stockfish_rung(
                 l += 1
             else:
                 d += 1
-            print(f"  SF rung game {i+1}: NSCE result={result}")
+            print(f"  SF rung game {i+1}: NSCE result={result}", flush=True)
         score = (w + 0.5 * d) / max(1, games)
         elo, err = elo_from_wdl(w, d, l)
         return {
@@ -167,6 +185,11 @@ def stockfish_rung(
             "elo": elo,
             "elo_err": err,
             "skipped": False,
+            "stockfish": sf,
+            "openings": str(book),
+            "max_plies": max_plies,
+            "nsce_config": str(cfg),
+            "oracle": "nsce_status",
         }
     finally:
         nsce.close()
@@ -181,6 +204,21 @@ def main() -> int:
     ap.add_argument("--movetime", type=int, default=100)
     ap.add_argument("--sf-elo", type=int, default=1400)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument(
+        "--openings",
+        default=str(ROOT / "tools" / "openings_balanced.epd"),
+        help="EPD book for the Stockfish rung",
+    )
+    ap.add_argument("--max-plies", type=int, default=120)
+    ap.add_argument(
+        "--nsce-config",
+        default=str(ROOT / "tools" / "configs" / "baseline.uci"),
+    )
+    ap.add_argument(
+        "--only-stockfish",
+        action="store_true",
+        help="skip self-play depth/weak rungs; only play limited-strength Stockfish",
+    )
     args = ap.parse_args()
 
     engine = Path(args.engine)
@@ -194,12 +232,27 @@ def main() -> int:
     outdir.mkdir(parents=True, exist_ok=True)
 
     results = []
-    print("=== Rung 1: depth ladder ===")
-    results.append(depth_ladder(engine, args.games, outdir, args.seed))
-    print("=== Rung 2: weak proxy ===")
-    results.append(weak_nsce_rung(engine, args.games, args.movetime, outdir, args.seed))
-    print("=== Rung 3: Stockfish limited ===")
-    results.append(stockfish_rung(engine, args.games, args.movetime, outdir, args.sf_elo, args.seed))
+    openings_path = Path(args.openings)
+    nsce_config = Path(args.nsce_config)
+    if not args.only_stockfish:
+        print("=== Rung 1: depth ladder ===")
+        results.append(depth_ladder(engine, args.games, outdir, args.seed))
+        print("=== Rung 2: weak proxy ===")
+        results.append(weak_nsce_rung(engine, args.games, args.movetime, outdir, args.seed))
+    print("=== Stockfish limited ===")
+    results.append(
+        stockfish_rung(
+            engine,
+            args.games,
+            args.movetime,
+            outdir,
+            args.sf_elo,
+            args.seed,
+            openings_path=openings_path,
+            max_plies=args.max_plies,
+            nsce_config=nsce_config,
+        )
+    )
 
     (outdir / "elo_ladder.json").write_text(json.dumps(results, indent=2))
     lines = [
@@ -244,8 +297,13 @@ def main() -> int:
             "kind": "elo_ladder",
             "games_per_rung": args.games,
             "movetime_ms": args.movetime,
+            "max_plies": args.max_plies,
             "stockfish_elo": args.sf_elo,
             "stockfish": resolve_stockfish(),
+            "openings": str(openings_path),
+            "nsce_config": str(nsce_config),
+            "oracle": "nsce_status",
+            "only_stockfish": args.only_stockfish,
         },
     )
     write_manifest(outdir / "manifest.json", manifest)

@@ -219,7 +219,7 @@ def run_matrix(
         baseline = configs / "baseline.uci"
         baseline_text = baseline.read_text()
         pairs = []
-        for option in ("UseTT", "UseSEE", "UseLMR", "UseNullMove", "UseFutility", "UseLMP", "UseRazoring", "UseRFP"):
+        for option in ("UseTT", "UseSEE", "UseLMR", "UseNullMove", "UseFutility", "UseLMP", "UseRazoring", "UseRFP", "UseProbCut"):
             candidate = outdir / f"no_{option.removeprefix('Use').lower()}.uci"
             enabled = f"setoption name {option} value true"
             if enabled not in baseline_text:

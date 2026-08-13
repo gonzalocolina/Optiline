@@ -2,11 +2,12 @@
 
 Motor de ajedrez UCI en C++20. Hipótesis: una política neuronal de presupuesto de búsqueda puede ganar Elo a igual CPU/tiempo frente a Stockfish.
 
-## Estado actual (v0.9)
+## Estado actual (v0.10)
 
 - Movegen legal pin-aware (doble jaque, evasiones y en-passant) validado con perft
-- PVS/alpha-beta con IIR, extensiones singulares, continuation/capture/correction history
-- QS con movimientos ruidosos legales, TT de hoja y eval estática empaquetada
+- PVS/alpha-beta con IIR, ProbCut, NMP verificado, extensiones singulares dobles,
+  continuation 1/2/4/6, capture/correction history y pick-next
+- QS fail-soft, SEE de jugadas quietas y eval residual (movilidad, columnas, outposts)
 - Telemetría `NSCE_STATS`, flags de ablación y tablas de ataques magic/PEXT
 - NNUE `768x128x1` + residual clásico (peones pasados, pareja de alfiles, estructura)
 - Runtime HalfKP (`NSCEHFKP`) y KAT (`NSCEKAT1`: HalfKA-hm 32 + residual táctico)
@@ -30,7 +31,7 @@ Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_SANITIZE`,
 ./build/nsce
 # UCI options: Hash, Threads, UseNNUE, UsePolicy, UseSearchController,
 # EvalFile, PolicyFile, ControllerFile, TelemetryFile,
-# UseTT, UseSEE, UseLMR, UseNullMove, UseFutility, UseLMP, UseRazoring, UseRFP
+# UseTT, UseSEE, UseLMR, UseNullMove, UseFutility, UseLMP, UseRazoring, UseRFP, UseProbCut
 ```
 
 ```bash

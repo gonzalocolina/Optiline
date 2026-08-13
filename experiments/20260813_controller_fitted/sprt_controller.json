@@ -1,0 +1,56 @@
+{
+  "decision": "accept_H1_candidate_stronger",
+  "W": 1,
+  "D": 1,
+  "L": 0,
+  "pentanomial": [
+    0,
+    0,
+    0,
+    1,
+    0
+  ],
+  "llr_model": "pair_normal_pentanomial",
+  "elo0": -5.0,
+  "elo1": 5.0,
+  "alpha": 0.05,
+  "beta": 0.05,
+  "bounds": {
+    "lower": -2.9444389791664403,
+    "upper": 2.9444389791664403
+  },
+  "seed": 20260813,
+  "movetime_ms": 100,
+  "max_plies": 80,
+  "exploratory_short_tc": false,
+  "adjudication_cp": 800,
+  "adjudication_plies": 6,
+  "cfg_a": "tools/configs/baseline.uci",
+  "cfg_b": "tools/configs/controller_fitted.uci",
+  "history": [
+    {
+      "game": 1,
+      "pair_id": 0,
+      "fen": "r1bq1k1r/1pp1ppbp/2n2np1/pB1p4/2P1P2P/N4Q2/PP1P1PP1/R1B1K1NR w KQ - 2 8",
+      "candidate_is_white": false,
+      "result": "0-1",
+      "termination": "consensus_eval",
+      "W": 1,
+      "D": 0,
+      "L": 0,
+      "llr": 0.0
+    },
+    {
+      "game": 2,
+      "pair_id": 0,
+      "fen": "r1bq1k1r/1pp1ppbp/2n2np1/pB1p4/2P1P2P/N4Q2/PP1P1PP1/R1B1K1NR w KQ - 2 8",
+      "candidate_is_white": true,
+      "result": "1/2-1/2",
+      "termination": "max_plies",
+      "W": 1,
+      "D": 1,
+      "L": 0,
+      "llr": 3597.540854525683
+    }
+  ]
+}

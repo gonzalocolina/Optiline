@@ -110,6 +110,17 @@ only after MAE/SPRT stop moving.
 
 ```bash
 bash train/run_train_loop.sh
+
+# Classical LMR telemetry → NSCECTL2 (keep UseSearchController=false while logging).
+python3 train/collect_search_telemetry.py --depth 8 --limit 64
+.venv/bin/python train/fit_controller.py \
+  --telemetry train/data/lmr_telemetry.csv \
+  --output nets/controller_fitted.bin
+python3 tools/sprt.py \
+  --cfg-a tools/configs/baseline.uci \
+  --cfg-b tools/configs/controller_fitted.uci \
+  --openings tools/openings_balanced.epd \
+  --max-games 200
 ```
 
 ## SPRT candidate vs baseline

@@ -49,6 +49,7 @@ void Position::clear() {
   nonpawn_key_ = 0;
   checkers_ = 0;
   history_keys_.clear();
+  history_keys_.reserve(512);
   nnue_live_ = false;
   nnue_acc_ = {};
 }

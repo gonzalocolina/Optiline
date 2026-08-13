@@ -13,6 +13,13 @@ constexpr Bitboard Rank8BB = 0xFF00000000000000ULL;
 constexpr Bitboard Rank2BB = 0x000000000000FF00ULL;
 constexpr Bitboard Rank7BB = 0x00FF000000000000ULL;
 
+constexpr Bitboard FileBB[8] = {
+    FileABB, FileABB << 1, FileABB << 2, FileABB << 3,
+    FileABB << 4, FileABB << 5, FileABB << 6, FileABB << 7};
+constexpr Bitboard RankBB[8] = {
+    Rank1BB, Rank1BB << 8, Rank1BB << 16, Rank1BB << 24,
+    Rank1BB << 32, Rank1BB << 40, Rank1BB << 48, Rank1BB << 56};
+
 inline Bitboard square_bb(Square s) { return 1ULL << static_cast<int>(s); }
 
 inline int popcount(Bitboard b) { return std::popcount(b); }

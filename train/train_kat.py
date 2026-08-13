@@ -173,24 +173,67 @@ def active_features(fen: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.nd
     return kp[0], kp[1], ps[0], ps[1], threat_vector(pieces, stm), stm
 
 
-def load_dataset(path: Path, target_clip: float):
+def _row_from_line(line: str, target_clip: float):
+    if not line.strip():
+        return None
+    record = json.loads(line)
+    if record.get("score_cp") is None:
+        return None
+    fen = record["fen"]
+    white_kp, black_kp, white_ps, black_ps, threats, stm = active_features(fen)
+    score = float(np.clip(record["score_cp"], -target_clip, target_clip))
+    if record.get("score_pov", "side_to_move") == "white" and stm == 1:
+        score = -score
+    key = " ".join(fen.split()[:4])
+    return key, (white_kp, black_kp, white_ps, black_ps, threats, stm, score, fen)
+
+
+def _parse_chunk(lines: list[str], target_clip: float):
+    rows = []
+    for line in lines:
+        parsed = _row_from_line(line, target_clip)
+        if parsed is not None:
+            rows.append(parsed)
+    return rows
+
+
+def load_dataset(path: Path, target_clip: float, workers: int = 0):
+    import os
+    from concurrent.futures import ProcessPoolExecutor
+
+    hasher = hashlib.sha256()
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    n_lines = 0
+    print(f"loading {path}", flush=True)
+    with path.open("rb") as handle:
+        for raw in handle:
+            hasher.update(raw)
+            current.append(raw.decode("utf-8"))
+            n_lines += 1
+            if len(current) >= 4000:
+                chunks.append(current)
+                current = []
+        if current:
+            chunks.append(current)
+
+    if workers <= 0:
+        workers = max(1, min(8, (os.cpu_count() or 2) - 1))
     unique: dict[str, tuple] = {}
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip():
-                continue
-            record = json.loads(line)
-            if record.get("score_cp") is None:
-                continue
-            fen = record["fen"]
-            white_kp, black_kp, white_ps, black_ps, threats, stm = active_features(fen)
-            score = float(np.clip(record["score_cp"], -target_clip, target_clip))
-            if record.get("score_pov", "side_to_move") == "white" and stm == 1:
-                score = -score
-            key = " ".join(fen.split()[:4])
-            unique[key] = (white_kp, black_kp, white_ps, black_ps, threats, stm, score, fen)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return list(unique.values()), digest
+    if workers == 1 or len(chunks) <= 1:
+        for index, chunk in enumerate(chunks, start=1):
+            for key, row in _parse_chunk(chunk, target_clip):
+                unique[key] = row
+            print(f"parsed chunk {index}/{len(chunks)} unique={len(unique)}", flush=True)
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_parse_chunk, chunk, target_clip) for chunk in chunks]
+            for index, future in enumerate(futures, start=1):
+                for key, row in future.result():
+                    unique[key] = row
+                print(f"parsed chunk {index}/{len(chunks)} unique={len(unique)}", flush=True)
+    print(f"loaded {len(unique)} unique / {n_lines} lines", flush=True)
+    return list(unique.values()), hasher.hexdigest()
 
 
 def prediction_metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
@@ -234,6 +277,7 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed):
     best = (w0.copy(), w_ps.copy(), b0.copy(), w1.copy(), b1, w_threat.copy())
 
     for epoch in range(1, epochs + 1):
+        print(f"epoch {epoch}/{epochs} train={len(train_rows)} val={len(validation_rows)}", flush=True)
         order = rng.permutation(len(train_rows))
         for start in range(0, len(order), batch_size):
             batch = [train_rows[i] for i in order[start : start + batch_size]]
@@ -336,6 +380,7 @@ def main() -> int:
     rows, dataset_sha256 = load_dataset(Path(args.data), args.target_clip)
     if len(rows) < args.minimum_samples:
         raise ValueError(f"KAT promotion requires at least {args.minimum_samples} samples; found {len(rows)}")
+    print(f"split {len(rows)} samples (sha256={dataset_sha256[:12]}…)", flush=True)
     train_rows, validation_rows = [], []
     for row in rows:
         bucket = int.from_bytes(hashlib.sha256(row[7].encode()).digest()[:4], "little") % 10

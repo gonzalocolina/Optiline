@@ -53,7 +53,7 @@ void Uci::handle_command(const std::string& line) {
   is >> token;
 
   if (token == "uci") {
-    std::cout << "id name NSCE 0.9\n";
+    std::cout << "id name NSCE 0.10\n";
     std::cout << "id author Gonzalo\n";
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
     std::cout << "option name Threads type spin default 1 min 1 max 64\n";
@@ -68,6 +68,7 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name UseLMP type check default true\n";
     std::cout << "option name UseRazoring type check default true\n";
     std::cout << "option name UseRFP type check default true\n";
+    std::cout << "option name UseProbCut type check default true\n";
     std::cout << "option name EvalFile type string default nets/nnue_trained.bin\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
@@ -228,6 +229,8 @@ void Uci::handle_setoption(std::istringstream& is) {
     search_.set_use_razoring(value == "true" || value == "1");
   } else if (name == "UseRFP") {
     search_.set_use_rfp(value == "true" || value == "1");
+  } else if (name == "UseProbCut") {
+    search_.set_use_probcut(value == "true" || value == "1");
   } else if (name == "EvalFile") {
     if (value == "<internal>" || value == "internal" || value == "hce") {
       Nnue::instance().load_default_from_hce();

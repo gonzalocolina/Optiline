@@ -67,6 +67,8 @@ struct SearchStats {
   uint64_t iir_reductions = 0;
   uint64_t qs_tt_cutoffs = 0;
   uint64_t root_moves = 0;
+  uint64_t probcut_attempts = 0;
+  uint64_t probcut_cutoffs = 0;
 
   SearchStats& operator+=(const SearchStats& other);
 };
@@ -75,12 +77,14 @@ struct SearchStack {
   Move current_move{};
   Move excluded{};
   int static_eval = 0;
+  int double_extensions = 0;
   bool skip_null = false;
   Piece moved_piece = NO_PIECE;
 };
 
 struct SearchWorker {
   static constexpr int kMaxPly = 128;
+  static constexpr int kStackPad = 6;
   static constexpr int kCorrSize = 16384;
   Move killers[kMaxPly][2]{};
   int history[12][SQUARE_NB]{};
@@ -88,6 +92,7 @@ struct SearchWorker {
   int16_t continuation[12][SQUARE_NB][12][SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
   int nonpawn_corr[COLOR_NB][kCorrSize]{};
+  int cont_corr[12][SQUARE_NB]{};
   Move countermove[SQUARE_NB][SQUARE_NB]{};
   Move pv[kMaxPly][kMaxPly]{};
   int pv_len[kMaxPly]{};
@@ -116,6 +121,7 @@ class Search {
   void set_use_lmp(bool on) { use_lmp_ = on; }
   void set_use_razoring(bool on) { use_razoring_ = on; }
   void set_use_rfp(bool on) { use_rfp_ = on; }
+  void set_use_probcut(bool on) { use_probcut_ = on; }
   void set_silent(bool on) { silent_ = on; }
   const SearchStats& last_stats() const { return last_stats_; }
 
@@ -136,9 +142,12 @@ class Search {
   void update_capture_stats(SearchWorker& w, const Position& pos, Move best, const Move* captures, int capture_count,
                             int depth);
   int correction(const SearchWorker& w, const Position& pos) const;
+  int correction(const SearchWorker& w, const Position& pos, const SearchStack* ss, int ply) const;
   void update_correction(SearchWorker& w, const Position& pos, int static_eval, int best_score, Bound bound, int depth);
 
-  int lmr_table_[64][64]{};
+  int lmr_quiet_[64][64]{};
+  int lmr_capture_[64][64]{};
+  int pick_next_move(MoveList& list, int* scores, int start) const;
   int search_root_parallel(int depth, int alpha, int beta);
   void start_helper_pool();
   void stop_helper_pool();
@@ -164,7 +173,9 @@ class Search {
   bool use_lmp_ = true;
   bool use_razoring_ = true;
   bool use_rfp_ = true;
+  bool use_probcut_ = true;
   bool silent_ = false;
+  int root_depth_ = 0;
   SearchWorker main_worker_{};
   SearchStats last_stats_{};
   std::vector<std::unique_ptr<SearchWorker>> helper_workers_;

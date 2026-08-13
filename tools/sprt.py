@@ -56,6 +56,10 @@ def pentanomial_llr(counts: list[int], elo0: float, elo1: float) -> float:
     Each observation is the candidate's average score over one color-reversed
     opening pair. The empirical variance is a nuisance estimate, matching the
     standard pentanomial approximation used for paired engine testing.
+
+    A single unanimous pair has empirical variance 0 and would otherwise explode
+    the LLR past the bounds after two games. Floor per-pair variance at a typical
+    chess-pair value so early stopping requires a real sample.
     """
     if len(counts) != 5:
         raise ValueError("pentanomial counts must have five buckets")
@@ -65,7 +69,9 @@ def pentanomial_llr(counts: list[int], elo0: float, elo1: float) -> float:
     values = (0.0, 0.25, 0.5, 0.75, 1.0)
     mean = sum(count * value for count, value in zip(counts, values)) / n
     variance = sum(count * (value - mean) ** 2 for count, value in zip(counts, values)) / n
-    variance = max(variance, 1e-6)
+    # Chess pair scores typically vary ~0.04–0.08. 1e-6 made one 0.75 pair
+    # produce LLR ≈ 3500 and a false H1 after two games.
+    variance = max(variance, 0.04)
 
     def score(elo: float) -> float:
         return 1.0 / (1.0 + 10 ** (-elo / 400.0))
@@ -104,6 +110,12 @@ def main() -> int:
     ap.add_argument("--movetime", type=int, default=100)
     ap.add_argument("--allow-short-tc", action="store_true", help="allow exploratory movetime below 50 ms")
     ap.add_argument("--max-games", type=int, default=200, help="positive even number")
+    ap.add_argument(
+        "--min-games",
+        type=int,
+        default=40,
+        help="do not accept H0/H1 before this many games (even, pair-aligned)",
+    )
     ap.add_argument("--max-plies", type=int, default=60)
     ap.add_argument("--openings", default=str(ROOT / "tools/openings.epd"))
     ap.add_argument("--seed", type=int, default=1)
@@ -120,6 +132,12 @@ def main() -> int:
     engine = Path(args.engine)
     if args.max_games <= 0 or args.max_games % 2:
         print("--max-games must be a positive even number", file=sys.stderr)
+        return 1
+    if args.min_games <= 0 or args.min_games % 2:
+        print("--min-games must be a positive even number", file=sys.stderr)
+        return 1
+    if args.min_games > args.max_games:
+        print("--min-games cannot exceed --max-games", file=sys.stderr)
         return 1
     if args.movetime < 50 and not args.allow_short_tc:
         print("movetime below 50 ms is too noisy for SPRT; use --allow-short-tc only for smoke tests", file=sys.stderr)
@@ -188,6 +206,7 @@ def main() -> int:
             "alpha": args.alpha,
             "beta": args.beta,
             "bounds": {"lower": B, "upper": A},
+            "min_games": args.min_games,
             "seed": args.seed,
             "movetime_ms": args.movetime,
             "max_plies": args.max_plies,
@@ -260,10 +279,10 @@ def main() -> int:
                     "llr": ratio,
                 }
             )
-            print(f"SPRT game {i+1}: WDL={w}-{d}-{l} llr={ratio:.3f} bounds=[{B:.3f},{A:.3f}]")
+            print(f"SPRT game {i+1}: WDL={w}-{d}-{l} llr={ratio:.3f} bounds=[{B:.3f},{A:.3f}]", flush=True)
             # Persist every game so interrupted runs can resume without losing odd games.
             # Stop only at pair boundaries to preserve opening/color balance.
-            if (i + 1) % 2 == 0:
+            if (i + 1) % 2 == 0 and (i + 1) >= args.min_games:
                 if ratio >= A:
                     decision = "accept_H1_candidate_stronger"
                 elif ratio <= B:
@@ -285,6 +304,7 @@ def main() -> int:
         {
             "kind": "sprt",
             "max_games": args.max_games,
+            "min_games": args.min_games,
             "movetime_ms": args.movetime,
             "exploratory_short_tc": args.movetime < 50,
             "max_plies": args.max_plies,
