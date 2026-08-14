@@ -50,6 +50,11 @@ int main(int argc, char** argv) {
   if (argc > 3) repetitions = std::atoi(argv[3]);
   int movetime = 0;
   if (argc > 5) movetime = std::atoi(argv[5]);
+  const std::string state = argc > 6 ? argv[6] : "cold";
+  if (state != "cold" && state != "warm") {
+    std::cerr << "nsce_bench: state must be cold or warm\n";
+    return 2;
+  }
 
   Search search;
   search.set_hash_mb(64);
@@ -71,10 +76,12 @@ int main(int argc, char** argv) {
   else
     limits.depth = depth;
 
-  Position warmup;
-  warmup.set_startpos();
-  search.set_position(warmup);
-  search.go(limits);
+  if (state == "warm") {
+    Position warmup;
+    warmup.set_startpos();
+    search.set_position(warmup);
+    search.go(limits);
+  }
 
   auto t0 = std::chrono::steady_clock::now();
   uint64_t total_nodes = 0;
@@ -85,6 +92,7 @@ int main(int argc, char** argv) {
     for (const std::string& fen : fens) {
       Position pos;
       pos.set_fen(fen);
+      if (state == "cold") search.clear_search_state();
       search.set_position(pos);
       SearchInfo info = search.go(limits);
       total_nodes += info.nodes;
@@ -98,7 +106,8 @@ int main(int argc, char** argv) {
   uint64_t nps = ms > 0 ? total_nodes * 1000ULL / static_cast<uint64_t>(ms) : total_nodes;
   std::cout << "nsce_bench positions=" << fens.size() * repetitions
             << (movetime > 0 ? " movetime=" : " depth=") << (movetime > 0 ? movetime : depth)
-            << " threads=" << threads << " nodes=" << total_nodes << " time_ms=" << ms << " nps=" << nps
+            << " threads=" << threads << " state=" << state << " nodes=" << total_nodes << " time_ms=" << ms
+            << " nps=" << nps
             << " best=" << last_best.raw << " score=" << last_score << " eval_file=" << eval_identity
             << " eval_fingerprint=" << std::hex << file_fingerprint(eval_identity) << std::dec;
 #if defined(NSCE_STATS)
@@ -113,7 +122,11 @@ int main(int argc, char** argv) {
             << " see_pruned=" << total_stats.see_prunes << " null=" << total_stats.null_cutoffs << '/'
             << total_stats.null_attempts << " razor=" << total_stats.razor_cutoffs << '/'
             << total_stats.razor_attempts << " rfp=" << total_stats.rfp_cutoffs << '/' << total_stats.rfp_attempts
-            << " futility=" << total_stats.futility_prunes << " lmp=" << total_stats.lmp_prunes;
+            << " futility=" << total_stats.futility_prunes << " lmp=" << total_stats.lmp_prunes
+            << " eval_abs_sum=" << total_stats.eval_abs_sum << " corr_abs_sum=" << total_stats.correction_abs_sum
+            << " tt_eval_subs=" << total_stats.tt_eval_substitutions
+            << " improving=" << total_stats.improving_nodes << " hm_scaled=" << total_stats.halfmove_scaled_nodes
+            << " root_claimed=" << total_stats.root_moves_claimed;
 #endif
   std::cout << '\n';
   return 0;

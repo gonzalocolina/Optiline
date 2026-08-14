@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Freeze explicit NSCE/Stockfish reference identities for an experiment."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+from experiment_common import build_manifest, sha256_file, write_manifest  # noqa: E402
+
+
+def version(binary: Path) -> str:
+    try:
+        return subprocess.check_output([str(binary), "--version"], text=True, stderr=subprocess.STDOUT).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "version-unavailable"
+
+
+def target(binary: Path, label: str) -> dict[str, str]:
+    if not binary.exists():
+        raise FileNotFoundError(binary)
+    return {
+        "label": label,
+        "path": str(binary.resolve()),
+        "sha256": sha256_file(binary),
+        "version": version(binary),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--engine", required=True, type=Path, help="NSCE binary under test")
+    parser.add_argument("--stockfish18", required=True, type=Path)
+    parser.add_argument("--stockfish-dev", required=True, type=Path)
+    parser.add_argument("--config-a", type=Path, default=ROOT / "tools/configs/baseline.uci")
+    parser.add_argument("--config-b", type=Path, default=ROOT / "tools/configs/baseline.uci")
+    parser.add_argument("--openings", type=Path, default=ROOT / "tools/openings_balanced.epd")
+    parser.add_argument("--seed", type=int, default=20260814)
+    parser.add_argument("--out", type=Path, required=True)
+    args = parser.parse_args()
+
+    references = [
+        target(args.stockfish18, "stockfish-18-stable"),
+        target(args.stockfish_dev, "stockfish-current-development"),
+    ]
+    manifest = build_manifest(
+        ROOT,
+        args.engine,
+        [args.config_a, args.config_b],
+        args.openings,
+        args.seed,
+        {
+            "kind": "frozen-strength-targets",
+            "reference_targets": references,
+            "controls": {
+                "threads": 1,
+                "hash_mb": 16,
+                "equal_node_and_equal_time_required": True,
+            },
+        },
+    )
+    manifest["targets"] = {
+        "nsce": target(args.engine, "nsce-under-test"),
+        "stockfish": references,
+    }
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    write_manifest(args.out, manifest)
+    print(json.dumps(manifest["targets"], indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

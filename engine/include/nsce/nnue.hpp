@@ -42,6 +42,9 @@ struct NnueAccumulator {
   alignas(32) std::array<std::array<int16_t, NnueNet::kHidden>, 2> half{};
   std::array<uint8_t, 2> king_bucket{};
   std::array<uint8_t, 2> mirror{};
+  mutable std::array<int16_t, NnueNet::kThreatDim> threats{};
+  mutable uint8_t threats_stm = WHITE;
+  mutable bool threats_valid = false;
 };
 
 class Nnue {

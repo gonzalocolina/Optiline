@@ -163,8 +163,7 @@ def match(
                     "a_is_white": a_is_white,
                     "fen": fen,
                     "result_from_a": result_from_a,
-                    "plies": meta["plies"],
-                    "termination": meta["termination"],
+                    **meta,
                 }
             )
             print(f"  game {i+1}/{games}: A_score so far {w}+{d}/2 / {i+1}", flush=True)

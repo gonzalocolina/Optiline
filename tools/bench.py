@@ -34,6 +34,7 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--runs", type=int, default=20)
     parser.add_argument("--eval-file", default="internal")
+    parser.add_argument("--state", choices=("cold", "warm"), default="cold")
     args = parser.parse_args()
     if args.runs <= 0:
         parser.error("--runs must be positive")
@@ -44,6 +45,8 @@ def main() -> int:
         str(args.threads),
         str(args.repetitions),
         args.eval_file,
+        "0",
+        args.state,
     ]
     results = []
     for _ in range(args.runs):

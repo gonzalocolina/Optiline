@@ -14,15 +14,21 @@ Uses UCI `status` (`checkmate` / `stalemate` / `draw` / `ongoing`).
 python3 -m venv .venv
 .venv/bin/python -m pip install numpy
 
-# Deterministic random legal trajectories, labeled by a one-thread teacher.
+# Deterministic trajectories, labeled by an isolated one-thread teacher.
 .venv/bin/python train/distill.py \
   --teacher "$(command -v stockfish)" --sampler build/nsce \
   --depth 8 --positions 2000 --seed 20260802 \
   -o train/data/nnue_stockfish_d8.jsonl
 
+# Optional shallow teacher trajectories retain terminal result metadata.
+.venv/bin/python train/distill.py \
+  --teacher "$(command -v stockfish)" --sampler build/nsce --self-play \
+  --self-play-depth 4 --positions 2000 -o train/data/selfplay.jsonl
+
 .venv/bin/python train/train_nnue.py \
   --data train/data/nnue_stockfish_d8.jsonl \
-  --epochs 80 --seed 20260802
+  --epochs 80 --seed 20260802 --target-mode wdl \
+  --wdl-scale 400 --result-weight 0.20 --residualize-extras
 
 # Fine-tune from the frozen HCE default (`--init internal`), a .npz checkpoint,
 # or an NSCENNUE .bin instead of random init.
@@ -31,12 +37,17 @@ python3 -m venv .venv
   --engine build/nsce --data train/data/nnue_stockfish_d8.jsonl
 ```
 
-`train_nnue.py` trains the exact `768x128x1` topology consumed by C++, uses a
-FEN-hash holdout split, augments only the training split by board/color symmetry,
-restores the best validation epoch, quantizes to the `NSCENNUE` format and rejects
-int16 accumulator overflow. `--init internal` starts from the frozen HCE default
-instead of random weights (also accepts a `.npz` checkpoint or an `NSCENNUE`
-`.bin`). The versioned metrics contain dataset/network SHA-256.
+`train_nnue.py` trains the exact `768x128x1` topology consumed by C++. It converts
+teacher CP into a canonical WDL/logit search target, optionally blends a recorded
+game result, splits by source game/opening group, augments only the training split,
+and performs fake integer forward quantization with straight-through gradients by
+default. `--no-qat` is available only for diagnostic comparisons. It restores the
+best frozen-validation epoch, exports `NSCENNUE`, and rejects conservative int16
+accumulator overflow. `--init internal` starts from the frozen HCE default instead
+of random weights (also accepts a `.npz` checkpoint or an `NSCENNUE` `.bin`).
+Training batches are packed sparse active-feature rows and generate symmetry
+variants on demand; `--dense-legacy` is retained only for controlled regression
+comparisons.
 
 The bundled network is genuinely optimized from teacher labels, but it is still a
 small piece-square network rather than a Stockfish HalfKP/king-bucket architecture.
@@ -75,6 +86,8 @@ Better than the 16-bucket HalfKP path at this project's data scale:
 - Train-time piece-square factorization, folded into the sparse table at export
 - 12-dim threat residual (our/their attacked piece counts) — dense, not a sparse explosion
 - Labels from Lichess eval DB (centipawns) or Stockfish teacher search; no GPL nets
+- WDL/logit targets and fake integer forward are enabled by default; use
+  `--target-mode cp` only for an explicitly registered legacy comparison.
 
 ```bash
 # ≥50k (then millions) from Lichess evals. Stream; do not download the full 21 GB unless needed.
@@ -88,6 +101,12 @@ curl -L https://database.lichess.org/lichess_db_eval.jsonl.zst \
   --epochs 16 --seed 20260813 \
   --minimum-samples 50000 \
   --output nets/kat_candidate.bin
+
+# Controlled king-relative base: no aggregate threat residual.
+.venv/bin/python train/train_kat.py \
+  --data train/data/lichess_evals_120k.jsonl --no-threats \
+  --target-mode wdl --minimum-samples 50000 \
+  --output nets/kat_base_candidate.bin
 
 python3 tools/sprt.py \
   --cfg-a tools/configs/baseline.uci \

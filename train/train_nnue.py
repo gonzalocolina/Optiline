@@ -53,9 +53,42 @@ def encode_fen(fen: str) -> np.ndarray:
     return x
 
 
-def load_dataset(path: Path, target_clip: float) -> tuple[np.ndarray, np.ndarray, list[str], str]:
+def cp_to_wdl(score_cp: np.ndarray | float, scale: float) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-np.asarray(score_cp, dtype=np.float32) / max(scale, 1e-6)))
+
+
+def wdl_to_search_score(probability: np.ndarray | float, scale: float) -> np.ndarray:
+    p = np.clip(np.asarray(probability, dtype=np.float32), 1e-5, 1.0 - 1e-5)
+    return max(scale, 1e-6) * np.log(p / (1.0 - p))
+
+
+def _white_outcome(record: dict) -> float | None:
+    result = record.get("result", record.get("outcome"))
+    if isinstance(result, str):
+        if result in {"1-0", "win", "white"}:
+            return 1.0
+        if result in {"0-1", "loss", "black"}:
+            return 0.0
+        if result in {"1/2-1/2", "draw", "0.5"}:
+            return 0.5
+    if isinstance(result, (int, float)):
+        value = float(result)
+        if 0.0 <= value <= 1.0:
+            return value
+    return None
+
+
+def load_dataset(
+    path: Path,
+    target_clip: float,
+    target_mode: str = "cp",
+    wdl_scale: float = 400.0,
+    result_weight: float = 0.0,
+    residualize_extras: bool = False,
+    return_groups: bool = False,
+) -> tuple:
     raw = path.read_bytes()
-    unique: dict[str, tuple[np.ndarray, float, str]] = {}
+    unique: dict[str, tuple[np.ndarray, float, str, str]] = {}
     for line in raw.decode().splitlines():
         if not line.strip():
             continue
@@ -69,14 +102,41 @@ def load_dataset(path: Path, target_clip: float) -> tuple[np.ndarray, np.ndarray
         white_score = float(score)
         if record.get("score_pov", "side_to_move") == "side_to_move" and fields[1] == "b":
             white_score = -white_score
-        unique[key] = (encode_fen(fen), float(np.clip(white_score, -target_clip, target_clip)), fen)
+        if residualize_extras:
+            extras_score = float(record.get("extras_cp", 0.0))
+            if record.get("score_pov", "side_to_move") == "side_to_move" and fields[1] == "b":
+                extras_score = -extras_score
+            white_score -= extras_score
+        if target_mode == "wdl":
+            probability = float(cp_to_wdl(white_score, wdl_scale))
+            outcome = _white_outcome(record)
+            if outcome is not None:
+                probability = (1.0 - result_weight) * probability + result_weight * outcome
+            target = float(wdl_to_search_score(probability, wdl_scale))
+        elif target_mode == "cp":
+            target = white_score
+        else:
+            raise ValueError(f"unknown target mode: {target_mode}")
+        group = str(
+            record.get("source_game")
+            or record.get("game_id")
+            or record.get("opening")
+            or record.get("source")
+            or key
+        )
+        if group in {"self_play", "random_walk"}:
+            group = f"{group}:{key}"
+        unique[key] = (encode_fen(fen), float(np.clip(target, -target_clip, target_clip)), fen, group)
     if len(unique) < 20:
         raise ValueError(f"need at least 20 distinct labeled positions, found {len(unique)}")
     rows = list(unique.values())
     x = np.stack([row[0] for row in rows])
     y = np.asarray([row[1] for row in rows], dtype=np.float32)
     fens = [row[2] for row in rows]
-    return x, y, fens, hashlib.sha256(raw).hexdigest()
+    digest = hashlib.sha256(raw).hexdigest()
+    if return_groups:
+        return x, y, fens, digest, [row[3] for row in rows]
+    return x, y, fens, digest
 
 
 def hce_internal_weights() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -139,9 +199,10 @@ def load_init_weights(source: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
     )
 
 
-def split_dataset(fens: list[str]) -> tuple[np.ndarray, np.ndarray]:
+def split_dataset(fens: list[str], groups: list[str] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    keys = groups if groups is not None else fens
     validation = np.asarray(
-        [int.from_bytes(hashlib.sha256(fen.encode()).digest()[:4], "little") % 10 == 0 for fen in fens]
+        [int.from_bytes(hashlib.sha256(key.encode()).digest()[:4], "little") % 10 == 0 for key in keys]
     )
     if not validation.any() or validation.all():
         validation = np.arange(len(fens)) % 10 == 0
@@ -163,7 +224,26 @@ def metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
     return {
         "mae_cp": float(np.mean(np.abs(error))),
         "rmse_cp": float(np.sqrt(np.mean(error * error))),
+        "sign_accuracy": float(np.mean(np.sign(prediction) == np.sign(target))),
     }
+
+
+def phase_metrics(prediction: np.ndarray, target: np.ndarray, fens: list[str]) -> dict[str, dict[str, float]]:
+    buckets: dict[str, list[int]] = {"endgame": [], "middlegame": [], "opening": []}
+    for index, fen in enumerate(fens):
+        pieces = sum(1 for char in fen.split()[0] if char.isalpha())
+        bucket = "endgame" if pieces <= 10 else "middlegame" if pieces <= 20 else "opening"
+        buckets[bucket].append(index)
+    return {
+        name: metrics(prediction[indexes], target[indexes])
+        for name, indexes in buckets.items()
+        if indexes
+    }
+
+
+def fake_quantize(values: np.ndarray, scale: float, low: float, high: float) -> np.ndarray:
+    """Forward-only fake quantization used with a straight-through gradient."""
+    return np.clip(np.rint(values * scale), low, high) / scale
 
 
 def adam_step(
@@ -193,6 +273,7 @@ def train(
     learning_rate: float,
     seed: int,
     init: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None,
+    qat: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
     rng = np.random.default_rng(seed)
     if init is None:
@@ -216,17 +297,25 @@ def train(
         for start in range(0, len(shuffled), batch_size):
             idx = shuffled[start : start + batch_size]
             xb, yb = x[idx], y[idx]
-            z = xb @ w0 + b0
+            if qat:
+                fw0 = fake_quantize(w0, SCALE, -32768, 32767)
+                fb0 = fake_quantize(b0, SCALE, -32768, 32767)
+                fw1 = fake_quantize(w1, SCALE, -32768, 32767)
+                fb1 = fake_quantize(b1, SCALE * SCALE, -(2**31), 2**31 - 1)
+            else:
+                fw0, fb0, fw1, fb1 = w0, b0, w1, b1
+            z = xb @ fw0 + fb0
             activation = np.clip(z, 0.0, 127.0)
-            prediction = activation @ w1 + b1[0]
+            q_activation = fake_quantize(activation, SCALE, 0, 127 * SCALE) if qat else activation
+            prediction = q_activation @ fw1 + fb1[0]
             error = prediction - yb
             delta = 200.0
             grad_prediction = np.where(np.abs(error) <= delta, error, delta * np.sign(error))
             grad_prediction /= max(1, len(idx))
 
-            grad_w1 = activation.T @ grad_prediction + 1e-4 * w1
+            grad_w1 = q_activation.T @ grad_prediction + 1e-4 * w1
             grad_b1 = np.asarray([np.sum(grad_prediction)], dtype=np.float32)
-            grad_activation = grad_prediction[:, None] * w1[None, :]
+            grad_activation = grad_prediction[:, None] * fw1[None, :]
             grad_z = grad_activation * ((z > 0.0) & (z < 127.0))
             grad_w0 = xb.T @ grad_z + 1e-4 * w0
             grad_b0 = np.sum(grad_z, axis=0)
@@ -237,7 +326,16 @@ def train(
             ):
                 adam_step(parameter, gradient, m, v, step, learning_rate)
 
-        val_pred = np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
+        if qat:
+            val_w0 = fake_quantize(w0, SCALE, -32768, 32767)
+            val_b0 = fake_quantize(b0, SCALE, -32768, 32767)
+            val_w1 = fake_quantize(w1, SCALE, -32768, 32767)
+            val_b1 = fake_quantize(b1, SCALE * SCALE, -(2**31), 2**31 - 1)
+            val_z = x[validation_indices] @ val_w0 + val_b0
+            val_activation = fake_quantize(np.clip(val_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
+            val_pred = val_activation @ val_w1 + val_b1[0]
+        else:
+            val_pred = np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
         validation_metrics = metrics(val_pred, y[validation_indices])
         if validation_metrics["rmse_cp"] < best_validation_rmse:
             best_validation_rmse = validation_metrics["rmse_cp"]
@@ -245,7 +343,12 @@ def train(
             best_epoch = epoch
 
         if epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
-            train_pred = np.clip(x[train_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
+            if qat:
+                train_z = x[train_indices] @ val_w0 + val_b0
+                train_activation = fake_quantize(np.clip(train_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
+                train_pred = train_activation @ val_w1 + val_b1[0]
+            else:
+                train_pred = np.clip(x[train_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
             row = {"epoch": epoch, **{f"train_{k}": v for k, v in metrics(train_pred, y[train_indices]).items()}}
             row.update({f"validation_{k}": v for k, v in validation_metrics.items()})
             history.append(row)
@@ -254,6 +357,120 @@ def train(
     for parameter, best in zip(parameters, best_parameters):
         parameter[...] = best
     return w0, b0, w1, b1, {"history": history, "best_epoch": best_epoch}
+
+
+def _sparse_variant(indices: np.ndarray, variant: int) -> np.ndarray:
+    pieces = indices // 64
+    squares = indices % 64
+    if variant >= 2:
+        pieces = np.where(pieces < 6, pieces + 6, pieces - 6)
+        squares = squares ^ 56
+    if variant & 1:
+        squares = squares ^ 7
+    return pieces * 64 + squares
+
+
+def _sparse_forward(
+    rows: list[np.ndarray],
+    w0: np.ndarray,
+    b0: np.ndarray,
+    w1: np.ndarray,
+    b1: np.ndarray,
+    qat: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if qat:
+        fw0 = fake_quantize(w0, SCALE, -32768, 32767)
+        fb0 = fake_quantize(b0, SCALE, -32768, 32767)
+        fw1 = fake_quantize(w1, SCALE, -32768, 32767)
+        fb1 = fake_quantize(b1, SCALE * SCALE, -(2**31), 2**31 - 1)
+    else:
+        fw0, fb0, fw1, fb1 = w0, b0, w1, b1
+    accumulator = np.stack([fw0[row].sum(axis=0) + fb0 for row in rows])
+    activation = np.clip(accumulator, 0.0, 127.0)
+    if qat:
+        activation = fake_quantize(activation, SCALE, 0, 127 * SCALE)
+    prediction = activation @ fw1 + fb1[0]
+    return prediction, accumulator, activation, fw1
+
+
+def train_sparse(
+    x: np.ndarray,
+    y: np.ndarray,
+    train_indices: np.ndarray,
+    validation_indices: np.ndarray,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    seed: int,
+    init: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None,
+    qat: bool = True,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
+    """Train packed active-feature rows without materializing four dense augmentations."""
+    rng = np.random.default_rng(seed)
+    rows = [np.flatnonzero(row).astype(np.int32) for row in x]
+    if init is None:
+        w0 = rng.normal(0.0, 0.05, (FEATURES, HIDDEN)).astype(np.float32)
+        b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
+        w1 = rng.normal(0.0, 0.05, HIDDEN).astype(np.float32)
+        b1 = np.zeros(1, dtype=np.float32)
+    else:
+        w0, b0, w1, b1 = (p.copy() for p in init)
+    parameters = [w0, b0, w1, b1]
+    first = [np.zeros_like(p) for p in parameters]
+    second = [np.zeros_like(p) for p in parameters]
+    step = 0
+    history: list[dict[str, float]] = []
+    best_validation_rmse = float("inf")
+    best_parameters = [p.copy() for p in parameters]
+    best_epoch = 0
+
+    for epoch in range(1, epochs + 1):
+        order = rng.permutation(train_indices)
+        for start in range(0, len(order), batch_size):
+            base = order[start : start + batch_size]
+            batch_rows = [_sparse_variant(rows[index], variant) for variant in range(4) for index in base]
+            batch_y = np.concatenate([y[base], y[base], -y[base], -y[base]])
+            prediction, accumulator, activation, forward_w1 = _sparse_forward(
+                batch_rows, w0, b0, w1, b1, qat
+            )
+            error = prediction - batch_y
+            grad_prediction = np.where(np.abs(error) <= 200.0, error, 200.0 * np.sign(error))
+            grad_prediction /= max(1, len(batch_rows))
+            grad_w1 = activation.T @ grad_prediction + 1e-4 * w1
+            grad_b1 = np.asarray([np.sum(grad_prediction)], dtype=np.float32)
+            grad_acc = grad_prediction[:, None] * forward_w1[None, :]
+            grad_acc *= (accumulator > 0.0) & (accumulator < 127.0)
+            grad_w0 = np.zeros_like(w0)
+            flat = np.concatenate(batch_rows)
+            lengths = np.fromiter((len(row) for row in batch_rows), dtype=np.intp, count=len(batch_rows))
+            np.add.at(grad_w0, flat, np.repeat(grad_acc, lengths, axis=0))
+            grad_b0 = grad_acc.sum(axis=0)
+
+            step += 1
+            for parameter, gradient, m, v in zip(
+                parameters, [grad_w0, grad_b0, grad_w1, grad_b1], first, second
+            ):
+                adam_step(parameter, gradient, m, v, step, learning_rate)
+
+        val_rows = [rows[index] for index in validation_indices]
+        val_pred, _val_acc, _val_activation, _ = _sparse_forward(val_rows, w0, b0, w1, b1, qat)
+        validation_metrics = metrics(val_pred, y[validation_indices])
+        if validation_metrics["rmse_cp"] < best_validation_rmse:
+            best_validation_rmse = validation_metrics["rmse_cp"]
+            best_parameters = [p.copy() for p in parameters]
+            best_epoch = epoch
+        if epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
+            history.append({"epoch": epoch, **{f"validation_{key}": value for key, value in validation_metrics.items()}})
+            print(json.dumps(history[-1], sort_keys=True))
+
+    for parameter, best in zip(parameters, best_parameters):
+        parameter[...] = best
+    return w0, b0, w1, b1, {
+        "history": history,
+        "best_epoch": best_epoch,
+        "sparse_batches": True,
+        "augmentation_materialization": False,
+    }
 
 
 def quantize_and_export(
@@ -275,8 +492,16 @@ def quantize_and_export(
     affine = products.sum(axis=1) + b1_q
     prediction = affine / float(SCALE * SCALE)
     affine_abs_bound = np.abs(products).sum(axis=1) + abs(b1_q)
+    max_piece_counts = (8, 2, 2, 2, 1, 1)
+    conservative_acc_bound = np.abs(b0_q).astype(np.int64)
+    for piece in range(12):
+        per_hidden_max = np.max(
+            np.abs(w0_q[piece * 64 : (piece + 1) * 64]).astype(np.int64), axis=0
+        )
+        conservative_acc_bound += max_piece_counts[piece % 6] * per_hidden_max
     diagnostics = {
         "accumulator_abs_max": float(np.max(np.abs(accumulator))),
+        "conservative_accumulator_abs_bound": int(np.max(conservative_acc_bound)),
         "activation_saturation_fraction": float(np.mean(accumulator >= 127 * SCALE)),
         "affine_abs_bound_max": int(np.max(affine_abs_bound)),
         "affine_sum_abs_max": int(np.max(np.abs(affine))),
@@ -287,7 +512,7 @@ def quantize_and_export(
         ),
     }
     if (
-        diagnostics["accumulator_abs_max"] >= 32767
+        diagnostics["conservative_accumulator_abs_bound"] >= 32767
         or diagnostics["affine_abs_bound_max"] >= 2**31
         or diagnostics["weight_clip_count"]
     ):
@@ -315,6 +540,12 @@ def main() -> int:
     parser.add_argument("--learning-rate", type=float, default=0.003)
     parser.add_argument("--target-clip", type=float, default=2000.0)
     parser.add_argument("--seed", type=int, default=20260802)
+    parser.add_argument("--target-mode", choices=("cp", "wdl"), default="wdl")
+    parser.add_argument("--wdl-scale", type=float, default=400.0)
+    parser.add_argument("--result-weight", type=float, default=0.0)
+    parser.add_argument("--residualize-extras", action="store_true")
+    parser.add_argument("--no-qat", action="store_true", help="disable fake integer forward during training")
+    parser.add_argument("--dense-legacy", action="store_true", help="use the pre-pipeline dense augmentation path")
     parser.add_argument(
         "--init",
         default="",
@@ -322,27 +553,54 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    x, y, fens, dataset_sha256 = load_dataset(Path(args.data), args.target_clip)
-    train_indices, validation_indices = split_dataset(fens)
-    augmented_x, augmented_y = augment_training(x[train_indices], y[train_indices])
-    combined_x = np.concatenate([augmented_x, x[validation_indices]])
-    combined_y = np.concatenate([augmented_y, y[validation_indices]])
-    combined_train_indices = np.arange(len(augmented_x))
-    combined_validation_indices = np.arange(len(augmented_x), len(combined_x))
+    if not 0.0 <= args.result_weight <= 1.0:
+        parser.error("--result-weight must be in [0, 1]")
+    x, y, fens, dataset_sha256, groups = load_dataset(
+        Path(args.data),
+        args.target_clip,
+        args.target_mode,
+        args.wdl_scale,
+        args.result_weight,
+        args.residualize_extras,
+        return_groups=True,
+    )
+    train_indices, validation_indices = split_dataset(fens, groups)
     init_weights = load_init_weights(args.init) if args.init else None
     if args.init:
         print(f"init from {args.init}", flush=True)
-    w0, b0, w1, b1, report = train(
-        combined_x,
-        combined_y,
-        combined_train_indices,
-        combined_validation_indices,
-        args.epochs,
-        args.batch_size,
-        args.learning_rate,
-        args.seed,
-        init=init_weights,
-    )
+    if args.dense_legacy:
+        augmented_x, augmented_y = augment_training(x[train_indices], y[train_indices])
+        combined_x = np.concatenate([augmented_x, x[validation_indices]])
+        combined_y = np.concatenate([augmented_y, y[validation_indices]])
+        combined_train_indices = np.arange(len(augmented_x))
+        combined_validation_indices = np.arange(len(augmented_x), len(combined_x))
+        w0, b0, w1, b1, report = train(
+            combined_x,
+            combined_y,
+            combined_train_indices,
+            combined_validation_indices,
+            args.epochs,
+            args.batch_size,
+            args.learning_rate,
+            args.seed,
+            init=init_weights,
+            qat=not args.no_qat,
+        )
+        logical_augmented_samples = len(augmented_x)
+    else:
+        w0, b0, w1, b1, report = train_sparse(
+            x,
+            y,
+            train_indices,
+            validation_indices,
+            args.epochs,
+            args.batch_size,
+            args.learning_rate,
+            args.seed,
+            init=init_weights,
+            qat=not args.no_qat,
+        )
+        logical_augmented_samples = len(train_indices) * 4
     quantized_prediction, diagnostics = quantize_and_export(Path(args.output), x, w0, b0, w1, b1)
 
     checkpoint = Path(args.checkpoint)
@@ -355,17 +613,36 @@ def main() -> int:
             "dataset_sha256": dataset_sha256,
             "samples": len(x),
             "train_samples": len(train_indices),
-            "augmented_train_samples": len(augmented_x),
+            "augmented_train_samples": logical_augmented_samples,
+            "sparse_batches": not args.dense_legacy,
+            "augmentation_materialization": args.dense_legacy,
             "validation_samples": len(validation_indices),
+            "validation_groups": len({groups[index] for index in validation_indices}),
+            "groups": len(set(groups)),
             "seed": args.seed,
             "epochs": args.epochs,
             "init": args.init or None,
+            "target_mode": args.target_mode,
+            "wdl_scale": args.wdl_scale,
+            "result_weight": args.result_weight,
+            "residualize_extras": args.residualize_extras,
+            "qat": not args.no_qat,
             "float_validation": metrics(
                 np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0],
                 y[validation_indices],
             ),
+            "float_validation_phase": phase_metrics(
+                np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0],
+                y[validation_indices],
+                [fens[index] for index in validation_indices],
+            ),
             "quantized_validation": metrics(
                 quantized_prediction[validation_indices], y[validation_indices]
+            ),
+            "quantized_validation_phase": phase_metrics(
+                quantized_prediction[validation_indices],
+                y[validation_indices],
+                [fens[index] for index in validation_indices],
             ),
             "quantization": diagnostics,
             "network_sha256": hashlib.sha256(Path(args.output).read_bytes()).hexdigest(),

@@ -5,13 +5,16 @@
 #include "nsce/tt.hpp"
 #include "nsce/types.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -74,6 +77,12 @@ struct SearchStats {
   uint64_t root_moves = 0;
   uint64_t probcut_attempts = 0;
   uint64_t probcut_cutoffs = 0;
+  uint64_t eval_abs_sum = 0;
+  uint64_t correction_abs_sum = 0;
+  uint64_t tt_eval_substitutions = 0;
+  uint64_t improving_nodes = 0;
+  uint64_t halfmove_scaled_nodes = 0;
+  uint64_t root_moves_claimed = 0;
 
   SearchStats& operator+=(const SearchStats& other);
 };
@@ -123,6 +132,9 @@ class Search {
   void set_policy(PolicyNet* policy);
   void set_controller(SearchController* controller);
   void ponder_hit();
+  void clear_search_state();
+  void set_leaf_telemetry(const std::string& path);
+  void set_eval_scale(int permille) { eval_scale_permille_ = std::clamp(permille, 250, 4000); }
   void set_use_tt(bool on) { use_tt_ = on; }
   void set_use_see(bool on) { use_see_ = on; }
   void set_use_lmr(bool on) { use_lmr_ = on; }
@@ -156,6 +168,7 @@ class Search {
                             int depth);
   int correction(const SearchWorker& w, const Position& pos) const;
   int correction(const SearchWorker& w, const Position& pos, const SearchStack* ss, int ply) const;
+  int evaluate_for_search(const Position& pos) const;
   void update_correction(SearchWorker& w, const Position& pos, int static_eval, int best_score, Bound bound, int depth);
 
   int lmr_quiet_[64][64]{};
@@ -167,6 +180,7 @@ class Search {
   void helper_worker_loop(std::size_t index);
   void launch_helper_job(std::function<void(SearchWorker&)> job);
   void wait_helper_job();
+  void record_leaf(const Position& pos, const char* site, int depth, int ply, int score);
 
   Position root_;
   TranspositionTable tt_;
@@ -190,6 +204,7 @@ class Search {
   bool use_rfp_ = true;
   bool use_probcut_ = true;
   bool silent_ = false;
+  int eval_scale_permille_ = 1000;
   PolicyNet* policy_ = nullptr;
   SearchController* controller_ = nullptr;
   int root_depth_ = 0;
@@ -207,6 +222,8 @@ class Search {
   uint64_t helper_generation_ = 0;
   std::size_t helper_completed_ = 0;
   bool helper_exit_ = false;
+  std::mutex leaf_mutex_;
+  std::unique_ptr<std::ofstream> leaf_stream_;
 };
 
 }  // namespace nsce

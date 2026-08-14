@@ -10,7 +10,8 @@ void add_promo(MoveList& list, Square from, Square to, int flags) {
 }
 
 template <Color Us>
-void generate_pawn_moves(const Position& pos, MoveList& list, bool captures_only) {
+void generate_pawn_moves(const Position& pos, MoveList& list, bool captures_only,
+                         Bitboard allowed = ~Bitboard{0}) {
   constexpr Color Them = Us == WHITE ? BLACK : WHITE;
   constexpr Bitboard Rank3 = Us == WHITE ? 0x0000000000FF0000ULL : 0x0000FF0000000000ULL;
   constexpr int Up = Us == WHITE ? 8 : -8;
@@ -20,8 +21,8 @@ void generate_pawn_moves(const Position& pos, MoveList& list, bool captures_only
   Bitboard enemies = pos.pieces(Them);
 
   if (!captures_only) {
-    Bitboard single = (Us == WHITE ? shift_north(pawns) : shift_south(pawns)) & empty;
-    Bitboard doubles = (Us == WHITE ? shift_north(single & Rank3) : shift_south(single & Rank3)) & empty;
+    Bitboard single = (Us == WHITE ? shift_north(pawns) : shift_south(pawns)) & empty & allowed;
+    Bitboard doubles = (Us == WHITE ? shift_north(single & Rank3) : shift_south(single & Rank3)) & empty & allowed;
 
     Bitboard promo = single & (Us == WHITE ? Rank8BB : Rank1BB);
     Bitboard quiet = single & ~promo;
@@ -43,8 +44,8 @@ void generate_pawn_moves(const Position& pos, MoveList& list, bool captures_only
     }
   }
 
-  Bitboard cap_left = (Us == WHITE ? shift_nw(pawns) : shift_sw(pawns)) & enemies;
-  Bitboard cap_right = (Us == WHITE ? shift_ne(pawns) : shift_se(pawns)) & enemies;
+  Bitboard cap_left = (Us == WHITE ? shift_nw(pawns) : shift_sw(pawns)) & enemies & allowed;
+  Bitboard cap_right = (Us == WHITE ? shift_ne(pawns) : shift_se(pawns)) & enemies & allowed;
 
   Bitboard promo_left = cap_left & (Us == WHITE ? Rank8BB : Rank1BB);
   Bitboard promo_right = cap_right & (Us == WHITE ? Rank8BB : Rank1BB);
@@ -100,9 +101,11 @@ void generate_quiet_promotions(const Position& pos, MoveList& list) {
 }
 
 template <Color Us>
-void generate_piece_moves(const Position& pos, MoveList& list, bool captures_only) {
+void generate_piece_moves(const Position& pos, MoveList& list, bool captures_only,
+                          Bitboard allowed = ~Bitboard{0}, bool include_king = true) {
   Bitboard us = pos.pieces(Us);
   Bitboard targets = captures_only ? pos.pieces(~Us) : ~us;
+  targets &= allowed;
 
   Bitboard knights = pos.pieces(Us, KNIGHT);
   while (knights) {
@@ -131,12 +134,14 @@ void generate_piece_moves(const Position& pos, MoveList& list, bool captures_onl
   emit_slider(pos.pieces(Us, ROOK), rook_attacks_bb);
   emit_slider(pos.pieces(Us, QUEEN), queen_attacks_bb);
 
-  Square ksq = pos.king_square(Us);
-  Bitboard katt = king_attacks_bb(ksq) & targets;
-  while (katt) {
-    Square to = pop_lsb(katt);
-    int flags = (pos.piece_on(to) != NO_PIECE) ? MF_CAPTURE : MF_NONE;
-    list.add(Move::make(ksq, to, NO_PIECE_TYPE, flags));
+  if (include_king) {
+    Square ksq = pos.king_square(Us);
+    Bitboard katt = king_attacks_bb(ksq) & targets;
+    while (katt) {
+      Square to = pop_lsb(katt);
+      int flags = (pos.piece_on(to) != NO_PIECE) ? MF_CAPTURE : MF_NONE;
+      list.add(Move::make(ksq, to, NO_PIECE_TYPE, flags));
+    }
   }
 
   if (!captures_only && !pos.in_check()) {
@@ -202,6 +207,17 @@ bool legal_king_move(const Position& pos, Move move) {
   Bitboard final_occupied = occupied & ~square_bb(from) & ~square_bb(rook_from);
   final_occupied |= square_bb(to) | square_bb(rook_to);
   return !pos.is_square_attacked(to, them, final_occupied);
+}
+
+template <Color Us>
+void generate_king_moves(const Position& pos, MoveList& list) {
+  const Square king = pos.king_square(Us);
+  Bitboard targets = king_attacks_bb(king) & ~pos.pieces(Us);
+  while (targets) {
+    Square to = pop_lsb(targets);
+    const int flags = pos.piece_on(to) != NO_PIECE ? MF_CAPTURE : MF_NONE;
+    list.add(Move::make(king, to, NO_PIECE_TYPE, flags));
+  }
 }
 
 }  // namespace
@@ -298,6 +314,38 @@ void generate_legal(const Position& pos, MoveList& list) {
   MoveList pseudo;
   generate_pseudo_legal(pos, pseudo);
   filter_legal(pos, pseudo, list);
+}
+
+void generate_legal_evasions(const Position& pos, MoveList& list) {
+  if (!pos.in_check()) {
+    list.size = 0;
+    return;
+  }
+  const Color us = pos.side_to_move();
+  const Bitboard checkers = pos.checkers();
+  MoveList candidates;
+  if (popcount(checkers) == 1) {
+    const Square king = pos.king_square(us);
+    const Square checker = lsb(checkers);
+    const Bitboard allowed = square_bb(checker) | between_bb(king, checker);
+    if (us == WHITE) {
+      generate_pawn_moves<WHITE>(pos, candidates, false, allowed);
+      generate_piece_moves<WHITE>(pos, candidates, false, allowed, false);
+      generate_king_moves<WHITE>(pos, candidates);
+    } else {
+      generate_pawn_moves<BLACK>(pos, candidates, false, allowed);
+      generate_piece_moves<BLACK>(pos, candidates, false, allowed, false);
+      generate_king_moves<BLACK>(pos, candidates);
+    }
+  } else {
+    // In double check only king moves can evade. They still need the
+    // occupancy-aware king safety test in filter_legal.
+    if (us == WHITE)
+      generate_king_moves<WHITE>(pos, candidates);
+    else
+      generate_king_moves<BLACK>(pos, candidates);
+  }
+  filter_legal(pos, candidates, list);
 }
 
 void generate_legal_noisy(const Position& pos, MoveList& list) {

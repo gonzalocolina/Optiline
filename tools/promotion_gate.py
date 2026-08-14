@@ -37,6 +37,11 @@ def main() -> int:
     errors: list[str] = []
     if manifest.get("schema_version") != 2:
         errors.append("manifest schema_version must be 2")
+    measurement = manifest.get("measurement", {})
+    if measurement.get("pairing") != "color_reversed_opening_pairs":
+        errors.append("manifest does not declare color-reversed pairing")
+    if measurement.get("raw_game_telemetry") is not True:
+        errors.append("manifest does not declare raw game telemetry")
     if result.get("decision") != "accept_H1_candidate_stronger":
         errors.append(f"SPRT decision is not promotion-positive: {result.get('decision')}")
     games = int(result.get("W", 0)) + int(result.get("D", 0)) + int(result.get("L", 0))
@@ -46,6 +51,8 @@ def main() -> int:
         errors.append("promotion requires movetime >= 50 ms")
     if any(int(game.get("overruns", 0)) for game in result.get("history", [])):
         errors.append("at least one game exceeded its time budget")
+    if result.get("history") and any("moves" not in game for game in result["history"]):
+        errors.append("SPRT history is missing raw move telemetry")
 
     artifacts = manifest.get("artifacts", {})
     errors += check_artifact(artifacts.get("engine"), artifacts.get("engine_sha256"), "engine")
@@ -55,6 +62,8 @@ def main() -> int:
     errors += check_artifact(artifacts.get("openings"), artifacts.get("openings_sha256"), "openings")
     for path, digest in artifacts.get("referenced_files", {}).items():
         errors += check_artifact(path, digest, "referenced model")
+    for reference in manifest.get("targets", {}).get("stockfish", []):
+        errors += check_artifact(reference.get("path"), reference.get("sha256"), reference.get("label", "target"))
 
     if errors:
         print("promotion_gate: FAIL")

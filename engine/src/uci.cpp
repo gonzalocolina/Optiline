@@ -77,16 +77,19 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name UseRFP type check default true\n";
     std::cout << "option name UseProbCut type check default true\n";
     std::cout << "option name UseExtras type check default true\n";
+    std::cout << "option name EvalScale type spin default 1000 min 250 max 4000\n";
     std::cout << "option name EvalFile type string default nets/nnue_trained.bin\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
     std::cout << "option name TelemetryFile type string default <empty>\n";
+    std::cout << "option name LeafTelemetryFile type string default <empty>\n";
     std::cout << "uciok" << std::endl;
   } else if (token == "isready") {
     std::cout << "readyok" << std::endl;
   } else if (token == "ucinewgame") {
     stop_search();
     pos_.set_startpos();
+    search_.clear_search_state();
     search_.set_position(pos_);
   } else if (token == "position") {
     stop_search();
@@ -139,7 +142,14 @@ void Uci::handle_command(const std::string& line) {
     for (Move move : list) std::cout << ' ' << move_to_uci(move);
     std::cout << std::endl;
   } else if (token == "eval") {
-    std::cout << "eval " << evaluate(pos_) << std::endl;
+    std::string mode;
+    is >> mode;
+    if (mode == "details") {
+      std::cout << "eval " << evaluate(pos_) << " nnue " << evaluate_nnue(pos_) << " extras "
+                << classical_extras(pos_) << " use_extras " << (pos_.use_extras() ? 1 : 0) << std::endl;
+    } else {
+      std::cout << "eval " << evaluate(pos_) << std::endl;
+    }
   } else if (token == "hashfull") {
     std::cout << "hashfull " << search_.hashfull() << std::endl;
   } else if (token == "quit") {
@@ -242,6 +252,7 @@ void Uci::handle_setoption(std::istringstream& is) {
     context_.nnue.set_enabled(on);
     pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
+    search_.clear_search_state();
     search_.set_position(pos_);
   } else if (name == "UsePolicy") {
     context_.policy.set_enabled(value == "true" || value == "1");
@@ -268,6 +279,10 @@ void Uci::handle_setoption(std::istringstream& is) {
   } else if (name == "UseExtras") {
     context_.use_extras = value == "true" || value == "1";
     pos_.set_use_extras(context_.use_extras);
+    search_.clear_search_state();
+  } else if (name == "EvalScale") {
+    search_.set_eval_scale(std::stoi(value));
+    search_.clear_search_state();
   } else if (name == "EvalFile") {
     if (value == "<internal>" || value == "internal" || value == "hce") {
       context_.nnue.load_default_from_hce();
@@ -279,6 +294,7 @@ void Uci::handle_setoption(std::istringstream& is) {
     }
     pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
+    search_.clear_search_state();
     search_.set_position(pos_);
   } else if (name == "PolicyFile") {
     if (value == "<internal>" || value == "internal")
@@ -292,6 +308,8 @@ void Uci::handle_setoption(std::istringstream& is) {
       std::cout << "info string error loading ControllerFile " << value << std::endl;
   } else if (name == "TelemetryFile") {
     context_.controller.set_telemetry(value);
+  } else if (name == "LeafTelemetryFile") {
+    search_.set_leaf_telemetry(value == "<empty>" ? "" : value);
   } else if (name == "Clear Hash") {
     search_.clear_hash();
   } else {

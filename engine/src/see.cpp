@@ -155,6 +155,11 @@ bool static_exchange_eval_ge(const Position& pos, Move move, int threshold) {
   if (captured != NO_PIECE) occupied &= ~square_bb(captured_square);
   const Bitboard opponent_attackers = pos.attackers_to(target, occupied) & pos.pieces(~us);
   if (!opponent_attackers) return immediate_gain >= threshold;
+  // If the opponent's best first recapture only removes the moving piece,
+  // this is a conservative lower bound on the complete exchange. It avoids
+  // the full swap list for the common clearly-safe threshold query.
+  const PieceType arriving = move.is_promotion() ? move.promotion() : type_of(moving);
+  if (immediate_gain - SeeValue[arriving] >= threshold) return true;
 
   return static_exchange_eval(pos, move) >= threshold;
 }

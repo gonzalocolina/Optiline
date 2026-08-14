@@ -315,6 +315,11 @@ def _row_from_line(line: str, target_clip: float):
     fen = None
     score = None
     pov = "side_to_move"
+    record = None
+    try:
+        record = json.loads(line)
+    except (TypeError, json.JSONDecodeError):
+        pass
     try:
         start = line.index('"fen":"') + 7
         end = line.index('"', start)
@@ -353,8 +358,19 @@ def _row_from_line(line: str, target_clip: float):
         score = -target_clip
     if pov == "white" and stm == 1:
         score = -score
+    score = _target_from_white_score(score, record)
+    score = float(np.clip(score, -target_clip, target_clip))
     key = " ".join(fen.split()[:4])
-    return key, (white_kp, black_kp, white_ps, black_ps, threats, stm, score, fen)
+    group = str(
+        (record or {}).get("source_game")
+        or (record or {}).get("game_id")
+        or (record or {}).get("opening")
+        or (record or {}).get("source")
+        or key
+    )
+    if group in {"self_play", "random_walk"}:
+        group = f"{group}:{key}"
+    return key, (white_kp, black_kp, white_ps, black_ps, threats, stm, score, fen, group)
 
 
 def _parse_chunk(lines: list[str], target_clip: float):
@@ -368,6 +384,30 @@ def _parse_chunk(lines: list[str], target_clip: float):
 
 _LOAD_LINES: list[str] = []
 _LOAD_CLIP = 2000.0
+_LOAD_TARGET_MODE = "wdl"
+_LOAD_WDL_SCALE = 400.0
+_LOAD_RESULT_WEIGHT = 0.0
+
+
+def _target_from_white_score(score: float, record: dict | None) -> float:
+    if _LOAD_TARGET_MODE == "cp":
+        return score
+    probability = 1.0 / (1.0 + np.exp(-score / max(_LOAD_WDL_SCALE, 1e-6)))
+    result = record.get("result", record.get("outcome")) if record else None
+    outcome = None
+    if isinstance(result, str):
+        if result in {"1-0", "win", "white"}:
+            outcome = 1.0
+        elif result in {"0-1", "loss", "black"}:
+            outcome = 0.0
+        elif result in {"1/2-1/2", "draw", "0.5"}:
+            outcome = 0.5
+    elif isinstance(result, (int, float)) and 0.0 <= float(result) <= 1.0:
+        outcome = float(result)
+    if outcome is not None:
+        probability = (1.0 - _LOAD_RESULT_WEIGHT) * probability + _LOAD_RESULT_WEIGHT * outcome
+    p = np.clip(probability, 1e-5, 1.0 - 1e-5)
+    return float(_LOAD_WDL_SCALE * np.log(p / (1.0 - p)))
 
 
 def _parse_range(start_end: tuple[int, int]):
@@ -375,17 +415,27 @@ def _parse_range(start_end: tuple[int, int]):
     return _parse_chunk(_LOAD_LINES[start:end], _LOAD_CLIP)
 
 
-def load_dataset(path: Path, target_clip: float, workers: int = 0):
+def load_dataset(
+    path: Path,
+    target_clip: float,
+    workers: int = 0,
+    target_mode: str = "wdl",
+    wdl_scale: float = 400.0,
+    result_weight: float = 0.0,
+):
     import os
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor
 
-    global _LOAD_LINES, _LOAD_CLIP
+    global _LOAD_LINES, _LOAD_CLIP, _LOAD_TARGET_MODE, _LOAD_WDL_SCALE, _LOAD_RESULT_WEIGHT
     print(f"loading {path}", flush=True)
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     _LOAD_LINES = raw.decode("utf-8").splitlines()
     _LOAD_CLIP = target_clip
+    _LOAD_TARGET_MODE = target_mode
+    _LOAD_WDL_SCALE = wdl_scale
+    _LOAD_RESULT_WEIGHT = result_weight
     n_lines = len(_LOAD_LINES)
     ranges = [(i, min(i + 4000, n_lines)) for i in range(0, n_lines, 4000)]
 
@@ -415,6 +465,7 @@ def prediction_metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, 
     return {
         "mae_cp": float(np.mean(np.abs(error))),
         "rmse_cp": float(np.sqrt(np.mean(error * error))),
+        "sign_accuracy": float(np.mean(np.sign(prediction) == np.sign(target))),
     }
 
 
@@ -477,14 +528,44 @@ def _unpack_padded(rows):
     return white_kp, black_kp, white_ps, black_ps, lengths, threats, stm, target
 
 
-def _forward_padded(white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat):
-    white = w0[white_kp].sum(axis=1) + w_ps[white_ps].sum(axis=1) + b0
-    black = w0[black_kp].sum(axis=1) + w_ps[black_ps].sum(axis=1) + b0
+def _fake_quantize(values: np.ndarray, scale: float, low: float, high: float) -> np.ndarray:
+    return np.clip(np.rint(values * scale), low, high) / scale
+
+
+def _forward_padded(
+    white_kp,
+    black_kp,
+    white_ps,
+    black_ps,
+    threats,
+    stm,
+    w0,
+    w_ps,
+    b0,
+    w1,
+    b1,
+    w_threat,
+    qat: bool = True,
+):
+    if qat:
+        fw0 = _fake_quantize(w0, SCALE, -32768, 32767)
+        fw_ps = _fake_quantize(w_ps, SCALE, -32768, 32767)
+        fb0 = _fake_quantize(b0, SCALE, -32768, 32767)
+        fw1 = _fake_quantize(w1, SCALE, -32768, 32767)
+        fb1 = float(_fake_quantize(np.asarray([b1]), SCALE * SCALE, -(2**31), 2**31 - 1)[0])
+        fw_threat = _fake_quantize(w_threat, SCALE, -32768, 32767)
+    else:
+        fw0, fw_ps, fb0, fw1, fb1, fw_threat = w0, w_ps, b0, w1, b1, w_threat
+    white = fw0[white_kp].sum(axis=1) + fw_ps[white_ps].sum(axis=1) + fb0
+    black = fw0[black_kp].sum(axis=1) + fw_ps[black_ps].sum(axis=1) + fb0
     own_acc = np.where(stm[:, None] == 0, white, black)
     opp_acc = np.where(stm[:, None] == 0, black, white)
     own = np.clip(own_acc, 0.0, 127.0)
     opponent = np.clip(opp_acc, 0.0, 127.0)
-    predictions = own @ w1[:HIDDEN] + opponent @ w1[HIDDEN:] + b1 + threats @ w_threat
+    if qat:
+        own = _fake_quantize(own, SCALE, 0, 127 * SCALE)
+        opponent = _fake_quantize(opponent, SCALE, 0, 127 * SCALE)
+    predictions = own @ fw1[:HIDDEN] + opponent @ fw1[HIDDEN:] + fb1 + threats @ fw_threat
     return predictions.astype(np.float32, copy=False), white, black, own, opponent, own_acc, opp_acc
 
 
@@ -507,7 +588,18 @@ def forward(rows, w0, w_ps, b0, w1, b1, w_threat):
     return predictions, (white, black)
 
 
-def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, init_path=None, checkpoint_path=None):
+def train(
+    train_rows,
+    validation_rows,
+    epochs,
+    batch_size,
+    learning_rate,
+    seed,
+    init_path=None,
+    checkpoint_path=None,
+    qat=True,
+    use_threats=True,
+):
     rng = np.random.default_rng(seed)
     w0 = np.zeros((FEATURES + 1, HIDDEN), dtype=np.float32)
     w_ps = np.zeros((PS_FEATURES + 1, HIDDEN), dtype=np.float32)
@@ -556,7 +648,19 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, 
             white_ps, black_ps = train_wps[sel], train_bps[sel]
             lengths, threats, stm, target = train_len[sel], train_threats[sel], train_stm[sel], train_target[sel]
             prediction, _white, _black, own, opponent, own_acc, opp_acc = _forward_padded(
-                white_kp, black_kp, white_ps, black_ps, threats, stm, w0, w_ps, b0, w1, b1, w_threat
+                white_kp,
+                black_kp,
+                white_ps,
+                black_ps,
+                threats,
+                stm,
+                w0,
+                w_ps,
+                b0,
+                w1,
+                b1,
+                w_threat,
+                qat=qat,
             )
             error = prediction - target
             grad = np.clip(error, clip_lo, clip_hi)
@@ -584,8 +688,9 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, 
             np.multiply(mw1, 0.9, out=mw1)
             np.add(mw1, grad_w1, out=mw1)
             mb1 = 0.9 * mb1 + grad_b1
-            np.multiply(mth, 0.9, out=mth)
-            np.add(mth, grad_th, out=mth)
+            if use_threats:
+                np.multiply(mth, 0.9, out=mth)
+                np.add(mth, grad_th, out=mth)
             np.multiply(mw0, lr, out=step0)
             np.subtract(w0, step0, out=w0)
             np.multiply(mps, lr, out=step_ps)
@@ -593,14 +698,29 @@ def train(train_rows, validation_rows, epochs, batch_size, learning_rate, seed, 
             b0 -= lr * mb0
             w1 -= lr * mw1
             b1 -= float(lr) * mb1
-            w_threat -= lr * mth
+            if use_threats:
+                w_threat -= lr * mth
+            else:
+                w_threat.fill(0.0)
             w0[-1] = 0
             w_ps[-1] = 0
             mw0[-1] = 0
             mps[-1] = 0
 
         validation_prediction, *_ = _forward_padded(
-            val_wkp, val_bkp, val_wps, val_bps, val_threats, val_stm, w0, w_ps, b0, w1, b1, w_threat
+            val_wkp,
+            val_bkp,
+            val_wps,
+            val_bps,
+            val_threats,
+            val_stm,
+            w0,
+            w_ps,
+            b0,
+            w1,
+            b1,
+            w_threat,
+            qat=qat,
         )
         row = {"epoch": epoch, **prediction_metrics(validation_prediction, val_target)}
         history.append(row)
@@ -635,8 +755,16 @@ def export_network(path: Path, w0: np.ndarray, b0: np.ndarray, w1: np.ndarray, b
     th_q = np.clip(np.rint(w_threat * SCALE), -32768, 32767).astype("<i2")
     b1_q = int(np.clip(np.rint(b1 * SCALE * SCALE), -(2**31), 2**31 - 1))
     max_weight = int(max(np.max(np.abs(w0_q)), np.max(np.abs(b0_q)), np.max(np.abs(w1_q)), np.max(np.abs(th_q))))
+    max_piece_counts = (8, 2, 2, 2, 1, 1)
+    bucketed = w0_q.reshape(KING_BUCKETS, 12, 64, HIDDEN)
+    conservative = np.abs(b0_q).astype(np.int64)
+    for piece in range(12):
+        per_hidden_max = np.max(np.abs(bucketed[:, piece]).astype(np.int64), axis=(0, 1))
+        conservative += max_piece_counts[piece % 6] * per_hidden_max
     if max_weight >= 32767:
         raise ValueError("quantized KAT weights hit the int16 limit")
+    if int(np.max(conservative)) >= 32767:
+        raise ValueError(f"KAT accumulator bound exceeds int16: {int(np.max(conservative))}")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as output:
         output.write(b"NSCEKAT1")
@@ -646,7 +774,11 @@ def export_network(path: Path, w0: np.ndarray, b0: np.ndarray, w1: np.ndarray, b
         output.write(w1_q.tobytes(order="C"))
         output.write(th_q.tobytes(order="C"))
         output.write(struct.pack("<i", b1_q))
-    return {"max_abs_quantized_weight": max_weight, "size_bytes": path.stat().st_size}
+    return {
+        "max_abs_quantized_weight": max_weight,
+        "conservative_accumulator_abs_bound": int(np.max(conservative)),
+        "size_bytes": path.stat().st_size,
+    }
 
 
 def main() -> int:
@@ -658,19 +790,32 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--learning-rate", type=float, default=0.0004)
     parser.add_argument("--target-clip", type=float, default=2000.0)
+    parser.add_argument("--target-mode", choices=("cp", "wdl"), default="wdl")
+    parser.add_argument("--wdl-scale", type=float, default=400.0)
+    parser.add_argument("--result-weight", type=float, default=0.0)
+    parser.add_argument("--no-qat", action="store_true", help="disable fake integer forward during training")
+    parser.add_argument("--no-threats", action="store_true", help="train the king-relative base without KAT residuals")
     parser.add_argument("--minimum-samples", type=int, default=50000)
     parser.add_argument("--seed", type=int, default=20260813)
     parser.add_argument("--init", default="", help="optional float checkpoint (.npz) to continue from")
     parser.add_argument("--checkpoint", default="", help="write best float weights here after each epoch")
     args = parser.parse_args()
 
-    rows, dataset_sha256 = load_dataset(Path(args.data), args.target_clip)
+    if not 0.0 <= args.result_weight <= 1.0:
+        parser.error("--result-weight must be in [0, 1]")
+    rows, dataset_sha256 = load_dataset(
+        Path(args.data),
+        args.target_clip,
+        target_mode=args.target_mode,
+        wdl_scale=args.wdl_scale,
+        result_weight=args.result_weight,
+    )
     if len(rows) < args.minimum_samples:
         raise ValueError(f"KAT promotion requires at least {args.minimum_samples} samples; found {len(rows)}")
     print(f"split {len(rows)} samples (sha256={dataset_sha256[:12]}…)", flush=True)
     train_rows, validation_rows = [], []
     for row in rows:
-        bucket = int.from_bytes(hashlib.sha256(row[7].encode()).digest()[:4], "little") % 10
+        bucket = int.from_bytes(hashlib.sha256(row[8].encode()).digest()[:4], "little") % 10
         (validation_rows if bucket == 0 else train_rows).append(row)
     w0, w_ps, b0, w1, b1, w_threat, history = train(
         train_rows,
@@ -681,6 +826,8 @@ def main() -> int:
         args.seed,
         init_path=args.init or None,
         checkpoint_path=args.checkpoint or None,
+        qat=not args.no_qat,
+        use_threats=not args.no_threats,
     )
     folded = fold_factorization(w0, w_ps)
     quantization = export_network(Path(args.output), folded, b0, w1, b1, w_threat)
@@ -692,7 +839,13 @@ def main() -> int:
         "samples": len(rows),
         "train_samples": len(train_rows),
         "validation_samples": len(validation_rows),
+            "validation_groups": len({row[8] for row in validation_rows}),
         "seed": args.seed,
+        "target_mode": args.target_mode,
+        "wdl_scale": args.wdl_scale,
+        "result_weight": args.result_weight,
+        "qat": not args.no_qat,
+        "threats": not args.no_threats,
         "history": history,
         "float_validation": prediction_metrics(
             validation_prediction, np.asarray([row[6] for row in validation_rows], dtype=np.float32)

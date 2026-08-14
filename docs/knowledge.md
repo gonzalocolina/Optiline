@@ -49,7 +49,7 @@ These are the claims we act on until a later log entry supersedes them.
 
 ### Measurement pitfalls (paid for in lab time)
 
-- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors). Equal-node self-play at 25k nodes is ~1 s/game here: **N=40 is still too wide** (±50 Elo, ~80% draws). Use **N≥400** (or SPRT) for that gate.
+- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors). Equal-node self-play at 25k nodes is ~1 s/game here: **N=40 is still too wide** (±50 Elo, ~80% draws). Use **N≥200** (or SPRT) for that gate.
 - Stockfish has no `status`. The oracle must always be **NSCE**. Otherwise `bestmove 0000` after mate aborts the match ([20260813_sf18_1600](../experiments/20260813_sf18_1600/report.md)).
 - Pair-level pentanomial LLR with near-zero empirical variance explodes after one opening pair. Floor per-pair variance at **0.04** and do not accept H0/H1 before **`--min-games 40`**. A 2-game H1 is invalid ([20260813_controller_fitted](../experiments/20260813_controller_fitted/report.md)).
 - Do not compare holdout MAE across different corpora (120k vs 1M). The 1M holdout is harder.

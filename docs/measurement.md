@@ -26,8 +26,9 @@ Counters are local to each worker and aggregated after search:
 - LMR attempts / researches
 - null / razor / RFP / futility / LMP (UCI `info string stats` emits `null a/b razor a/b rfp a/b futility n lmp n`)
 - qnodes and evaluations
+- absolute evaluation/correction sums, TT-evaluation substitutions, improving nodes, and rule-50 scaling
 - SEE order / prune / successful prune counts
-- root moves claimed in parallel root split
+- root moves claimed by cooperative root work sharing
 
 When enabled, UCI also emits:
 
@@ -49,6 +50,7 @@ Baseline freezes every search feature. Toggle candidates with:
 | `UseLMP` | late-move pruning |
 | `UseRazoring` | razoring |
 | `UseRFP` | reverse futility pruning |
+| `EvalScale` | affine search-score scale in permille; default 1000 |
 
 ```bash
 python3 tools/ablation_match.py --search-matrix \
@@ -58,6 +60,10 @@ python3 tools/ablation_match.py --search-matrix \
 ```
 
 Interpret equal-node and equal-time results separately. A feature that wins fixed nodes but loses fixed time is too expensive, not necessarily wrong.
+
+`EvalScale` provides a bounded raw-versus-calibrated search-interaction
+diagnostic without retraining a network. Changing it clears TT and adaptive
+search state so incompatible bounds are never reused.
 
 ## Profiling
 
@@ -80,11 +86,11 @@ Observed exclusive hotspot before slider tables: `rook_attacks_bb` ≈ 15% of in
 Use the multi-position bench with thread count as the second argument:
 
 ```bash
-./build-stats/nsce_bench 10 1 1
-./build-stats/nsce_bench 10 4 1 internal
+./build-stats/nsce_bench 10 1 1 internal 0 cold
+./build-stats/nsce_bench 10 4 1 internal 0 warm
 ```
 
-Root workers are now persistent for the whole `go`. Report wall-time, nodes and CPU efficiency separately; more nodes alone is not a strength claim.
+Root workers are persistent for the whole `go` and claim individual root moves from one ordered queue. Report wall-time, nodes and CPU efficiency separately; more nodes alone is not a strength claim. `cold` clears TT and histories between positions, while `warm` preserves symmetric search state.
 
 The benchmark no longer falls back to whichever network happens to exist in
 `nets/`. Pass `internal`, `nets/nnue_trained.bin`, or another explicit
@@ -126,6 +132,22 @@ The default minimum (50k) intentionally rejects the current 2k bootstrap. A smok
 - `tools/sprt.py` now uses a **pair-level pentanomial** LLR and refuses resume from the older trinomial model.
 
 Promotion still requires a fresh pre-registered SPRT at a non-exploratory time control.
+
+Freeze stable and development Stockfish references explicitly; do not let
+`PATH` resolution change the target between runs:
+
+```bash
+python3 tools/freeze_targets.py \
+  --engine build/nsce \
+  --stockfish18 /path/to/stockfish-18 \
+  --stockfish-dev /path/to/stockfish-dev \
+  --out experiments/frozen-targets/manifest.json
+```
+
+For search-leaf distribution studies, set `LeafTelemetryFile` to a JSONL path.
+The engine records stand-pat, static, in-check, and maximum-ply evaluator calls
+with FEN, phase proxies (piece count and halfmove clock), ply/depth, and score.
+This distinguishes the deployed leaf distribution from arbitrary root-FEN labels.
 
 For the next evaluation candidate, label a held-out/diverse corpus with the
 current NSCE baseline rather than extending the plateaued Lichess run:

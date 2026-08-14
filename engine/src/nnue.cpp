@@ -310,6 +310,7 @@ void Nnue::update_king_move(NnueAccumulator& acc, const Position& pos, Piece kin
 }
 
 void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
+  acc.threats_valid = false;
   if (net_.halfkp) {
     for (int perspective = WHITE; perspective <= BLACK; ++perspective) {
       int mirror = 0;
@@ -374,13 +375,19 @@ int Nnue::evaluate(const Position& pos) const {
   int score = evaluate(pos.nnue_acc(), pos.side_to_move());
   if (!net_.kat) return score;
   const Color stm = pos.side_to_move();
-  const Bitboard our_attacks = pos.attacks(stm);
-  const Bitboard their_attacks = pos.attacks(~stm);
+  auto& acc = const_cast<NnueAccumulator&>(pos.nnue_acc());
+  if (!acc.threats_valid || acc.threats_stm != static_cast<uint8_t>(stm)) {
+    int threat_values[NnueNet::kThreatDim]{};
+    kat_threats(pos, stm, threat_values);
+    for (int i = 0; i < NnueNet::kThreatDim; ++i) acc.threats[i] = static_cast<int16_t>(threat_values[i]);
+    acc.threats_stm = static_cast<uint8_t>(stm);
+    acc.threats_valid = true;
+  }
   const int16_t* w = net_.w_threat.data();
   int32_t extra = 0;
   for (int pt = 0; pt < 6; ++pt) {
-    extra += popcount(pos.pieces(stm, static_cast<PieceType>(pt)) & their_attacks) * w[pt];
-    extra += popcount(pos.pieces(~stm, static_cast<PieceType>(pt)) & our_attacks) * w[6 + pt];
+    extra += acc.threats[pt] * w[pt];
+    extra += acc.threats[6 + pt] * w[6 + pt];
   }
   return score + static_cast<int>(extra / NnueNet::kWeightScale);
 }

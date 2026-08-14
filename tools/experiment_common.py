@@ -125,6 +125,8 @@ def build_manifest(
         "seed": seed,
         "git": {
             "commit": _run(["git", "rev-parse", "HEAD"], root),
+            "branch": _run(["git", "branch", "--show-current"], root),
+            "status_porcelain": _run(["git", "status", "--porcelain"], root),
             "dirty": bool(_run(["git", "status", "--porcelain"], root).strip()),
         },
         "platform": {
@@ -151,6 +153,11 @@ def build_manifest(
             "referenced_files": referenced,
         },
         "resolved_options": options,
+        "measurement": {
+            "state_isolation": (extra or {}).get("state_isolation", "normal_game_warm"),
+            "pairing": "color_reversed_opening_pairs",
+            "raw_game_telemetry": True,
+        },
         "environment": {
             key: value
             for key, value in os.environ.items()

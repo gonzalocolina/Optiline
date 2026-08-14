@@ -20,6 +20,7 @@ from uci_common import UciEngine, load_openings  # noqa: E402
 
 
 def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int | None) -> dict:
+    teacher.new_game()
     teacher.set_position(fen, [])
     if nodes:
         teacher._send(f"go nodes {nodes}")
@@ -28,16 +29,31 @@ def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int |
     lines = teacher._wait_for("bestmove", timeout=120.0)
     score_cp = None
     best = "0000"
+    completed_depth = 0
+    searched_nodes = 0
+    score_bound = "exact"
+    pv: list[str] = []
     for line in lines:
         if line.startswith("info ") and "score" in line:
             parts = line.split()
+            if "depth" in parts:
+                completed_depth = max(completed_depth, int(parts[parts.index("depth") + 1]))
+            if "nodes" in parts:
+                searched_nodes = max(searched_nodes, int(parts[parts.index("nodes") + 1]))
+            if "bound" in parts:
+                score_bound = parts[parts.index("bound") + 1]
             if "cp" in parts:
                 score_cp = int(parts[parts.index("cp") + 1])
             elif "mate" in parts:
                 mate = int(parts[parts.index("mate") + 1])
                 score_cp = (32000 - min(abs(mate) * 2, 255)) * (1 if mate > 0 else -1)
+            if "pv" in parts:
+                pv = parts[parts.index("pv") + 1 :]
         if line.startswith("bestmove"):
             best = line.split()[1]
+    details = {}
+    if "NSCE" in teacher.identity.get("id_name", "").upper():
+        details = teacher.evaluate_details(fen, [])
     teacher.clear_hash()
     return {
         "fen": fen,
@@ -46,6 +62,13 @@ def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int |
         "score_pov": "side_to_move",
         "depth": depth,
         "nodes": nodes,
+        "completed_depth": completed_depth,
+        "searched_nodes": searched_nodes,
+        "score_bound": score_bound,
+        "pv": pv,
+        "teacher_nnue_cp": details.get("nnue"),
+        "extras_cp": details.get("extras"),
+        "deployed_eval_cp": details.get("eval"),
     }
 
 
@@ -64,6 +87,39 @@ def sample_position(
             break
         moves.append(rng.choice(legal))
     return sampler.current_fen(opening, moves), len(moves)
+
+
+def sample_self_play_position(
+    sampler: UciEngine,
+    opening: str,
+    rng: random.Random,
+    min_ply: int,
+    max_ply: int,
+    depth: int,
+) -> tuple[str, int, str | None]:
+    """Sample a position from a shallow teacher trajectory and retain terminal outcomes."""
+    target_ply = rng.randint(min_ply, max_ply)
+    moves: list[str] = []
+    terminal_result: str | None = None
+    for ply in range(max_ply + 32):
+        if ply == target_ply:
+            sampled_fen = sampler.current_fen(opening, moves)
+        move = sampler.go_depth(opening, moves, depth)
+        if move in {"0000", "(none)", "none"}:
+            status = sampler.status(opening, moves)
+            terminal_result = "1-0" if status == "checkmate" and (ply & 1) else "0-1" if status == "checkmate" else "1/2-1/2"
+            break
+        moves.append(move)
+        status = sampler.status(opening, moves)
+        if status in {"checkmate", "stalemate", "draw"}:
+            terminal_result = "1-0" if status == "checkmate" and (ply & 1) == 0 else "0-1" if status == "checkmate" else "1/2-1/2"
+            break
+    else:
+        terminal_result = "1/2-1/2"
+    if "sampled_fen" not in locals():
+        sampled_fen = sampler.current_fen(opening, moves)
+        target_ply = len(moves)
+    return sampled_fen, target_ply, terminal_result
 
 
 def iter_fens(path: Path) -> Iterator[str]:
@@ -139,8 +195,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--teacher",
-        default=str(ROOT / "build" / "nsce"),
-        help="teacher binary; default is the current local NSCE build",
+        default="",
+        help="teacher binary; defaults to $STOCKFISH or the current local NSCE build",
     )
     ap.add_argument("--teacher-config", default=str(ROOT / "tools/configs/baseline.uci"))
     ap.add_argument("--depth", type=int, default=8)
@@ -152,6 +208,8 @@ def main() -> int:
         help="JSONL/EPD of existing FENs to label (skips random-walk sampling)",
     )
     ap.add_argument("--sampler", default=str(ROOT / "build" / "nsce"))
+    ap.add_argument("--self-play", action="store_true", help="sample positions from shallow teacher trajectories")
+    ap.add_argument("--self-play-depth", type=int, default=4)
     ap.add_argument("--seed", type=int, default=20260802)
     ap.add_argument("--min-ply", type=int, default=8)
     ap.add_argument("--max-ply", type=int, default=60)
@@ -212,9 +270,11 @@ def main() -> int:
                         break
                     lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
                     lab["teacher"] = teacher_cmd
+                    lab["teacher_identity"] = eng.identity
                     lab["sampled_ply"] = None
                     lab["seed"] = args.seed
                     lab["source_index"] = index
+                    lab["source_game"] = f"fen:{args.seed}:{index}"
                     write_label(f, lab, args.verbose, index)
                     labeled += 1
                     done = index + 1
@@ -226,13 +286,23 @@ def main() -> int:
                 for i in range(start, args.positions):
                     rng = random.Random(args.seed + i)
                     opening = openings[i % len(openings)]
-                    fen, sampled_ply = sample_position(
-                        sampler, opening, rng, args.min_ply, args.max_ply
-                    )
+                    if args.self_play:
+                        fen, sampled_ply, result = sample_self_play_position(
+                            sampler, opening, rng, args.min_ply, args.max_ply, args.self_play_depth
+                        )
+                    else:
+                        fen, sampled_ply = sample_position(sampler, opening, rng, args.min_ply, args.max_ply)
+                        result = None
                     lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
                     lab["teacher"] = teacher_cmd
+                    lab["teacher_identity"] = eng.identity
                     lab["sampled_ply"] = sampled_ply
                     lab["seed"] = args.seed
+                    lab["source_game"] = f"trajectory:{args.seed}:{i}"
+                    lab["opening_index"] = i % len(openings)
+                    if result is not None:
+                        lab["result"] = result
+                        lab["source"] = "self_play"
                     write_label(f, lab, args.verbose, i)
                     labeled += 1
                     done = i + 1

@@ -63,6 +63,7 @@ void Position::clear() {
 
 void Position::put_piece(Piece pc, Square s) {
   attacks_valid_ = false;
+  nnue_acc_.threats_valid = false;
   board_[s] = pc;
   Bitboard b = square_bb(s);
   by_color_[color_of(pc)] |= b;
@@ -77,6 +78,7 @@ void Position::put_piece(Piece pc, Square s) {
 
 void Position::remove_piece(Square s) {
   attacks_valid_ = false;
+  nnue_acc_.threats_valid = false;
   Piece pc = board_[s];
   Bitboard b = square_bb(s);
   by_color_[color_of(pc)] &= ~b;
@@ -95,6 +97,7 @@ void Position::remove_piece(Square s) {
 
 void Position::move_piece(Square from, Square to) {
   attacks_valid_ = false;
+  nnue_acc_.threats_valid = false;
   Piece pc = board_[from];
   const PieceType pt = type_of(pc);
   bool refresh_halfkp =
@@ -462,16 +465,17 @@ void Position::do_null_move(StateInfo& st) {
     key_ ^= Zobrist::enpassant[file_of(ep_square_)];
     ep_square_ = SQ_NONE;
   }
-  ++halfmove_;
+  // A null move is a search-only state transition. It must not advance
+  // game-rule clocks or enter the repetition history: otherwise a null move
+  // from halfmove 99 can manufacture a fifty-move draw.
   side_ = ~side_;
   checkers_ = 0;
   blockers_valid_ = false;
   attacks_valid_ = false;
-  history_keys_.push_back(key_);
+  nnue_acc_.threats_valid = false;
 }
 
 void Position::undo_null_move(const StateInfo& st) {
-  history_keys_.pop_back();
   side_ = ~side_;
   castling_ = st.castling;
   ep_square_ = st.ep_square;
@@ -480,6 +484,7 @@ void Position::undo_null_move(const StateInfo& st) {
   checkers_ = st.checkers;
   blockers_valid_ = false;
   attacks_valid_ = false;
+  nnue_acc_.threats_valid = false;
 }
 
 }  // namespace nsce

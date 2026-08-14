@@ -43,6 +43,34 @@ TEST(NnueTest, IncrementalMatchesRefresh) {
   }
 }
 
+TEST(NnueTest, IncrementalAccumulatorSurvivesAQuietAndTacticalSequence) {
+  init_bitboards();
+  Zobrist::init();
+  ASSERT_TRUE(Nnue::instance().load_default_from_hce());
+  Position pos;
+  pos.set_startpos();
+  std::vector<Move> moves;
+  std::vector<StateInfo> states;
+  for (int ply = 0; ply < 32; ++ply) {
+    MoveList legal;
+    generate_legal(pos, legal);
+    ASSERT_GT(legal.size, 0);
+    Move move = legal.moves[(ply * 11 + 3) % legal.size];
+    moves.push_back(move);
+    states.emplace_back();
+    pos.do_move(move, states.back());
+    NnueAccumulator refreshed;
+    Nnue::instance().refresh(pos, refreshed);
+    EXPECT_EQ(pos.nnue_acc().v, refreshed.v) << "after ply " << ply;
+  }
+  for (int ply = static_cast<int>(moves.size()) - 1; ply >= 0; --ply) {
+    pos.undo_move(moves[ply], states[ply]);
+    NnueAccumulator refreshed;
+    Nnue::instance().refresh(pos, refreshed);
+    EXPECT_EQ(pos.nnue_acc().v, refreshed.v) << "after undo ply " << ply;
+  }
+}
+
 TEST(NnueTest, EvalFinite) {
   init_bitboards();
   Zobrist::init();
@@ -56,6 +84,34 @@ TEST(NnueTest, EvalFinite) {
   EXPECT_EQ(evaluate(pos), Nnue::instance().evaluate(pos));
   pos.set_use_extras(true);
   EXPECT_NE(evaluate(pos), Nnue::instance().evaluate(pos));
+}
+
+TEST(NnueTest, InternalNetworkSerializationReconstructsExactly) {
+  init_bitboards();
+  Zobrist::init();
+  ASSERT_TRUE(Nnue::instance().load_default_from_hce());
+  Position pos;
+  pos.set_startpos();
+  const std::string fen = pos.fen();
+  const int expected = Nnue::instance().evaluate(pos);
+  auto path = std::filesystem::temp_directory_path() / "nsce_internal_roundtrip.bin";
+  {
+    const NnueNet& net = Nnue::instance().net();
+    std::ofstream out(path, std::ios::binary);
+    out.write("NSCENNUE", 8);
+    int32_t features = NnueNet::kFeatures;
+    int32_t hidden = NnueNet::kHidden;
+    out.write(reinterpret_cast<const char*>(&features), sizeof(features));
+    out.write(reinterpret_cast<const char*>(&hidden), sizeof(hidden));
+    out.write(reinterpret_cast<const char*>(net.w0.data()), sizeof(net.w0));
+    out.write(reinterpret_cast<const char*>(net.b0.data()), sizeof(net.b0));
+    out.write(reinterpret_cast<const char*>(net.w1.data()), sizeof(net.w1));
+    out.write(reinterpret_cast<const char*>(&net.b1), sizeof(net.b1));
+  }
+  ASSERT_TRUE(Nnue::instance().load(path.string()));
+  pos.set_fen(fen);
+  EXPECT_EQ(Nnue::instance().evaluate(pos), expected);
+  std::filesystem::remove(path);
 }
 
 TEST(NnueTest, PositionCanUseIndependentEngineContext) {
@@ -182,6 +238,16 @@ TEST(NnueTest, LoadsKatAndKeepsMirroredKingMoveIncremental) {
 
   pos.set_fen("4k3/8/8/8/8/8/4p3/3K4 w - - 0 1");
   EXPECT_EQ(Nnue::instance().evaluate(pos), 1);
+  const int cached_before = Nnue::instance().evaluate(pos);
+  Move king_move_for_cache = Move::make(SQ_D1, SQ_E1);
+  StateInfo cache_state;
+  pos.do_move(king_move_for_cache, cache_state);
+  const int cached_after = Nnue::instance().evaluate(pos);
+  Position refreshed_position = pos;
+  refreshed_position.set_nnue(&Nnue::instance());
+  EXPECT_EQ(cached_after, Nnue::instance().evaluate(refreshed_position));
+  pos.undo_move(king_move_for_cache, cache_state);
+  EXPECT_EQ(Nnue::instance().evaluate(pos), cached_before);
 
   Move king_move = Move::make(SQ_E1, SQ_D1);
   pos.set_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1");

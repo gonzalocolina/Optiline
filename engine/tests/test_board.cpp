@@ -73,6 +73,65 @@ TEST(BoardTest, PawnAndNonpawnKeysSurviveUndo) {
   EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
 }
 
+TEST(BoardTest, NullMoveDoesNotAdvanceGameDrawState) {
+  Position pos;
+  pos.set_fen("4k3/8/8/8/8/8/4R3/4K3 w - - 99 1");
+  const std::string before = pos.fen();
+  const Key key = pos.key();
+  StateInfo st;
+  pos.do_null_move(st);
+  EXPECT_EQ(pos.halfmove_clock(), 99);
+  EXPECT_FALSE(pos.is_draw());
+  pos.undo_null_move(st);
+  EXPECT_EQ(pos.fen(), before);
+  EXPECT_EQ(pos.key(), key);
+}
+
+TEST(BoardTest, DirectEvasionsMatchLegalMoves) {
+  const char* fens[] = {
+      "4k3/8/8/8/4q3/8/R7/4K3 w - - 0 1",
+      "4k3/8/8/8/8/8/2n1R3/4K3 w - - 0 1",
+      "4k3/8/8/8/8/8/R3r3/4K3 w - - 0 1",
+  };
+  for (const char* fen : fens) {
+    Position pos;
+    pos.set_fen(fen);
+    ASSERT_TRUE(pos.in_check()) << fen;
+    MoveList legal;
+    MoveList evasions;
+    generate_legal(pos, legal);
+    generate_legal_evasions(pos, evasions);
+    ASSERT_EQ(legal.size, evasions.size) << fen;
+    for (int i = 0; i < legal.size; ++i) {
+      bool found = false;
+      for (int j = 0; j < evasions.size; ++j) found = found || legal.moves[i] == evasions.moves[j];
+      EXPECT_TRUE(found) << fen << " missing " << move_to_uci(legal.moves[i]);
+    }
+  }
+}
+
+TEST(BoardTest, DirectEvasionsMatchLegalMovesAlongRandomizedPlay) {
+  Position pos;
+  pos.set_startpos();
+  for (int ply = 0; ply < 256; ++ply) {
+    MoveList legal;
+    generate_legal(pos, legal);
+    if (legal.size == 0) break;
+    if (pos.in_check()) {
+      MoveList evasions;
+      generate_legal_evasions(pos, evasions);
+      ASSERT_EQ(legal.size, evasions.size) << "ply " << ply << " " << pos.fen();
+      for (int i = 0; i < legal.size; ++i) {
+        bool found = false;
+        for (int j = 0; j < evasions.size; ++j) found = found || legal.moves[i] == evasions.moves[j];
+        EXPECT_TRUE(found) << "ply " << ply << " missing " << move_to_uci(legal.moves[i]);
+      }
+    }
+    StateInfo state;
+    pos.do_move(legal.moves[(ply * 17 + 5) % legal.size], state);
+  }
+}
+
 TEST(BoardTest, RejectsMalformedFen) {
   Position pos;
   EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8 w - - 0 1"), std::runtime_error);

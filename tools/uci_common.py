@@ -96,7 +96,11 @@ class UciEngine:
             bufsize=1,
         )
         self._send("uci")
-        self._wait_for("uciok")
+        uci_lines = self._wait_for("uciok")
+        self.identity = {
+            "id_name": next((line[8:] for line in uci_lines if line.startswith("id name ")), ""),
+            "id_author": next((line[10:] for line in uci_lines if line.startswith("id author ")), ""),
+        }
         self._send("isready")
         self._wait_for("readyok")
         self.last_nodes = 0
@@ -249,6 +253,19 @@ class UciEngine:
         if len(parts) != 2 or parts[0] != "eval":
             raise RuntimeError(f"{self.name}: expected eval response")
         return int(parts[1])
+
+    def evaluate_details(self, fen: str, moves: list[str] | None = None) -> dict[str, int]:
+        self.set_position(fen, moves or [])
+        self._send("eval details")
+        assert self.proc.stdout is not None
+        parts = self.proc.stdout.readline().strip().split()
+        if not parts or parts[0] != "eval" or len(parts) % 2 != 1:
+            raise RuntimeError(f"{self.name}: expected eval details response")
+        return {
+            parts[index]: int(parts[index + 1])
+            for index in range(1, len(parts) - 1, 2)
+            if parts[index + 1].lstrip("-").isdigit()
+        }
 
     def close(self) -> None:
         try:

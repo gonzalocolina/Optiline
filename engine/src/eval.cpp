@@ -226,6 +226,15 @@ int evaluate(const Position& pos) {
   return (pos.side_to_move() == WHITE) ? score : -score;
 }
 
+int evaluate_nnue(const Position& pos) {
+  return pos.nnue().is_enabled() ? pos.nnue().evaluate(pos) : 0;
+}
+
+int classical_extras(const Position& pos) {
+  const int white_score = extras(pos);
+  return pos.side_to_move() == WHITE ? white_score : -white_score;
+}
+
 int piece_value(PieceType pt) {
   return PieceValue[pt];
 }
