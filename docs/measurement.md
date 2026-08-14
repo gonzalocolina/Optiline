@@ -149,23 +149,26 @@ For search-leaf distribution studies, set `LeafTelemetryFile` to a JSONL path.
 The engine records stand-pat, static, in-check, and maximum-ply evaluator calls
 with FEN, phase proxies (piece count and halfmove clock), ply/depth, and score.
 This distinguishes the deployed leaf distribution from arbitrary root-FEN labels.
+`train/collect_leaves.py` dumps those FENs; `train/distill.py --label static`
+scores them with the frozen C++ eval (network + extras), not `go nodes`.
 
-For the next evaluation candidate, label a held-out/diverse corpus with the
-current NSCE baseline rather than extending the plateaued Lichess run:
+Evaluator candidates follow [docs/eval_pipeline.md](eval_pipeline.md). Step 1 is
+cloning the frozen arbiter; do not skip to a wider net.
 
 ```bash
-python3 train/distill.py --teacher ./build/nsce --nodes 25000 \
-  --fens train/data/lichess_evals_1m.jsonl \
-  --positions 200000 --output train/data/nsce_nodes25k.jsonl
+bash train/run_clone_arbiter.sh
 ```
 
-Train and validate a candidate from that dataset first; only then run a
-paired equal-node gate followed by an equal-time SPRT.
+Teacher centipawns are converted with **that teacher's** WDL curve into the
+NSCE search scale (`--teacher-wdl-scale` / `--search-wdl-scale`). Raw teacher
+cp stays metadata. MAE rejects broken nets; promotion is equal-node N≥200
+clearly above 0.5, then equal-time SPRT, one UCI change, extras contract.
 
 Before promoting a result, run:
 
 ```bash
-python3 tools/promotion_gate.py \
+python3 tools/promotion_gate.py --stage eval \
+  --equal-node experiments/<nodes>/ablation_summary.json \
   --sprt experiments/<run>/sprt_<candidate>.json \
   --manifest experiments/<run>/manifest.json
 ```

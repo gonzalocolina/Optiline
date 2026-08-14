@@ -61,7 +61,7 @@ def _resolve_artifact(root: Path, value: str) -> Path | None:
     return path.resolve()
 
 
-def _config_options(root: Path, configs: list[Path]) -> dict[str, str]:
+def config_options(root: Path, configs: list[Path]) -> dict[str, str]:
     resolved: dict[str, str] = {}
     for config in configs:
         if not config.exists():
@@ -101,7 +101,7 @@ def build_manifest(
     engine = engine.resolve()
     config_paths = [path.resolve() for path in configs]
     cache = engine.parent / "CMakeCache.txt"
-    options = _config_options(root, config_paths)
+    options = config_options(root, config_paths)
     referenced: dict[str, str] = {}
     for option in ("EvalFile", "PolicyFile", "ControllerFile"):
         artifact = _resolve_artifact(root, options.get(option, ""))

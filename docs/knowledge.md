@@ -6,10 +6,10 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-14 (EvalScale: SF-calibrated baseline coin flip; scaled sf25k still loses N=200) |
+| Last updated | 2026-08-14 (eval manufacture protocol: clone the frozen arbiter before any richer net) |
 | Engine | NSCE 0.10 |
 | Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
-| Protocol | [hypothesis.md](hypothesis.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
+| Protocol | [hypothesis.md](hypothesis.md), [eval_pipeline.md](eval_pipeline.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
 
 ## How to add knowledge
 
@@ -36,8 +36,9 @@ These are the claims we act on until a later log entry supersedes them.
 ### Science
 
 - The north star is **equal-compute Stockfish latest** (same threads, TC, hash). Limited `UCI_Elo` is a weekly KPI, not that target. ([hypothesis.md](hypothesis.md))
-- Compete on **Elo/time** and **Elo/node**, not by cloning SFNNv13 or copying GPL search. Labels (cp / WDL) are allowed; Stockfish `.nnue` weights are not.
+- Compete on **Elo/time** and **Elo/node**, not by cloning SFNNv13 or copying GPL search. Labels (cp / WDL) are allowed; Stockfish `.nnue` weights are not. Teacher cp is converted through **that teacher's** WDL curve into the **NSCE search coin** before it touches pruning thresholds. ([eval_pipeline.md](eval_pipeline.md))
 - A feature that wins **fixed nodes** and loses **fixed time** is too expensive, not “almost good.” Interpret the two matches separately. ([measurement.md](measurement.md))
+- Holdout MAE (float or C++) **rejects wreckage**; it does not promote. The tree reads signs and margins, not mean error. ([eval_pipeline.md](eval_pipeline.md))
 - `Elo/nodo` is diagnostic only: pruning changes what a node means.
 
 ### Frozen baseline (v0.10)
@@ -97,6 +98,8 @@ These are the claims we act on until a later log entry supersedes them.
 | Promote / SPRT `nnue_sf25k.bin` | MAE +30.5 cp vs SF labels; equal-node N=400 score 0.470, +21 ± 13 to baseline | [sf25k nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
 | `EvalScale=511` on frozen baseline | SF-label origin scale; equal-node N=200 coin flip | [evalscale](../experiments/20260814_evalscale_nodes/report.md) |
 | Affine-scale `nnue_sf25k.bin` (1091 / 1519) | Still loses equal-node N=200 (+26 / +28 Elo to baseline) | [evalscale](../experiments/20260814_evalscale_nodes/report.md) |
+| Train Stockfish cp and prune with NSCE thresholds | Wrong currency; affine scale did not fix it | Same + [eval_pipeline.md](eval_pipeline.md) |
+| Promote on float/C++ MAE | Better exam, worse partner, twice | nsce25k KAT MAE +6.9 then N=40 score 0.300; sf25k MAE +21% then N=400 score 0.470 |
 | Treat N=40 equal-node 25k as a gate | ±50 Elo, ~80% draws; N=400 flipped “coin flip” into a loss | [nodes](../experiments/20260814_sf25k_768_nodes/report.md) vs [nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
 | Label 500k more for this KAT | MAE already beat internal; equal-node still lost | Same report |
 | Raise hidden to 256 at 120k–1M | Memorizes; MAE still data-limited | 16-epoch plateau at 114 cp |
@@ -138,12 +141,19 @@ Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plie
 
 The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Affine `EvalScale` did not rescue the SF 768 either. Do not skip to a later item to “try something.”
 
-1. **`kat_nsce25k.bin` stays rejected.** MAE +6.9 cp; equal-node N=40 score 0.300. Do not SPRT, do not scale-rescue, do not label 500k more.
-2. **Calibrated `EvalScale` is closed.** Frozen SF18 + current-dev are pinned. SF-calibrated `EvalScale=511` on the baseline is a coin flip (N=200, +5 ± 16). Scaling `nnue_sf25k.bin` to baseline magnitude (1091 / 1519) still loses N=200. Keep `EvalScale=1000`.
-3. **Promotion still needs N≥200 equal-node or a SPRT.** N=40 equal-node 25k is exploratory.
-4. **Richer pawn/threat features and hardware optimizations stay later.** Next model work is proving the trainer/export/runtime pipeline on the frozen evaluator, not a wider net.
+The evaluator is now manufactured and judged in a **fixed order** ([eval_pipeline.md](eval_pipeline.md)). Later steps are illegal until the earlier gate passes.
 
-Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE self-distill 200k, replay `kat_candidate.bin` / `kat_nsce25k.bin` / `nnue_nsce25k_ft.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768. `kHidden≠128` still waits on a 768×128 that wins equal-node. SF Elo 2000, N≥40 only after a **promoted** eval, and only against the frozen SF18 binary.
+1. **Clone the frozen arbiter.** Static labels (`eval details`, internal + extras), same `768×128`, `--residualize-extras`, quantized C++ must reproduce those notes (`validate_nnue.py --gate clone`) and **not lose** equal-node N≥200. Recipe: `bash train/run_clone_arbiter.sh`. If this pipe cannot copy the current referee, a “better” net is an artifact.
+2. **One currency: NSCE search scale.** Teacher cp → that teacher's WDL → NSCE search cp. Keep raw cp as metadata. Never train on Stockfish cp and prune with NSCE thresholds.
+3. **Label leaves, not the first 200k root FENs.** `train/collect_leaves.py` + `--label static`. Quiet QS, checks, tactics, endgames.
+4. **Judge the deployed integers**, then games. MAE is a reject filter.
+5. **Data with game results** from balanced openings (`selfplay.py --positions-out`), WDL mix of teacher + outcome. Not random walks.
+6. **One change, extras contract.** 768 extras on, or king-bucket extras off. Never extras on KAT. Never net + policy + controller + scale in one SPRT.
+7. **True gate: beat this tree, N large.** Equal-node N≥200 (or SPRT) clearly above 0.5 vs frozen baseline; then equal-time. A net that wins nodes and loses clock is expensive.
+8. **Only then** a king-relative net **without** the 12-threat residual, same data/loss, vs the corrected 768.
+9. **Only then** grouped search-margin/EvalScale retune, then policy / LMR controller, for the eval that already won.
+
+Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE self-distill 200k, replay `kat_candidate.bin` / `kat_nsce25k.bin` / `nnue_nsce25k_ft.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768. `kHidden≠128` still waits on a 768×128 that wins equal-node. SF Elo 2000, N≥40 only after a **promoted** eval, and only against the frozen SF18 binary. Richer pawn/threat features, wider nets, faster inference of nets that already lose, and move-emitting attention nets stay out: they change the sport or reload a loser.
 
 ---
 
@@ -151,6 +161,7 @@ Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE s
 
 ### 2026-08-14
 
+- Eval manufacture/judgment rewritten into a fixed 9-step order: clone the frozen static arbiter before any richer net; NSCE search coin; leaf labels; deployed C++ integers; games with results; one change + extras contract; equal-node N≥200 then equal-time; king-relative without threats only after that; search retune only for a winning eval. ([eval_pipeline.md](eval_pipeline.md))
 - NSCE teacher `go nodes 25000` on 200k existing FENs → `train/data/nsce_nodes25k.jsonl` (0 null scores). Holdout N=20039 vs those labels, not vs Lichess 114 cp.
 - From-scratch 768×128 (`nnue_nsce25k.bin`, extras on): engine MAE **84.8 vs internal 65.1** (−30%). No 500k, no equal-node. ([nsce25k 768](../experiments/20260814_nsce25k_768_train/report.md))
 - Fine-tune 768 from internal (`nnue_nsce25k_ft.bin`, `--init internal`, extras on): engine MAE **72.3 vs 65.1** (−11%). Better than from-scratch, still a fail. No equal-node. ([nsce25k 768 ft](../experiments/20260814_nsce25k_768_ft/report.md))

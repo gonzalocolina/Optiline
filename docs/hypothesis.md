@@ -70,6 +70,8 @@ Activar/desactivar un solo componente por experimento:
 
 Registrar siempre nodos y tiempo además del resultado.
 
+El evaluador se fabrica y se juzga en el orden de [eval_pipeline.md](eval_pipeline.md), no por MAE ni por destilar Stockfish en la moneda de este árbol.
+
 ## Telemetría (preparación para aprendizaje)
 
 Cuando se active el log de búsqueda, cada evento debería incluir al menos:

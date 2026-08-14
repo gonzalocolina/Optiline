@@ -10,6 +10,17 @@ import struct
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "train"))
+
+from eval_scale import (  # noqa: E402
+    NSCE_SEARCH_WDL_SCALE,
+    teacher_family,
+    to_white_cp,
+    training_target,
+    white_outcome,
+)
+
 try:
     import numpy as np
 except ImportError:
@@ -53,42 +64,22 @@ def encode_fen(fen: str) -> np.ndarray:
     return x
 
 
-def cp_to_wdl(score_cp: np.ndarray | float, scale: float) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-np.asarray(score_cp, dtype=np.float32) / max(scale, 1e-6)))
-
-
-def wdl_to_search_score(probability: np.ndarray | float, scale: float) -> np.ndarray:
-    p = np.clip(np.asarray(probability, dtype=np.float32), 1e-5, 1.0 - 1e-5)
-    return max(scale, 1e-6) * np.log(p / (1.0 - p))
-
-
-def _white_outcome(record: dict) -> float | None:
-    result = record.get("result", record.get("outcome"))
-    if isinstance(result, str):
-        if result in {"1-0", "win", "white"}:
-            return 1.0
-        if result in {"0-1", "loss", "black"}:
-            return 0.0
-        if result in {"1/2-1/2", "draw", "0.5"}:
-            return 0.5
-    if isinstance(result, (int, float)):
-        value = float(result)
-        if 0.0 <= value <= 1.0:
-            return value
-    return None
-
-
 def load_dataset(
     path: Path,
     target_clip: float,
     target_mode: str = "cp",
-    wdl_scale: float = 400.0,
+    wdl_scale: float = NSCE_SEARCH_WDL_SCALE,
     result_weight: float = 0.0,
     residualize_extras: bool = False,
     return_groups: bool = False,
+    teacher_wdl_scale: float | None = None,
+    search_wdl_scale: float | None = None,
 ) -> tuple:
+    teacher_scale = float(teacher_wdl_scale if teacher_wdl_scale is not None else wdl_scale)
+    search_scale = float(search_wdl_scale if search_wdl_scale is not None else wdl_scale)
     raw = path.read_bytes()
     unique: dict[str, tuple[np.ndarray, float, str, str]] = {}
+    warned_currency = False
     for line in raw.decode().splitlines():
         if not line.strip():
             continue
@@ -99,24 +90,36 @@ def load_dataset(
             continue
         fields = fen.split()
         key = " ".join(fields[:4])
-        white_score = float(score)
-        if record.get("score_pov", "side_to_move") == "side_to_move" and fields[1] == "b":
-            white_score = -white_score
-        if residualize_extras:
-            extras_score = float(record.get("extras_cp", 0.0))
-            if record.get("score_pov", "side_to_move") == "side_to_move" and fields[1] == "b":
-                extras_score = -extras_score
-            white_score -= extras_score
-        if target_mode == "wdl":
-            probability = float(cp_to_wdl(white_score, wdl_scale))
-            outcome = _white_outcome(record)
-            if outcome is not None:
-                probability = (1.0 - result_weight) * probability + result_weight * outcome
-            target = float(wdl_to_search_score(probability, wdl_scale))
-        elif target_mode == "cp":
-            target = white_score
-        else:
-            raise ValueError(f"unknown target mode: {target_mode}")
+        pov = record.get("score_pov", "side_to_move")
+        white_score = to_white_cp(float(score), fen, pov)
+        extras_score = to_white_cp(float(record.get("extras_cp") or 0.0), fen, pov)
+        family = record.get("teacher_family") or teacher_family(
+            record.get("teacher_identity"), str(record.get("teacher") or "")
+        )
+        if (
+            not warned_currency
+            and family == "stockfish"
+            and target_mode == "wdl"
+            and abs(teacher_scale - search_scale) < 1e-9
+        ):
+            print(
+                "warning: Stockfish labels with identical teacher/search WDL scales "
+                "are the currency bug; pass --teacher-wdl-scale for that teacher",
+                file=sys.stderr,
+                flush=True,
+            )
+            warned_currency = True
+        target = training_target(
+            white_score,
+            target_mode=target_mode,
+            teacher_wdl_scale=teacher_scale,
+            search_wdl_scale=search_scale,
+            extras_cp_white=extras_score,
+            residualize_extras=residualize_extras,
+            result_white=white_outcome(record),
+            result_weight=result_weight,
+            target_clip=target_clip,
+        )
         group = str(
             record.get("source_game")
             or record.get("game_id")
@@ -126,7 +129,7 @@ def load_dataset(
         )
         if group in {"self_play", "random_walk"}:
             group = f"{group}:{key}"
-        unique[key] = (encode_fen(fen), float(np.clip(target, -target_clip, target_clip)), fen, group)
+        unique[key] = (encode_fen(fen), float(target), fen, group)
     if len(unique) < 20:
         raise ValueError(f"need at least 20 distinct labeled positions, found {len(unique)}")
     rows = list(unique.values())
@@ -541,9 +544,30 @@ def main() -> int:
     parser.add_argument("--target-clip", type=float, default=2000.0)
     parser.add_argument("--seed", type=int, default=20260802)
     parser.add_argument("--target-mode", choices=("cp", "wdl"), default="wdl")
-    parser.add_argument("--wdl-scale", type=float, default=400.0)
+    parser.add_argument(
+        "--wdl-scale",
+        type=float,
+        default=NSCE_SEARCH_WDL_SCALE,
+        help="legacy alias: sets both teacher and NSCE search scales when those flags are omitted",
+    )
+    parser.add_argument(
+        "--teacher-wdl-scale",
+        type=float,
+        default=None,
+        help="logistic scale of the teacher that produced score_cp (Stockfish ≠ NSCE)",
+    )
+    parser.add_argument(
+        "--search-wdl-scale",
+        type=float,
+        default=None,
+        help="NSCE search-coin scale used by pruning; default is the frozen-tree scale",
+    )
     parser.add_argument("--result-weight", type=float, default=0.0)
-    parser.add_argument("--residualize-extras", action="store_true")
+    parser.add_argument(
+        "--residualize-extras",
+        action="store_true",
+        help="learn target − extras because C++ will add extras() on this 768 net",
+    )
     parser.add_argument("--no-qat", action="store_true", help="disable fake integer forward during training")
     parser.add_argument("--dense-legacy", action="store_true", help="use the pre-pipeline dense augmentation path")
     parser.add_argument(
@@ -555,6 +579,8 @@ def main() -> int:
 
     if not 0.0 <= args.result_weight <= 1.0:
         parser.error("--result-weight must be in [0, 1]")
+    teacher_wdl_scale = args.teacher_wdl_scale if args.teacher_wdl_scale is not None else args.wdl_scale
+    search_wdl_scale = args.search_wdl_scale if args.search_wdl_scale is not None else args.wdl_scale
     x, y, fens, dataset_sha256, groups = load_dataset(
         Path(args.data),
         args.target_clip,
@@ -563,6 +589,8 @@ def main() -> int:
         args.result_weight,
         args.residualize_extras,
         return_groups=True,
+        teacher_wdl_scale=teacher_wdl_scale,
+        search_wdl_scale=search_wdl_scale,
     )
     train_indices, validation_indices = split_dataset(fens, groups)
     init_weights = load_init_weights(args.init) if args.init else None
@@ -624,6 +652,8 @@ def main() -> int:
             "init": args.init or None,
             "target_mode": args.target_mode,
             "wdl_scale": args.wdl_scale,
+            "teacher_wdl_scale": teacher_wdl_scale,
+            "search_wdl_scale": search_wdl_scale,
             "result_weight": args.result_weight,
             "residualize_extras": args.residualize_extras,
             "qat": not args.no_qat,

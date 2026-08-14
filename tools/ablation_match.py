@@ -420,6 +420,7 @@ def main() -> int:
         args.nodes,
     )
     write_report(outdir, [r], engine, args.games, args.movetime)
+    (outdir / f"match_{args.name_a}_vs_{args.name_b}.json").write_text(json.dumps(r, indent=2))
     manifest = attach_frozen_targets(
         build_manifest(
             ROOT,

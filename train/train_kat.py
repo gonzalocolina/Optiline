@@ -15,6 +15,11 @@ import struct
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "train"))
+
+from eval_scale import NSCE_SEARCH_WDL_SCALE, training_target, white_outcome  # noqa: E402
+
 try:
     import numpy as np
 except ImportError:
@@ -385,29 +390,23 @@ def _parse_chunk(lines: list[str], target_clip: float):
 _LOAD_LINES: list[str] = []
 _LOAD_CLIP = 2000.0
 _LOAD_TARGET_MODE = "wdl"
-_LOAD_WDL_SCALE = 400.0
+_LOAD_TEACHER_WDL_SCALE = 400.0
+_LOAD_SEARCH_WDL_SCALE = 400.0
 _LOAD_RESULT_WEIGHT = 0.0
 
 
 def _target_from_white_score(score: float, record: dict | None) -> float:
-    if _LOAD_TARGET_MODE == "cp":
-        return score
-    probability = 1.0 / (1.0 + np.exp(-score / max(_LOAD_WDL_SCALE, 1e-6)))
-    result = record.get("result", record.get("outcome")) if record else None
-    outcome = None
-    if isinstance(result, str):
-        if result in {"1-0", "win", "white"}:
-            outcome = 1.0
-        elif result in {"0-1", "loss", "black"}:
-            outcome = 0.0
-        elif result in {"1/2-1/2", "draw", "0.5"}:
-            outcome = 0.5
-    elif isinstance(result, (int, float)) and 0.0 <= float(result) <= 1.0:
-        outcome = float(result)
-    if outcome is not None:
-        probability = (1.0 - _LOAD_RESULT_WEIGHT) * probability + _LOAD_RESULT_WEIGHT * outcome
-    p = np.clip(probability, 1e-5, 1.0 - 1e-5)
-    return float(_LOAD_WDL_SCALE * np.log(p / (1.0 - p)))
+    return training_target(
+        score,
+        target_mode=_LOAD_TARGET_MODE,
+        teacher_wdl_scale=_LOAD_TEACHER_WDL_SCALE,
+        search_wdl_scale=_LOAD_SEARCH_WDL_SCALE,
+        extras_cp_white=0.0,
+        residualize_extras=False,
+        result_white=white_outcome(record or {}),
+        result_weight=_LOAD_RESULT_WEIGHT,
+        target_clip=_LOAD_CLIP,
+    )
 
 
 def _parse_range(start_end: tuple[int, int]):
@@ -422,19 +421,23 @@ def load_dataset(
     target_mode: str = "wdl",
     wdl_scale: float = 400.0,
     result_weight: float = 0.0,
+    teacher_wdl_scale: float | None = None,
+    search_wdl_scale: float | None = None,
 ):
     import os
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor
 
-    global _LOAD_LINES, _LOAD_CLIP, _LOAD_TARGET_MODE, _LOAD_WDL_SCALE, _LOAD_RESULT_WEIGHT
+    global _LOAD_LINES, _LOAD_CLIP, _LOAD_TARGET_MODE, _LOAD_TEACHER_WDL_SCALE
+    global _LOAD_SEARCH_WDL_SCALE, _LOAD_RESULT_WEIGHT
     print(f"loading {path}", flush=True)
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     _LOAD_LINES = raw.decode("utf-8").splitlines()
     _LOAD_CLIP = target_clip
     _LOAD_TARGET_MODE = target_mode
-    _LOAD_WDL_SCALE = wdl_scale
+    _LOAD_TEACHER_WDL_SCALE = float(teacher_wdl_scale if teacher_wdl_scale is not None else wdl_scale)
+    _LOAD_SEARCH_WDL_SCALE = float(search_wdl_scale if search_wdl_scale is not None else wdl_scale)
     _LOAD_RESULT_WEIGHT = result_weight
     n_lines = len(_LOAD_LINES)
     ranges = [(i, min(i + 4000, n_lines)) for i in range(0, n_lines, 4000)]
@@ -791,7 +794,9 @@ def main() -> int:
     parser.add_argument("--learning-rate", type=float, default=0.0004)
     parser.add_argument("--target-clip", type=float, default=2000.0)
     parser.add_argument("--target-mode", choices=("cp", "wdl"), default="wdl")
-    parser.add_argument("--wdl-scale", type=float, default=400.0)
+    parser.add_argument("--wdl-scale", type=float, default=NSCE_SEARCH_WDL_SCALE)
+    parser.add_argument("--teacher-wdl-scale", type=float, default=None)
+    parser.add_argument("--search-wdl-scale", type=float, default=None)
     parser.add_argument("--result-weight", type=float, default=0.0)
     parser.add_argument("--no-qat", action="store_true", help="disable fake integer forward during training")
     parser.add_argument("--no-threats", action="store_true", help="train the king-relative base without KAT residuals")
@@ -803,12 +808,16 @@ def main() -> int:
 
     if not 0.0 <= args.result_weight <= 1.0:
         parser.error("--result-weight must be in [0, 1]")
+    teacher_wdl_scale = args.teacher_wdl_scale if args.teacher_wdl_scale is not None else args.wdl_scale
+    search_wdl_scale = args.search_wdl_scale if args.search_wdl_scale is not None else args.wdl_scale
     rows, dataset_sha256 = load_dataset(
         Path(args.data),
         args.target_clip,
         target_mode=args.target_mode,
         wdl_scale=args.wdl_scale,
         result_weight=args.result_weight,
+        teacher_wdl_scale=teacher_wdl_scale,
+        search_wdl_scale=search_wdl_scale,
     )
     if len(rows) < args.minimum_samples:
         raise ValueError(f"KAT promotion requires at least {args.minimum_samples} samples; found {len(rows)}")
@@ -843,6 +852,8 @@ def main() -> int:
         "seed": args.seed,
         "target_mode": args.target_mode,
         "wdl_scale": args.wdl_scale,
+        "teacher_wdl_scale": teacher_wdl_scale,
+        "search_wdl_scale": search_wdl_scale,
         "result_weight": args.result_weight,
         "qat": not args.no_qat,
         "threats": not args.no_threats,

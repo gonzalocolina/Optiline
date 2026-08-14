@@ -116,6 +116,11 @@ add_test(
 )
 set_tests_properties(PythonExperimentTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_test(
+  NAME PythonTrainTests
+  COMMAND ${Python3_EXECUTABLE} -m unittest discover -s train/tests -p "test_*.py"
+)
+set_tests_properties(PythonTrainTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(
   NAME UciSmoke
   COMMAND ${Python3_EXECUTABLE} tools/smoke_match.py --engine $<TARGET_FILE:nsce>
           --games 1 --depth-a 3 --depth-b 2 --max-plies 10

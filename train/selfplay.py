@@ -28,7 +28,7 @@ def play_game(engine: UciEngine, fen: str, movetime: int, max_plies: int, lam: f
         total_nodes += engine.last_nodes
         if mv in ("0000", "(none)", "none"):
             break
-        records.append({"ply": ply, "move": mv, "nodes": engine.last_nodes})
+        records.append({"ply": ply, "move": mv, "fen": engine.current_fen(fen, moves), "nodes": engine.last_nodes})
         moves.append(mv)
         st = engine.status(fen, moves)
         if st == "checkmate":
@@ -61,13 +61,24 @@ def main() -> int:
     ap.add_argument("--lambda", dest="lam", type=float, default=0.1)
     ap.add_argument("--config", default=str(ROOT / "tools/configs/baseline.uci"))
     ap.add_argument("-o", "--output", default=str(ROOT / "train/data/selfplay.jsonl"))
+    ap.add_argument(
+        "--positions-out",
+        default="",
+        help="optional JSONL of (fen, result) for eval training; not random walks",
+    )
     args = ap.parse_args()
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    openings = load_openings(ROOT / "tools" / "openings.epd")
+    openings = load_openings(ROOT / "tools" / "openings_balanced.epd")
     eng = UciEngine([args.engine], "NSCE")
     eng.apply_uci_file(Path(args.config))
+    positions_path = Path(args.positions_out) if args.positions_out else None
+    if positions_path is not None:
+        positions_path.parent.mkdir(parents=True, exist_ok=True)
+        positions_handle = positions_path.open("w", encoding="utf-8")
+    else:
+        positions_handle = None
     try:
         with out.open("w") as f:
             for i in range(args.games):
@@ -75,9 +86,41 @@ def main() -> int:
                 g = play_game(eng, fen, args.movetime, args.max_plies, args.lam)
                 f.write(json.dumps(g) + "\n")
                 print(f"game {i+1}: result={g['result']} plies={len(g['moves'])} reward={g['reward']:.4f}")
+                if positions_handle is not None:
+                    positions_handle.write(
+                        json.dumps(
+                            {
+                                "fen": fen,
+                                "result": g["result"],
+                                "source_game": f"selfplay:{i}",
+                                "ply": 0,
+                                "phase": "opening",
+                            }
+                        )
+                        + "\n"
+                    )
+                    for rec in g["records"]:
+                        rec_fen = rec.get("fen")
+                        if not rec_fen:
+                            continue
+                        positions_handle.write(
+                            json.dumps(
+                                {
+                                    "fen": rec_fen,
+                                    "result": g["result"],
+                                    "source_game": f"selfplay:{i}",
+                                    "ply": rec.get("ply"),
+                                }
+                            )
+                            + "\n"
+                        )
     finally:
         eng.close()
+        if positions_handle is not None:
+            positions_handle.close()
     print(f"wrote {out}")
+    if positions_path is not None:
+        print(f"wrote {positions_path}")
     return 0
 
 

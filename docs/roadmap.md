@@ -20,6 +20,9 @@ La política neuronal de presupuesto debe medirse con ablations a equal-time en 
 
 ## Laboratorio experimental (activo)
 
+El evaluador se fabrica y se juzga en el orden de [docs/eval_pipeline.md](eval_pipeline.md).
+No se salta al árbol ni a una red más recargada.
+
 Ver [docs/experiments.md](experiments.md) y `experiments/YYYYMMDD/`.
 
 Comandos:

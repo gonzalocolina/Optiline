@@ -15,8 +15,43 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "train"))
 
+from eval_scale import teacher_family  # noqa: E402
 from uci_common import UciEngine, load_openings  # noqa: E402
+
+DEFAULT_LEAF_SITES = ("q_stand_pat", "static", "in_check_static")
+
+
+def _annotate_teacher(lab: dict, teacher: UciEngine, command: str, kind: str) -> dict:
+    lab["score_kind"] = kind
+    lab["raw_teacher_cp"] = lab.get("score_cp")
+    lab["teacher_family"] = teacher_family(teacher.identity, command)
+    lab["score_pov"] = lab.get("score_pov") or "side_to_move"
+    return lab
+
+
+def label_static(teacher: UciEngine, fen: str) -> dict:
+    """Label with the deployed static eval (network + extras exactly as C++ runs)."""
+    teacher.set_position(fen, [])
+    details = teacher.evaluate_details(fen, [])
+    deployed = details.get("eval")
+    return {
+        "fen": fen,
+        "bestmove": "0000",
+        "score_cp": deployed,
+        "score_pov": "side_to_move",
+        "depth": 0,
+        "nodes": 0,
+        "completed_depth": 0,
+        "searched_nodes": 0,
+        "score_bound": "exact",
+        "pv": [],
+        "teacher_nnue_cp": details.get("nnue"),
+        "extras_cp": details.get("extras"),
+        "deployed_eval_cp": deployed,
+        "use_extras": details.get("use_extras"),
+    }
 
 
 def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int | None) -> dict:
@@ -69,6 +104,7 @@ def label_position(teacher: UciEngine, fen: str, depth: int | None, nodes: int |
         "teacher_nnue_cp": details.get("nnue"),
         "extras_cp": details.get("extras"),
         "deployed_eval_cp": details.get("eval"),
+        "use_extras": details.get("use_extras"),
     }
 
 
@@ -122,7 +158,7 @@ def sample_self_play_position(
     return sampled_fen, target_ply, terminal_result
 
 
-def iter_fens(path: Path) -> Iterator[str]:
+def iter_source_records(path: Path) -> Iterator[dict]:
     with path.open(encoding="utf-8") as handle:
         for raw in handle:
             line = raw.strip()
@@ -135,7 +171,7 @@ def iter_fens(path: Path) -> Iterator[str]:
                     continue
                 fen = str(record.get("fen") or "").strip()
                 if fen:
-                    yield fen
+                    yield record
                 continue
             parts = line.rstrip(";").split()
             if len(parts) < 4:
@@ -145,7 +181,16 @@ def iter_fens(path: Path) -> Iterator[str]:
                 fen = " ".join(parts[:6])
             else:
                 fen += " 0 1"
-            yield fen
+            yield {"fen": fen}
+
+
+def keep_source_record(record: dict, leaf_sites: set[str] | None) -> bool:
+    if not leaf_sites:
+        return True
+    site = record.get("site")
+    if not site:
+        return True
+    return str(site) in leaf_sites
 
 
 def format_duration(seconds: float) -> str:
@@ -199,6 +244,12 @@ def main() -> int:
         help="teacher binary; defaults to $STOCKFISH or the current local NSCE build",
     )
     ap.add_argument("--teacher-config", default=str(ROOT / "tools/configs/baseline.uci"))
+    ap.add_argument(
+        "--label",
+        choices=("static", "search"),
+        default="search",
+        help="static = deployed C++ eval (clone the arbiter); search = go depth/nodes",
+    )
     ap.add_argument("--depth", type=int, default=8)
     ap.add_argument("--nodes", type=int, default=0, help="If >0, label with go nodes N instead of depth")
     ap.add_argument("--positions", type=int, default=2000)
@@ -206,6 +257,12 @@ def main() -> int:
         "--fens",
         default="",
         help="JSONL/EPD of existing FENs to label (skips random-walk sampling)",
+    )
+    ap.add_argument(
+        "--leaf-sites",
+        default="",
+        help="comma-separated LeafTelemetry sites to keep (empty keeps all; "
+        f"typical clone set: {','.join(DEFAULT_LEAF_SITES)})",
     )
     ap.add_argument("--sampler", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--self-play", action="store_true", help="sample positions from shallow teacher trajectories")
@@ -229,15 +286,19 @@ def main() -> int:
     args = ap.parse_args()
     if args.positions <= 0:
         ap.error("--positions must be positive")
-    if args.nodes <= 0 and args.depth <= 0:
-        ap.error("need --depth or --nodes")
+    if args.label == "search" and args.nodes <= 0 and args.depth <= 0:
+        ap.error("search labels need --depth or --nodes")
     if args.min_ply < 0 or args.max_ply < args.min_ply:
         ap.error("invalid ply sampling range")
     fens_path = Path(args.fens) if args.fens else None
     if fens_path is not None and not fens_path.exists():
         raise RuntimeError(f"FEN source not found: {fens_path}")
+    leaf_sites = {item.strip() for item in args.leaf_sites.split(",") if item.strip()} or None
 
-    teacher_cmd = args.teacher or os.environ.get("STOCKFISH") or str(ROOT / "build" / "nsce")
+    if args.label == "static":
+        teacher_cmd = args.teacher or str(ROOT / "build" / "nsce")
+    else:
+        teacher_cmd = args.teacher or os.environ.get("STOCKFISH") or str(ROOT / "build" / "nsce")
     if not Path(teacher_cmd).exists() and shutil.which(teacher_cmd) is None:
         raise RuntimeError(f"teacher not found: {teacher_cmd}")
     out = Path(args.output)
@@ -253,34 +314,60 @@ def main() -> int:
     started = time.monotonic()
     labeled = 0
 
+    if fens_path is None and not args.self_play:
+        print(
+            "warning: random-walk sampling is not the eval protocol; "
+            "prefer train/collect_leaves.py or selfplay --positions-out",
+            file=sys.stderr,
+            flush=True,
+        )
     eng = UciEngine([teacher_cmd], "teacher")
     sampler = None if fens_path is not None else UciEngine([args.sampler], "sampler")
     openings = [] if fens_path is not None else load_openings(ROOT / "tools" / "openings_balanced.epd")
     eng.apply_options({"Threads": "1", "Hash": "16"})
-    if "nsce" in teacher_cmd:
+    if "nsce" in teacher_cmd.lower():
         eng.apply_uci_file(Path(args.teacher_config))
+    if args.label == "static" and teacher_family(eng.identity, teacher_cmd) != "nsce":
+        raise RuntimeError("static labels require an NSCE teacher with `eval details`")
+
+    def label_fen(fen: str) -> dict:
+        if args.label == "static":
+            lab = label_static(eng, fen)
+        else:
+            lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
+        _annotate_teacher(lab, eng, teacher_cmd, args.label)
+        lab["teacher"] = teacher_cmd
+        lab["teacher_identity"] = eng.identity
+        lab["seed"] = args.seed
+        return lab
+
     try:
         mode = "a" if start else "w"
         with out.open(mode) as f:
             if fens_path is not None:
-                for index, fen in enumerate(iter_fens(fens_path)):
-                    if index < start:
+                kept = 0
+                for source in iter_source_records(fens_path):
+                    if not keep_source_record(source, leaf_sites):
                         continue
-                    if index >= args.positions:
+                    if kept < start:
+                        kept += 1
+                        continue
+                    if kept >= args.positions:
                         break
-                    lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
-                    lab["teacher"] = teacher_cmd
-                    lab["teacher_identity"] = eng.identity
+                    fen = str(source["fen"])
+                    lab = label_fen(fen)
                     lab["sampled_ply"] = None
-                    lab["seed"] = args.seed
-                    lab["source_index"] = index
-                    lab["source_game"] = f"fen:{args.seed}:{index}"
-                    write_label(f, lab, args.verbose, index)
+                    lab["source_index"] = kept
+                    lab["source_game"] = source.get("source_game") or f"fen:{args.seed}:{kept}"
+                    for key in ("result", "outcome", "site", "in_check", "pieces", "ply", "halfmove", "phase"):
+                        if key in source and key not in lab:
+                            lab[key] = source[key]
+                    write_label(f, lab, args.verbose, kept)
                     labeled += 1
-                    done = index + 1
-                    if labeled == 1 or (progress_every and done % progress_every == 0):
+                    kept += 1
+                    if labeled == 1 or (progress_every and kept % progress_every == 0):
                         emit_progress(
-                            done, args.positions, started, start, lab["bestmove"], lab["score_cp"]
+                            kept, args.positions, started, start, lab["bestmove"], lab["score_cp"]
                         )
             else:
                 for i in range(start, args.positions):
@@ -293,11 +380,8 @@ def main() -> int:
                     else:
                         fen, sampled_ply = sample_position(sampler, opening, rng, args.min_ply, args.max_ply)
                         result = None
-                    lab = label_position(eng, fen, None if args.nodes else args.depth, args.nodes or None)
-                    lab["teacher"] = teacher_cmd
-                    lab["teacher_identity"] = eng.identity
+                    lab = label_fen(fen)
                     lab["sampled_ply"] = sampled_ply
-                    lab["seed"] = args.seed
                     lab["source_game"] = f"trajectory:{args.seed}:{i}"
                     lab["opening_index"] = i % len(openings)
                     if result is not None:

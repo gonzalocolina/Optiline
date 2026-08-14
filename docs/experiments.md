@@ -129,12 +129,21 @@ evidence of insufficient information, not evidence that the engines are equal.
 
 ## Candidate promotion gates
 
+Evaluator candidates use the ordered protocol in [docs/eval_pipeline.md](eval_pipeline.md).
+Do not promote on holdout MAE. Clone the frozen static arbiter before a richer net.
+
 1. `ctest` including sanitizers and perft must pass.
 2. Fixed-depth benchmark must not regress materially unless an Elo gain justifies it.
 3. Run the four-way matrix on paired openings; treat it as exploratory.
-4. Select exactly one candidate and run a fresh SPRT, normally:
+4. Select exactly one candidate (eval **or** policy **or** controller **or**, after an eval H1, grouped search retune). Extras stay on for 768 and off for king-bucket nets.
+5. Equal-node N≥200 vs `baseline.uci`, candidate clearly above 0.5; then a fresh equal-time SPRT:
 
 ```bash
+python3 tools/ablation_match.py \
+  --cfg-a tools/configs/baseline.uci \
+  --cfg-b tools/configs/candidate.uci \
+  --games 200 --nodes 25000 --seed 20260814 \
+  --outdir experiments/$(date +%Y%m%d)-candidate-nodes
 python3 tools/sprt.py \
   --cfg-a tools/configs/baseline.uci \
   --cfg-b tools/configs/candidate.uci \
@@ -142,12 +151,16 @@ python3 tools/sprt.py \
   --elo0 -5 --elo1 5 \
   --max-games 400 --movetime 100 --seed 20260802 \
   --outdir experiments/$(date +%Y%m%d)-candidate
+python3 tools/promotion_gate.py --stage eval \
+  --equal-node experiments/$(date +%Y%m%d)-candidate-nodes/ablation_summary.json \
+  --sprt experiments/$(date +%Y%m%d)-candidate/sprt_candidate.json \
+  --manifest experiments/$(date +%Y%m%d)-candidate/manifest.json
 ```
 
-5. Accept/reject only at opening-pair boundaries using the pair-level pentanomial LLR.
+6. Accept/reject only at opening-pair boundaries using the pair-level pentanomial LLR.
    Never stop because a point estimate looks favorable. Older trinomial SPRT JSON files are
    incompatible with `--resume`.
-6. Re-run accepted candidates against a stronger Stockfish rung with fresh openings.
+7. Re-run accepted candidates against a stronger Stockfish rung with fresh openings.
 
 When thread counts differ, wall time is not equal compute. Official comparisons use equal
 threads, hash, affinity and wall time; additionally report CPU-seconds where available.

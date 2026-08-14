@@ -12,13 +12,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "train"))
 
+from eval_contract import extras_contract_errors  # noqa: E402
+from eval_scale import NSCE_SEARCH_WDL_SCALE, cp_to_wdl as logistic_wdl  # noqa: E402
 from uci_common import UciEngine  # noqa: E402
 
 
 def cp_to_wdl(cp: float, scale: float) -> float:
     cp = max(-8000.0, min(8000.0, cp))
-    return 1.0 / (1.0 + math.exp(-cp / scale))
+    return logistic_wdl(cp, scale)
 
 
 def affine_fit(x: list[int], y: list[int]) -> dict[str, float]:
@@ -107,7 +110,19 @@ def main() -> int:
         help="UseExtras on the candidate net (KAT should pass --no-use-extras)",
     )
     parser.add_argument("--target-mode", choices=("cp", "wdl"), default="cp")
-    parser.add_argument("--wdl-scale", type=float, default=400.0)
+    parser.add_argument("--wdl-scale", type=float, default=NSCE_SEARCH_WDL_SCALE)
+    parser.add_argument(
+        "--gate",
+        choices=("none", "clone"),
+        default="none",
+        help="clone: C++ integers must reproduce static labels (pipeline proof, not promotion)",
+    )
+    parser.add_argument(
+        "--max-clone-mae",
+        type=float,
+        default=15.0,
+        help="reject a clone if deployed C++ MAE vs static labels exceeds this (cp)",
+    )
     args = parser.parse_args()
 
     records = []
@@ -125,22 +140,34 @@ def main() -> int:
     baseline = UciEngine([args.engine], "baseline")
     trained = UciEngine([args.engine], "trained")
     extras = "true" if args.use_extras else "false"
+    contract_errors = extras_contract_errors(args.network, extras)
+    if contract_errors:
+        raise RuntimeError("; ".join(contract_errors))
     baseline.apply_options({"EvalFile": "internal", "UseExtras": "true"})
     trained.apply_options({"EvalFile": args.network, "UseExtras": extras})
     targets: list[int] = []
     baseline_values: list[int] = []
     trained_values: list[int] = []
+    trained_nnue: list[int] = []
+    teacher_nnue: list[int] = []
     composite_deltas: list[int] = []
     phases: dict[str, dict[str, list[int]]] = {}
+    static_kind = 0
     try:
         for record in records:
-            target = int(record["score_cp"])
+            label = record.get("deployed_eval_cp", record.get("score_cp"))
+            target = int(label)
+            if record.get("score_kind") == "static" or "deployed_eval_cp" in record:
+                static_kind += 1
             baseline_value = baseline.evaluate(record["fen"])
             trained_value = trained.evaluate(record["fen"])
             details = trained.evaluate_details(record["fen"])
             targets.append(target)
             baseline_values.append(baseline_value)
             trained_values.append(trained_value)
+            trained_nnue.append(int(details.get("nnue", trained_value)))
+            if record.get("teacher_nnue_cp") is not None:
+                teacher_nnue.append(int(record["teacher_nnue_cp"]))
             composite_deltas.append(trained_value - details.get("eval", trained_value))
             phase = phase_key(record)
             bucket = phases.setdefault(phase, {"targets": [], "baseline": [], "trained": []})
@@ -175,6 +202,13 @@ def main() -> int:
             "samples": len(composite_deltas),
         },
         "target_contract": {"mode": args.target_mode, "wdl_scale": args.wdl_scale},
+        "mae_is_not_promotion": True,
+        "static_label_samples": static_kind,
+        "clone": {
+            "deployed": summarize(trained_values, targets, args.wdl_scale),
+            "nnue": summarize(trained_nnue, teacher_nnue, args.wdl_scale) if teacher_nnue else None,
+            "max_clone_mae_cp": args.max_clone_mae,
+        },
         "affine": {
             "baseline_from_trained": affine_fit(trained_values, baseline_values),
             "labels_from_baseline": affine_fit(baseline_values, targets),
@@ -187,10 +221,28 @@ def main() -> int:
         if report["baseline"]["mae_cp"]
         else 0.0
     )
+    clone_mae = report["trained"]["mae_cp"]
+    report["clone"]["pass"] = clone_mae <= args.max_clone_mae
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))
+    if args.gate == "clone":
+        errors = []
+        if static_kind == 0:
+            errors.append("clone gate needs static labels (deployed_eval_cp / score_kind=static)")
+        if clone_mae > args.max_clone_mae:
+            errors.append(
+                f"quantized C++ MAE {clone_mae:.1f} cp exceeds clone ceiling {args.max_clone_mae:.1f} "
+                "(pipeline does not reproduce the arbiter)"
+            )
+        if report["runtime_composite"]["max_abs_delta_cp"] > 0:
+            errors.append("C++ eval and eval-details disagree; measuring a different engine")
+        if errors:
+            print("clone_gate: FAIL", file=sys.stderr)
+            print("\n".join(f"- {error}" for error in errors), file=sys.stderr)
+            return 1
+        print(f"clone_gate: PASS (C++ MAE {clone_mae:.2f} cp vs static labels)")
     return 0
 
 
