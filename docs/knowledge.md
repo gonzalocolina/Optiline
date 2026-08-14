@@ -6,7 +6,7 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-14 (eval manufacture protocol: clone the frozen arbiter before any richer net) |
+| Last updated | 2026-08-14 (leaf+result WDL 20k: C++ MAE 12.9, equal-node 11-172-17, −10 ± 18) |
 | Engine | NSCE 0.10 |
 | Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
 | Protocol | [hypothesis.md](hypothesis.md), [eval_pipeline.md](eval_pipeline.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
@@ -39,6 +39,8 @@ These are the claims we act on until a later log entry supersedes them.
 - Compete on **Elo/time** and **Elo/node**, not by cloning SFNNv13 or copying GPL search. Labels (cp / WDL) are allowed; Stockfish `.nnue` weights are not. Teacher cp is converted through **that teacher's** WDL curve into the **NSCE search coin** before it touches pruning thresholds. ([eval_pipeline.md](eval_pipeline.md))
 - A feature that wins **fixed nodes** and loses **fixed time** is too expensive, not “almost good.” Interpret the two matches separately. ([measurement.md](measurement.md))
 - Holdout MAE (float or C++) **rejects wreckage**; it does not promote. The tree reads signs and margins, not mean error. ([eval_pipeline.md](eval_pipeline.md))
+- The train → quantize → C++ **export** path can copy the frozen 768: `--init internal --epochs 0` has engine MAE **0** vs static labels and equal-node N=200 is **8-184-8** (score 0.500, +0 ± 14, identical nodes). Color-flip augmentation is not a ReLU symmetry (epoch-0 MAE 290 cp, sign accuracy 0). With `--augment none` or `mirror`, Adam stays on those notes (16 ep last-epoch MAE 0.14 / 0.33). Epoch 0 is now eligible as best. ([clone trainer](../experiments/20260814_clone_trainer/report.md))
+- 64 self-play games with real results (WDL mix 0.20, 768 + extras) produce a different net (C++ MAE 27.5 vs static) that is an equal-node **coin flip** (14-172-14, +0 ± 18). 256 games, both colors, stay a near-clone (C++ MAE 8.1) and still a coin flip (9-183-8, +2 ± 14). Search leaves from those finished games (4.6M unique, 20k labeled with result) are also a coin flip (11-172-17, candidate score 0.515, **−10 ± 18** to baseline). First WDL point estimate on the candidate side; CI includes 0. Not a companion. ([wdl games](../experiments/20260814_wdl_games/report.md), [wdl colors](../experiments/20260814_wdl_colors/report.md), [wdl leaves](../experiments/20260814_wdl_leaves/report.md))
 - `Elo/nodo` is diagnostic only: pruning changes what a node means.
 
 ### Frozen baseline (v0.10)
@@ -106,7 +108,11 @@ These are the claims we act on until a later log entry supersedes them.
 | HCE `extras()` on top of KAT/HalfKP | Residual fights the net | Gated in `evaluate()` when `uses_king_buckets()` |
 | Promote fitted LMR controller | Slightly negative equal-time | Inconclusive 23-143-34, LLR −0.99 ([controller_sprt](../experiments/20260813_controller_sprt/report.md)) |
 | Relax controller clamp before Elo/nodo rises | Current ±1 ply already does not help | Same SPRT |
-| Mix extras + KAT + policy + controller in one SPRT | Confounds the gate | Protocol |
+| Color-flip augmentation on the 768 ReLU net | Not odd (`w1` all +); epoch-1 MAE 33.7 vs 0.06 with `--augment none` | [clone trainer](../experiments/20260814_clone_trainer/report.md) |
+| 64 self-play games + WDL result-weight 0.20 as an eval candidate | Equal-node N=200 is 14-172-14, +0 ± 18 | [wdl games](../experiments/20260814_wdl_games/report.md) |
+| 256 both-color self-play paths, same WDL mix | Near-clone (C++ MAE 8.1); equal-node 9-183-8, +2 ± 14 | [wdl colors](../experiments/20260814_wdl_colors/report.md) |
+| 20k search leaves stamped with those game results | C++ MAE 12.9; equal-node 11-172-17, −10 ± 18 (candidate 0.515) | [wdl leaves](../experiments/20260814_wdl_leaves/report.md) |
+| Mix clone leaves into that train set and trust the holdout | Val is clone-dominated; best epoch 0 ships the clone | [wdl games](../experiments/20260814_wdl_games/report.md) |
 | Port more Stockfish search (multi-cut, threat-input sparse nets, SFNNv13) | GPL; keeps us behind Fishtest-tuned constants | License + hypothesis |
 | Train from Stockfish `.nnue` files | GPL / not our net | Labels only |
 | Treat N=20 SF18 2000 (7-8-5, +35) as a win | Interval ±120; N=40 reversed the sign | [v10](../experiments/20260813_v10/report.md) vs [sf18_2000](../experiments/20260813_sf18_2000/report.md) |
@@ -143,11 +149,11 @@ The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / le
 
 The evaluator is now manufactured and judged in a **fixed order** ([eval_pipeline.md](eval_pipeline.md)). Later steps are illegal until the earlier gate passes.
 
-1. **Clone the frozen arbiter.** Static labels (`eval details`, internal + extras), same `768×128`, `--residualize-extras`, quantized C++ must reproduce those notes (`validate_nnue.py --gate clone`) and **not lose** equal-node N≥200. Recipe: `bash train/run_clone_arbiter.sh`. If this pipe cannot copy the current referee, a “better” net is an artifact.
+1. **Clone pipe passed, including the trainer.** Export MAE 0, equal-node 8-184-8. Color-flip was why Adam walked off; `--augment none|mirror` stays (16 ep MAE 0.14 / 0.33). Epoch 0 is kept when later epochs are worse. ([clone trainer](../experiments/20260814_clone_trainer/report.md))
 2. **One currency: NSCE search scale.** Teacher cp → that teacher's WDL → NSCE search cp. Keep raw cp as metadata. Never train on Stockfish cp and prune with NSCE thresholds.
-3. **Label leaves, not the first 200k root FENs.** `train/collect_leaves.py` + `--label static`. Quiet QS, checks, tactics, endgames.
-4. **Judge the deployed integers**, then games. MAE is a reject filter.
-5. **Data with game results** from balanced openings (`selfplay.py --positions-out`), WDL mix of teacher + outcome. Not random walks.
+3. **Label leaves, not the first 200k root FENs.** Already used for the clone (`collect_leaves.py` + `--sample-uniform`). Keep that for any new labels.
+4. **Judge the deployed integers**, then games. MAE is a reject filter. Clone gate is live (`validate_nnue.py --gate clone`).
+5. **Next model work: a larger uniform sample of the leaf+result dump already on disk** (`train/data/leaves_with_results.jsonl`, 4.6M unique), still 768 + extras, `--init internal --augment mirror`, same WDL mix. 20k of those leaves was a coin flip (−10 ± 18). Do not raise `result-weight` in the same run. Not more path FENs. Not KAT.
 6. **One change, extras contract.** 768 extras on, or king-bucket extras off. Never extras on KAT. Never net + policy + controller + scale in one SPRT.
 7. **True gate: beat this tree, N large.** Equal-node N≥200 (or SPRT) clearly above 0.5 vs frozen baseline; then equal-time. A net that wins nodes and loses clock is expensive.
 8. **Only then** a king-relative net **without** the 12-threat residual, same data/loss, vs the corrected 768.
@@ -162,6 +168,11 @@ Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE s
 ### 2026-08-14
 
 - Eval manufacture/judgment rewritten into a fixed 9-step order: clone the frozen static arbiter before any richer net; NSCE search coin; leaf labels; deployed C++ integers; games with results; one change + extras contract; equal-node N≥200 then equal-time; king-relative without threats only after that; search retune only for a winning eval. ([eval_pipeline.md](eval_pipeline.md))
+- Clone step 1: 832k unique leaves from 64×25k searches; 20k uniform static labels. `--init internal --epochs 0` re-export: C++ MAE **0.00** (N=1987). Equal-node 25k N=200 seed 20260814: **8-184-8**, score 0.500, **+0 ± 14**, identical 386603 nodes/game. `promotion_gate --stage clone` PASS. Adam 16 ep lr 4e-4 with the old 4-way color-flip: engine MAE 35.4, FAIL. ([clone nodes](../experiments/20260814_clone_nodes/report.md))
+- Clone trainer: color-flip is not odd on this ReLU 768 (epoch-0 MAE **290** cp, sign 0). `--augment none` 16 ep last-epoch MAE **0.14**; `mirror` **0.33**; `full` epoch-1 **33.7**. Epoch 0 kept as best; exported stay net sha256-identical to the clone export, C++ MAE **0.00**, clone gate PASS. ([clone trainer](../experiments/20260814_clone_trainer/report.md))
+- Self-play WDL mix: 64 games 100 ms max_plies 200 → 41 mates, 9 draws, 14 unfinished (no fake 1/2). 8829 static labels, 6015 with result. Games-only 768 (`nnue_wdl.bin`, extras on): val MAE 115.6→114.1, C++ vs static **27.5** (N=744). Equal-node 25k N=200 seed 20260814: **14-172-14**, score 0.500, **+0 ± 18**. `promotion_gate --stage eval` FAIL. No SPRT. ([wdl games](../experiments/20260814_wdl_games/report.md))
+- Both-color WDL mix: 256 games (128 openings × 2), 88-67-25 + 76 unfinished. 37 620 static labels, 22 344 with result. `nnue_wdl_colors.bin`: best epoch 8, C++ MAE **8.06** (N=3283), clone gate PASS, affine 1.00. Equal-node 25k N=200 seed 20260814: **9-183-8**, score 0.502, **+2 ± 14**. `promotion_gate --stage eval` FAIL. No SPRT. ([wdl colors](../experiments/20260814_wdl_colors/report.md))
+- Leaf+result WDL: 180 finished games × 3 roots × 25k → 4 613 450 unique leaves; 20k uniform static labels, all with result. `nnue_wdl_leaves.bin`: best epoch 11, C++ MAE **12.9** (N=1831), clone gate PASS, affine 1.04. Equal-node 25k N=200 seed 20260814: **11-172-17**, score 0.485, **−10 ± 18** (candidate 0.515). `promotion_gate --stage eval` FAIL. No SPRT. ([wdl leaves](../experiments/20260814_wdl_leaves/report.md))
 - NSCE teacher `go nodes 25000` on 200k existing FENs → `train/data/nsce_nodes25k.jsonl` (0 null scores). Holdout N=20039 vs those labels, not vs Lichess 114 cp.
 - From-scratch 768×128 (`nnue_nsce25k.bin`, extras on): engine MAE **84.8 vs internal 65.1** (−30%). No 500k, no equal-node. ([nsce25k 768](../experiments/20260814_nsce25k_768_train/report.md))
 - Fine-tune 768 from internal (`nnue_nsce25k_ft.bin`, `--init internal`, extras on): engine MAE **72.3 vs 65.1** (−11%). Better than from-scratch, still a fail. No equal-node. ([nsce25k 768 ft](../experiments/20260814_nsce25k_768_ft/report.md))

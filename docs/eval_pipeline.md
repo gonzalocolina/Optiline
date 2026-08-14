@@ -20,7 +20,7 @@ python3 tools/promotion_gate.py --stage clone \
   --manifest experiments/<run>/manifest.json
 ```
 
-`--label static` usa `eval details`, no `go nodes`. `--residualize-extras` porque el 768 suma extras en runtime.
+`--label static` usa `eval details`, no `go nodes`. `--residualize-extras` porque el 768 suma extras en runtime. El clon que pasa es `--init internal --epochs 0` (MAE C++ 0, igualdad de nodos 8-184-8). El color-flip no es simetría de esta ReLU (`--augment none` o `mirror`); con `full` Adam se alejaba 34 cp en la época 1. La época 0 cuenta como mejor.
 
 ## 2. Definir una sola moneda, la de NSCE, no la de Stockfish
 
@@ -63,20 +63,22 @@ Ya hubo MAE mejor y Elo peor, dos veces.
 
 ## 5. Datos con resultado, no paseos ni el primer trozo del dump
 
-Partidas propias desde aperturas equilibradas, con el desenlace, mezcla de fases y de posiciones difíciles. Objetivo en espacio de victoria, con una parte de la nota del profesor y una parte del resultado.
+Partidas propias desde aperturas equilibradas, con el desenlace, mezcla de fases y de posiciones difíciles. Objetivo en espacio de victoria, con una parte de la nota del profesor y una parte del resultado. Un corte por `max_plies` no es tablas: esas FEN salen sin `result`.
 
 ```bash
-python3 train/selfplay.py --games 64 --movetime 100 \
-  --config tools/configs/baseline.uci \
-  --positions-out train/data/selfplay_positions.jsonl
-python3 train/distill.py --label static --fens train/data/selfplay_positions.jsonl \
-  --teacher build/nsce -o train/data/nsce_static_games.jsonl
+python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
+  --limit 0 --positions-per-game 3 --nodes 25000 \
+  --output train/data/leaves_with_results.jsonl
+python3 train/distill.py --label static --fens train/data/leaves_with_results.jsonl \
+  --leaf-sites q_stand_pat,static,in_check_static --sample-uniform --positions 80000 \
+  --teacher build/nsce -o train/data/nsce_static_leaf_results.jsonl
 .venv/bin/python train/train_nnue.py \
-  --data train/data/nsce_static_games.jsonl \
-  --target-mode wdl --result-weight 0.20 --residualize-extras --init internal
+  --data train/data/nsce_static_leaf_results.jsonl \
+  --target-mode wdl --result-weight 0.20 --residualize-extras --init internal \
+  --augment mirror
 ```
 
-200k de “las primeras FEN, go nodes 25000” no produjeron una compañera de búsqueda.
+Las FEN del camino (64 y 256) no bastaron. 20k hojas con desenlace tampoco (11-172-17, −10 ± 18). El dump de 4.6M ya está; el siguiente ensayo es una muestra uniforme más grande, no otra arquitectura.
 
 ## 6. Un solo cambio por candidato, y el mismo contrato de extras
 

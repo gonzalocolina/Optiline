@@ -21,13 +21,24 @@ coin). Clone uses `--target-mode cp` because the teacher already is NSCE.
 ## Self-play with real outcomes
 
 ```bash
-python3 train/selfplay.py --games 8 --movetime 80 --config tools/configs/baseline.uci \
+python3 train/selfplay.py --games 8 --movetime 80 --both-colors \
+  --config tools/configs/baseline.uci \
   --positions-out train/data/selfplay_positions.jsonl
 ```
 
-Uses UCI `status` (`checkmate` / `stalemate` / `draw` / `ongoing`). Position JSONL
-carries the game result for WDL mix (`--result-weight`). Prefer balanced openings,
-not random walks and not the first slice of a dump.
+Uses UCI `status` (`checkmate` / `stalemate` / `draw` / `ongoing`). A `max_plies`
+cutoff is **not** a draw: those positions are written without `result` so WDL mix
+does not treat an aborted game as 1/2-1/2. Path FENs from those games were
+equal-node coin flips. Stamp a finished-game result onto search leaves instead:
+
+```bash
+python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
+  --limit 0 --positions-per-game 3 --nodes 25000 \
+  --output train/data/leaves_with_results.jsonl
+```
+
+Prefer balanced openings, not random walks and not the first slice of a dump.
+Default `--max-plies` is 200.
 
 ## Trained NNUE (after the clone pipe works)
 
@@ -51,8 +62,11 @@ teacher CP with that teacher's WDL curve into the NSCE search coin, optionally
 blends a recorded game result, peels extras when the 768 runtime will add them
 back, splits by source game/opening group, augments only the training split,
 and performs fake integer forward quantization with straight-through gradients by
-default. `--no-qat` is available only for diagnostic comparisons. It restores the
-best frozen-validation epoch, exports `NSCENNUE`, and rejects conservative int16
+default. `--no-qat` is available only for diagnostic comparisons. Training
+symmetries are `--augment none|mirror|full` (default `mirror`). Color-flip
+(`full`) is not a symmetry of this ReLU net and walks off `--init internal`.
+It restores the best frozen-validation epoch, **including epoch 0**, exports
+`NSCENNUE`, and rejects conservative int16
 accumulator overflow. `--init internal` starts from the frozen HCE default instead
 of random weights (also accepts a `.npz` checkpoint or an `NSCENNUE` `.bin`).
 Training batches are packed sparse active-feature rows and generate symmetry

@@ -1,0 +1,142 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "b209dada8d23fb8364c79b7fa60a9b996a41b214fdeeb6b7adf2397a4c82edb1",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/nnue_wdl.uci": "528c9975cae54b8753a9a62f117c55e18f1d8361b8aa4556011aa4fbe960b5b6"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+    "engine_sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e",
+    "referenced_files": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_wdl.bin": "40069deac0a5cf0d09f620fd27741ed2e550ef40444986ba2ed114581db9127a"
+    }
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/nnue_wdl.uci",
+    "--name-a",
+    "baseline",
+    "--name-b",
+    "wdl",
+    "--games",
+    "200",
+    "--nodes",
+    "25000",
+    "--seed",
+    "20260814",
+    "--outdir",
+    "experiments/20260814_wdl_games"
+  ],
+  "created_utc": "2026-08-14T18:13:25.704260+00:00",
+  "environment": {},
+  "git": {
+    "branch": "master",
+    "commit": "6e5d9c3841e782eb53f56be3f1c50a93db5aadcf",
+    "dirty": true,
+    "status_porcelain": "M docs/eval_pipeline.md\n M docs/knowledge.md\n M tools/tests/test_eval_pipeline.py\n M train/README.md\n M train/distill.py\n M train/run_clone_arbiter.sh\n M train/selfplay.py\n M train/train_nnue.py\n?? experiments/20260814_clone_nodes/\n?? experiments/20260814_clone_trainer/\n?? experiments/20260814_wdl_games/\n?? tools/configs/nnue_clone.uci\n?? tools/configs/nnue_wdl.uci\n?? train/tests/test_selfplay.py\n?? train/tests/test_train_nnue.py"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+    "exploratory_short_tc": false,
+    "frozen_targets": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/frozen-targets/manifest.json",
+    "games": 200,
+    "kind": "ablation_match",
+    "max_plies": 60,
+    "movetime_ms": 100,
+    "nodes_per_move": 25000
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nnue_wdl.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "true",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260814,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+      "sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "sha256": "f4451f72ff871602b851769479948197d952b195d65951ce819b42bd850099d6",
+        "version": "Stockfish dev-20260810-5062aee5"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "c6722736e6a4e8e07a06efee0db1ae361550684d308143957a1b6fcf7e15e2e5",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

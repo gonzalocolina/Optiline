@@ -30,6 +30,13 @@ except ImportError:
 FEATURES = 12 * 64
 HIDDEN = 128
 SCALE = 64
+# Color-flip (variants 2–3) is not a symmetry of this ReLU net: w1 is all-positive,
+# so the map is not odd. Training on −y for flipped colors walks off --init internal.
+AUGMENT_VARIANTS = {
+    "none": (0,),
+    "mirror": (0, 1),
+    "full": (0, 1, 2, 3),
+}
 PIECES = {p: i for i, p in enumerate("PNBRQKpnbrqk")}
 PIECE_VALUE = [100, 320, 330, 500, 900, 0]
 # Midgame PST from engine/src/nnue.cpp (white's perspective; black uses sq ^ 56).
@@ -212,14 +219,26 @@ def split_dataset(fens: list[str], groups: list[str] | None = None) -> tuple[np.
     return np.flatnonzero(~validation), np.flatnonzero(validation)
 
 
-def augment_training(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def augment_training(
+    x: np.ndarray, y: np.ndarray, mode: str = "mirror"
+) -> tuple[np.ndarray, np.ndarray]:
+    if mode not in AUGMENT_VARIANTS:
+        raise ValueError(f"unknown augment mode: {mode}")
+    if mode == "none":
+        return x, y
     board = x.reshape((-1, 12, 8, 8))
+    parts_x = [board]
+    parts_y = [y]
     mirrored = board[:, :, :, ::-1]
-    color_flipped = board[:, [*range(6, 12), *range(0, 6)], ::-1, :]
-    color_flipped_mirrored = color_flipped[:, :, :, ::-1]
-    augmented_x = np.concatenate([board, mirrored, color_flipped, color_flipped_mirrored])
-    augmented_y = np.concatenate([y, y, -y, -y])
-    return augmented_x.reshape((-1, FEATURES)), augmented_y
+    parts_x.append(mirrored)
+    parts_y.append(y)
+    if mode == "full":
+        color_flipped = board[:, [*range(6, 12), *range(0, 6)], ::-1, :]
+        parts_x.append(color_flipped)
+        parts_y.append(-y)
+        parts_x.append(color_flipped[:, :, :, ::-1])
+        parts_y.append(-y)
+    return np.concatenate(parts_x).reshape((-1, FEATURES)), np.concatenate(parts_y)
 
 
 def metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
@@ -295,6 +314,34 @@ def train(
     best_parameters = [p.copy() for p in parameters]
     best_epoch = 0
 
+    def _dense_val_pred() -> tuple:
+        if qat:
+            val_w0 = fake_quantize(w0, SCALE, -32768, 32767)
+            val_b0 = fake_quantize(b0, SCALE, -32768, 32767)
+            val_w1 = fake_quantize(w1, SCALE, -32768, 32767)
+            val_b1 = fake_quantize(b1, SCALE * SCALE, -(2**31), 2**31 - 1)
+            val_z = x[validation_indices] @ val_w0 + val_b0
+            val_activation = fake_quantize(np.clip(val_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
+            return val_activation @ val_w1 + val_b1[0], val_w0, val_b0, val_w1, val_b1
+        val_pred = np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
+        return val_pred, w0, b0, w1, b1
+
+    def _consider_epoch(epoch: int, validation_metrics: dict[str, float], train_metrics: dict[str, float] | None) -> None:
+        nonlocal best_validation_rmse, best_epoch, best_parameters
+        if validation_metrics["rmse_cp"] < best_validation_rmse:
+            best_validation_rmse = validation_metrics["rmse_cp"]
+            best_parameters = [p.copy() for p in parameters]
+            best_epoch = epoch
+        if epoch == 0 or epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
+            row = {"epoch": epoch, **{f"validation_{key}": value for key, value in validation_metrics.items()}}
+            if train_metrics is not None:
+                row.update({f"train_{key}": value for key, value in train_metrics.items()})
+            history.append(row)
+            print(json.dumps(row, sort_keys=True))
+
+    val_pred, val_w0, val_b0, val_w1, val_b1 = _dense_val_pred()
+    _consider_epoch(0, metrics(val_pred, y[validation_indices]), None)
+
     for epoch in range(1, epochs + 1):
         shuffled = rng.permutation(train_indices)
         for start in range(0, len(shuffled), batch_size):
@@ -329,33 +376,18 @@ def train(
             ):
                 adam_step(parameter, gradient, m, v, step, learning_rate)
 
+        val_pred, val_w0, val_b0, val_w1, val_b1 = _dense_val_pred()
         if qat:
-            val_w0 = fake_quantize(w0, SCALE, -32768, 32767)
-            val_b0 = fake_quantize(b0, SCALE, -32768, 32767)
-            val_w1 = fake_quantize(w1, SCALE, -32768, 32767)
-            val_b1 = fake_quantize(b1, SCALE * SCALE, -(2**31), 2**31 - 1)
-            val_z = x[validation_indices] @ val_w0 + val_b0
-            val_activation = fake_quantize(np.clip(val_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
-            val_pred = val_activation @ val_w1 + val_b1[0]
+            train_z = x[train_indices] @ val_w0 + val_b0
+            train_activation = fake_quantize(np.clip(train_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
+            train_pred = train_activation @ val_w1 + val_b1[0]
         else:
-            val_pred = np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
-        validation_metrics = metrics(val_pred, y[validation_indices])
-        if validation_metrics["rmse_cp"] < best_validation_rmse:
-            best_validation_rmse = validation_metrics["rmse_cp"]
-            best_parameters = [p.copy() for p in parameters]
-            best_epoch = epoch
-
-        if epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
-            if qat:
-                train_z = x[train_indices] @ val_w0 + val_b0
-                train_activation = fake_quantize(np.clip(train_z, 0.0, 127.0), SCALE, 0, 127 * SCALE)
-                train_pred = train_activation @ val_w1 + val_b1[0]
-            else:
-                train_pred = np.clip(x[train_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
-            row = {"epoch": epoch, **{f"train_{k}": v for k, v in metrics(train_pred, y[train_indices]).items()}}
-            row.update({f"validation_{k}": v for k, v in validation_metrics.items()})
-            history.append(row)
-            print(json.dumps(row, sort_keys=True))
+            train_pred = np.clip(x[train_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0]
+        _consider_epoch(
+            epoch,
+            metrics(val_pred, y[validation_indices]),
+            metrics(train_pred, y[train_indices]),
+        )
 
     for parameter, best in zip(parameters, best_parameters):
         parameter[...] = best
@@ -396,6 +428,10 @@ def _sparse_forward(
     return prediction, accumulator, activation, fw1
 
 
+def _variant_target(y: np.ndarray, variant: int) -> np.ndarray:
+    return -y if variant >= 2 else y
+
+
 def train_sparse(
     x: np.ndarray,
     y: np.ndarray,
@@ -407,8 +443,12 @@ def train_sparse(
     seed: int,
     init: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None,
     qat: bool = True,
+    augment: str = "mirror",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
-    """Train packed active-feature rows without materializing four dense augmentations."""
+    """Train packed active-feature rows without materializing dense augmentations."""
+    if augment not in AUGMENT_VARIANTS:
+        raise ValueError(f"unknown augment mode: {augment}")
+    variants = AUGMENT_VARIANTS[augment]
     rng = np.random.default_rng(seed)
     rows = [np.flatnonzero(row).astype(np.int32) for row in x]
     if init is None:
@@ -427,12 +467,29 @@ def train_sparse(
     best_parameters = [p.copy() for p in parameters]
     best_epoch = 0
 
+    def _val_metrics() -> dict[str, float]:
+        val_rows = [rows[index] for index in validation_indices]
+        val_pred, _val_acc, _val_activation, _ = _sparse_forward(val_rows, w0, b0, w1, b1, qat)
+        return metrics(val_pred, y[validation_indices])
+
+    def _consider_epoch(epoch: int, validation_metrics: dict[str, float]) -> None:
+        nonlocal best_validation_rmse, best_epoch, best_parameters
+        if validation_metrics["rmse_cp"] < best_validation_rmse:
+            best_validation_rmse = validation_metrics["rmse_cp"]
+            best_parameters = [p.copy() for p in parameters]
+            best_epoch = epoch
+        if epoch == 0 or epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
+            history.append({"epoch": epoch, **{f"validation_{key}": value for key, value in validation_metrics.items()}})
+            print(json.dumps(history[-1], sort_keys=True))
+
+    _consider_epoch(0, _val_metrics())
+
     for epoch in range(1, epochs + 1):
         order = rng.permutation(train_indices)
         for start in range(0, len(order), batch_size):
             base = order[start : start + batch_size]
-            batch_rows = [_sparse_variant(rows[index], variant) for variant in range(4) for index in base]
-            batch_y = np.concatenate([y[base], y[base], -y[base], -y[base]])
+            batch_rows = [_sparse_variant(rows[index], variant) for variant in variants for index in base]
+            batch_y = np.concatenate([_variant_target(y[base], variant) for variant in variants])
             prediction, accumulator, activation, forward_w1 = _sparse_forward(
                 batch_rows, w0, b0, w1, b1, qat
             )
@@ -455,16 +512,7 @@ def train_sparse(
             ):
                 adam_step(parameter, gradient, m, v, step, learning_rate)
 
-        val_rows = [rows[index] for index in validation_indices]
-        val_pred, _val_acc, _val_activation, _ = _sparse_forward(val_rows, w0, b0, w1, b1, qat)
-        validation_metrics = metrics(val_pred, y[validation_indices])
-        if validation_metrics["rmse_cp"] < best_validation_rmse:
-            best_validation_rmse = validation_metrics["rmse_cp"]
-            best_parameters = [p.copy() for p in parameters]
-            best_epoch = epoch
-        if epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
-            history.append({"epoch": epoch, **{f"validation_{key}": value for key, value in validation_metrics.items()}})
-            print(json.dumps(history[-1], sort_keys=True))
+        _consider_epoch(epoch, _val_metrics())
 
     for parameter, best in zip(parameters, best_parameters):
         parameter[...] = best
@@ -473,6 +521,7 @@ def train_sparse(
         "best_epoch": best_epoch,
         "sparse_batches": True,
         "augmentation_materialization": False,
+        "augment": augment,
     }
 
 
@@ -571,6 +620,12 @@ def main() -> int:
     parser.add_argument("--no-qat", action="store_true", help="disable fake integer forward during training")
     parser.add_argument("--dense-legacy", action="store_true", help="use the pre-pipeline dense augmentation path")
     parser.add_argument(
+        "--augment",
+        choices=tuple(AUGMENT_VARIANTS),
+        default="mirror",
+        help="training symmetries. full color-flips a ReLU net and walks off --init internal",
+    )
+    parser.add_argument(
         "--init",
         default="",
         help="optional start weights: 'internal' (HCE default), .npz checkpoint, or NSCENNUE .bin",
@@ -597,7 +652,7 @@ def main() -> int:
     if args.init:
         print(f"init from {args.init}", flush=True)
     if args.dense_legacy:
-        augmented_x, augmented_y = augment_training(x[train_indices], y[train_indices])
+        augmented_x, augmented_y = augment_training(x[train_indices], y[train_indices], args.augment)
         combined_x = np.concatenate([augmented_x, x[validation_indices]])
         combined_y = np.concatenate([augmented_y, y[validation_indices]])
         combined_train_indices = np.arange(len(augmented_x))
@@ -627,8 +682,9 @@ def main() -> int:
             args.seed,
             init=init_weights,
             qat=not args.no_qat,
+            augment=args.augment,
         )
-        logical_augmented_samples = len(train_indices) * 4
+        logical_augmented_samples = len(train_indices) * len(AUGMENT_VARIANTS[args.augment])
     quantized_prediction, diagnostics = quantize_and_export(Path(args.output), x, w0, b0, w1, b1)
 
     checkpoint = Path(args.checkpoint)
@@ -641,6 +697,7 @@ def main() -> int:
             "dataset_sha256": dataset_sha256,
             "samples": len(x),
             "train_samples": len(train_indices),
+            "augment": args.augment,
             "augmented_train_samples": logical_augmented_samples,
             "sparse_batches": not args.dense_legacy,
             "augmentation_materialization": args.dense_legacy,

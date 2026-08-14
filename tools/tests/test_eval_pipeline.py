@@ -111,6 +111,15 @@ class DistillLeafFilterTest(unittest.TestCase):
         self.assertFalse(keep_source_record({"fen": "x", "site": "max_ply"}, sites))
         self.assertTrue(keep_source_record({"fen": "x"}, sites))
 
+    def test_reservoir_sample_is_seeded_and_sized(self) -> None:
+        from distill import reservoir_sample
+
+        records = ({"fen": f"fen-{i}"} for i in range(50))
+        sample = reservoir_sample(records, 10, seed=7)
+        self.assertEqual(len(sample), 10)
+        again = reservoir_sample(({"fen": f"fen-{i}"} for i in range(50)), 10, seed=7)
+        self.assertEqual([row["fen"] for row in sample], [row["fen"] for row in again])
+
 
 class PromotionGateStageTest(unittest.TestCase):
     def test_mae_only_does_not_promote(self) -> None:

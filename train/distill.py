@@ -193,6 +193,29 @@ def keep_source_record(record: dict, leaf_sites: set[str] | None) -> bool:
     return str(site) in leaf_sites
 
 
+def reservoir_sample(records: Iterator[dict], k: int, seed: int) -> list[dict]:
+    rng = random.Random(seed)
+    sample: list[dict] = []
+    started = time.monotonic()
+    for index, record in enumerate(records):
+        if len(sample) < k:
+            sample.append(record)
+        else:
+            slot = rng.randint(0, index)
+            if slot < k:
+                sample[slot] = record
+        scanned = index + 1
+        if scanned % 100000 == 0:
+            elapsed = max(time.monotonic() - started, 1e-6)
+            print(
+                f"reservoir {scanned}  kept {len(sample)}/{k}  "
+                f"{scanned / elapsed:.0f} rec/s  elapsed {format_duration(elapsed)}",
+                file=sys.stderr,
+                flush=True,
+            )
+    return sample
+
+
 def format_duration(seconds: float) -> str:
     if seconds < 0 or seconds != seconds or seconds == float("inf"):
         return "?"
@@ -259,6 +282,11 @@ def main() -> int:
         help="JSONL/EPD of existing FENs to label (skips random-walk sampling)",
     )
     ap.add_argument(
+        "--sample-uniform",
+        action="store_true",
+        help="when reading --fens, reservoir-sample --positions uniformly (not the file prefix)",
+    )
+    ap.add_argument(
         "--leaf-sites",
         default="",
         help="comma-separated LeafTelemetry sites to keep (empty keeps all; "
@@ -288,6 +316,8 @@ def main() -> int:
         ap.error("--positions must be positive")
     if args.label == "search" and args.nodes <= 0 and args.depth <= 0:
         ap.error("search labels need --depth or --nodes")
+    if args.resume and args.sample_uniform:
+        ap.error("--resume cannot be combined with --sample-uniform")
     if args.min_ply < 0 or args.max_ply < args.min_ply:
         ap.error("invalid ply sampling range")
     fens_path = Path(args.fens) if args.fens else None
@@ -345,29 +375,42 @@ def main() -> int:
         mode = "a" if start else "w"
         with out.open(mode) as f:
             if fens_path is not None:
-                kept = 0
-                for source in iter_source_records(fens_path):
-                    if not keep_source_record(source, leaf_sites):
-                        continue
+                source_iter = (
+                    record
+                    for record in iter_source_records(fens_path)
+                    if keep_source_record(record, leaf_sites)
+                )
+                if args.sample_uniform:
+                    sources = reservoir_sample(source_iter, args.positions, args.seed)
+                    print(
+                        f"uniform sample {len(sources)} / requested {args.positions}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                else:
+                    sources = []
+                    for record in source_iter:
+                        if len(sources) >= args.positions:
+                            break
+                        sources.append(record)
+                for kept, source in enumerate(sources):
                     if kept < start:
-                        kept += 1
                         continue
-                    if kept >= args.positions:
-                        break
                     fen = str(source["fen"])
                     lab = label_fen(fen)
                     lab["sampled_ply"] = None
                     lab["source_index"] = kept
                     lab["source_game"] = source.get("source_game") or f"fen:{args.seed}:{kept}"
+                    lab["sample_uniform"] = bool(args.sample_uniform)
                     for key in ("result", "outcome", "site", "in_check", "pieces", "ply", "halfmove", "phase"):
                         if key in source and key not in lab:
                             lab[key] = source[key]
                     write_label(f, lab, args.verbose, kept)
                     labeled += 1
-                    kept += 1
-                    if labeled == 1 or (progress_every and kept % progress_every == 0):
+                    done = kept + 1
+                    if labeled == 1 or (progress_every and done % progress_every == 0):
                         emit_progress(
-                            kept, args.positions, started, start, lab["bestmove"], lab["score_cp"]
+                            done, args.positions, started, start, lab["bestmove"], lab["score_cp"]
                         )
             else:
                 for i in range(start, args.positions):
