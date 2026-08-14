@@ -139,8 +139,9 @@ Freeze stable and development Stockfish references explicitly; do not let
 ```bash
 python3 tools/freeze_targets.py \
   --engine build/nsce \
-  --stockfish18 /path/to/stockfish-18 \
-  --stockfish-dev /path/to/stockfish-dev \
+  --stockfish18 third_party/stockfish/stockfish-18 \
+  --stockfish-dev third_party/stockfish/stockfish-dev \
+  --stockfish-historical third_party/stockfish/stockfish-17 \
   --out experiments/frozen-targets/manifest.json
 ```
 

@@ -21,6 +21,42 @@ def cp_to_wdl(cp: float, scale: float) -> float:
     return 1.0 / (1.0 + math.exp(-cp / scale))
 
 
+def affine_fit(x: list[int], y: list[int]) -> dict[str, float]:
+    """OLS y ≈ slope * x + intercept, plus through-origin scale and std ratio."""
+    n = len(x)
+    if n == 0:
+        return {
+            "samples": 0,
+            "slope": 0.0,
+            "intercept": 0.0,
+            "origin_scale": 0.0,
+            "std_x": 0.0,
+            "std_y": 0.0,
+            "std_ratio_y_over_x": 0.0,
+            "eval_scale_permille": 1000,
+        }
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    var_x = sum((value - mean_x) ** 2 for value in x)
+    cov = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
+    slope = cov / var_x if var_x else 0.0
+    intercept = mean_y - slope * mean_x
+    xx = sum(value * value for value in x)
+    origin_scale = sum(xi * yi for xi, yi in zip(x, y)) / xx if xx else 0.0
+    std_x = (var_x / n) ** 0.5
+    std_y = (sum((value - mean_y) ** 2 for value in y) / n) ** 0.5
+    return {
+        "samples": n,
+        "slope": slope,
+        "intercept": intercept,
+        "origin_scale": origin_scale,
+        "std_x": std_x,
+        "std_y": std_y,
+        "std_ratio_y_over_x": (std_y / std_x) if std_x else 0.0,
+        "eval_scale_permille": int(max(250, min(4000, round(1000.0 * origin_scale)))),
+    }
+
+
 def summarize(predictions: list[int], targets: list[int], wdl_scale: float) -> dict[str, float]:
     errors = [prediction - target for prediction, target in zip(predictions, targets)]
     return {
@@ -139,6 +175,11 @@ def main() -> int:
             "samples": len(composite_deltas),
         },
         "target_contract": {"mode": args.target_mode, "wdl_scale": args.wdl_scale},
+        "affine": {
+            "baseline_from_trained": affine_fit(trained_values, baseline_values),
+            "labels_from_baseline": affine_fit(baseline_values, targets),
+            "labels_from_trained": affine_fit(trained_values, targets),
+        },
     }
     report["mae_improvement_cp"] = report["baseline"]["mae_cp"] - report["trained"]["mae_cp"]
     report["mae_improvement_percent"] = (

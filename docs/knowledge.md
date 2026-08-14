@@ -6,7 +6,7 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-14 (SF 25k 768: MAE pass, equal-node N=400 fail +21 ± 13 to baseline) |
+| Last updated | 2026-08-14 (EvalScale: SF-calibrated baseline coin flip; scaled sf25k still loses N=200) |
 | Engine | NSCE 0.10 |
 | Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
 | Protocol | [hypothesis.md](hypothesis.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
@@ -44,7 +44,7 @@ These are the claims we act on until a later log entry supersedes them.
 
 - Eval: HCE-distilled `768×128×1` (`EvalFile=internal`) **plus** classical `extras()` (mobility, files, outposts, hanging, king). `UseExtras=true` is **load-bearing** on this net: turning it off lost SPRT. Keep extras on the 768 path; keep extras off for king-bucket nets.
 - King-bucket nets (KAT / HalfKP): **`extras()` off**. The residual fights the net and biases learning.
-- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Ablation flags freeze each of these in `baseline.uci`. Hash stays **16 MB**. Iterative-deepening still stops a new iteration when remaining `< last_iter / 2` (stricter soft-stop was a coin flip).
+- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Ablation flags freeze each of these in `baseline.uci`. Hash stays **16 MB**. `EvalScale` stays **1000** until a calibrated scale wins equal-node N≥200 and a SPRT. Iterative-deepening still stops a new iteration when remaining `< last_iter / 2` (stricter soft-stop was a coin flip).
 - Policy and search controller: **off** on the frozen baseline.
 
 ### Measurement pitfalls (paid for in lab time)
@@ -56,6 +56,7 @@ These are the claims we act on until a later log entry supersedes them.
 - `movetime < 50 ms` is exploratory; `sprt.py` refuses it unless `--allow-short-tc`.
 - Do not compare reports unless engine / config / opening hashes match (`manifest.json`).
 - After an nps/clock speedup, **equal-time SPRTs are stale**; equal-node results are not. Re-run the timed gate before promoting. Binary-vs-binary matches use `sprt.py --engine-b` (same UCI on both sides).
+- PATH `stockfish` on this machine is **Stockfish 17** (2024-09-06). Reports through 2026-08-13 that say "SF18" used that binary. Pin official SF18 and current-dev with `tools/freeze_targets.py`; do not let PATH change the target.
 
 ### Eval (KAT)
 
@@ -63,7 +64,7 @@ These are the claims we act on until a later log entry supersedes them.
 - Holdout MAE on 1M Lichess evals plateaus around **114 cp** at 16 epochs (hidden 128, batch 512, lr 4e-4). Target ~70 cp was not reached. **Do not raise `kHidden` until MAE stops falling with more data.**
 - At **equal nodes** (25k/move, N=20) 8-epoch Lichess KAT vs internal is a coin flip (4-12-4). At **equal time** (100 ms) it loses SPRT, including **after** the 2× timed-node speedup (H0 13-51-52, score 0.332). The failure mode is a **bushier tree / less effective depth**, not inference cost. Do **not** replay `kat_candidate.bin` at 100 ms.
 - NSCE self-distill (200k FENs, teacher `go nodes 25000`, same holdout as the trainers): from-scratch **768×128** is **worse** than internal (engine MAE 84.8 vs 65.1). Fine-tune from internal HCE weights on the same JSONL is still worse (**72.3 vs 65.1**, −7.2 cp). **KAT** on the same labels **beats** internal MAE (58.1 vs 65.1, +6.9 cp) but **loses equal-node N=40** (baseline 17-22-1, score 0.700, +147 ± 71). Better MAE on search-cp is not a search-Elo gate. Do not SPRT `kat_nsce25k.bin` or `nnue_nsce25k_ft.bin`. Do not compare these MAE numbers to the 114 cp Lichess holdout.
-- Stockfish teacher on the **same 200k FENs** (`go nodes 25000`, extras off, `--init internal`): engine MAE **113.0 vs internal+extras 143.6** (+30.5 cp, +21%). Holdout is SF search-cp, not NSCE 65.1. Equal-node 25k **N=400** (seed 20260814): baseline **43-338-19**, score 0.530, **+21 ± 13**. Candidate score 0.470. N=40 was +17 ± 50 (exploratory). Pruning-off N=400 is the same sign (+17 ± 14). Depth-10 totals 0.47× nodes (Kiwipete-dominated; startpos 2.20× bushier). Candidate is *faster* (no extras). Do not SPRT `nnue_sf25k.bin`. ([sf25k 768](../experiments/20260814_sf25k_768_nodes400/report.md))
+- Stockfish teacher on the **same 200k FENs** (`go nodes 25000`, extras off, `--init internal`): engine MAE **113.0 vs internal+extras 143.6** (+30.5 cp, +21%). Holdout is SF search-cp, not NSCE 65.1. Equal-node 25k **N=400** (seed 20260814): baseline **43-338-19**, score 0.530, **+21 ± 13**. Candidate score 0.470. N=40 was +17 ± 50 (exploratory). Pruning-off N=400 is the same sign (+17 ± 14). Affine `EvalScale` 1091/1519 still loses N=200 (+26 / +28). Depth-10 totals 0.47× nodes (Kiwipete-dominated; startpos 2.20× bushier). Candidate is *faster* (no extras). Do not SPRT `nnue_sf25k.bin`. ([sf25k 768](../experiments/20260814_sf25k_768_nodes400/report.md), [evalscale](../experiments/20260814_evalscale_nodes/report.md))
 - 120k-corpus MAE 102 cp is not comparable to the 1M holdout.
 
 ### Search controller
@@ -94,6 +95,8 @@ These are the claims we act on until a later log entry supersedes them.
 | Fine-tune 768 from internal on the same 200k | Engine MAE 72.3 vs 65.1; no equal-node | [nsce25k 768 ft](../experiments/20260814_nsce25k_768_ft/report.md) |
 | Promote / SPRT `kat_nsce25k.bin` | MAE +6.9 cp vs internal; equal-node N=40 score 0.300 | [nsce25k KAT](../experiments/20260814_nsce25k_kat_nodes/report.md) |
 | Promote / SPRT `nnue_sf25k.bin` | MAE +30.5 cp vs SF labels; equal-node N=400 score 0.470, +21 ± 13 to baseline | [sf25k nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
+| `EvalScale=511` on frozen baseline | SF-label origin scale; equal-node N=200 coin flip | [evalscale](../experiments/20260814_evalscale_nodes/report.md) |
+| Affine-scale `nnue_sf25k.bin` (1091 / 1519) | Still loses equal-node N=200 (+26 / +28 Elo to baseline) | [evalscale](../experiments/20260814_evalscale_nodes/report.md) |
 | Treat N=40 equal-node 25k as a gate | ±50 Elo, ~80% draws; N=400 flipped “coin flip” into a loss | [nodes](../experiments/20260814_sf25k_768_nodes/report.md) vs [nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
 | Label 500k more for this KAT | MAE already beat internal; equal-node still lost | Same report |
 | Raise hidden to 256 at 120k–1M | Memorizes; MAE still data-limited | 16-epoch plateau at 114 cp |
@@ -125,7 +128,7 @@ Protocol: 100 ms, 1 thread, Hash 16, `openings_balanced.epd`, NSCE `status` orac
 
 Stay on **SF18 Elo 2000, N≥40** until a **promoted** eval (or search) wins that rung. Do not treat 2200 as harder than 2000 on a 40-game sample.
 
-**Not played:** unrestricted equal-compute Stockfish 18 (no `UCI_LimitStrength`).
+**Not played:** unrestricted equal-compute Stockfish 18 (no `UCI_LimitStrength`) against the frozen `stockfish-18` hash. Historical rungs used PATH Stockfish 17.
 
 Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plies` draws) — indecisive.
 
@@ -133,14 +136,14 @@ Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plie
 
 ## Next levers
 
-The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Do not skip to a later item to “try something.”
+The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Affine `EvalScale` did not rescue the SF 768 either. Do not skip to a later item to “try something.”
 
-1. **SF-teacher 768 is closed.** MAE passed; equal-node N=400 lost (+21 ± 13 to baseline). Same sign with RFP/razor/futility off. Do not SPRT, do not raise `kHidden` on this net, do not replay at 100 ms.
-2. **NSCE self-distill 200k stays closed**. From-scratch MAE 84.8; fine-tune 72.3; KAT MAE win / equal-node loss.
-3. **768 hidden width ≠ 128** still waits on a 768×128 that wins **equal-node**, not just MAE. `kHidden=128` is compile-time. One width per SPRT.
-4. **SF18 Elo 2000, N≥40** only after a **promoted** eval. Unrestricted SF still later.
+1. **`kat_nsce25k.bin` stays rejected.** MAE +6.9 cp; equal-node N=40 score 0.300. Do not SPRT, do not scale-rescue, do not label 500k more.
+2. **Calibrated `EvalScale` is closed.** Frozen SF18 + current-dev are pinned. SF-calibrated `EvalScale=511` on the baseline is a coin flip (N=200, +5 ± 16). Scaling `nnue_sf25k.bin` to baseline magnitude (1091 / 1519) still loses N=200. Keep `EvalScale=1000`.
+3. **Promotion still needs N≥200 equal-node or a SPRT.** N=40 equal-node 25k is exploratory.
+4. **Richer pawn/threat features and hardware optimizations stay later.** Next model work is proving the trainer/export/runtime pipeline on the frozen evaluator, not a wider net.
 
-Still not next: replay `kat_candidate.bin`, `kat_nsce25k.bin`, `nnue_nsce25k_ft.bin`, or `nnue_sf25k.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768.
+Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE self-distill 200k, replay `kat_candidate.bin` / `kat_nsce25k.bin` / `nnue_nsce25k_ft.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768. `kHidden≠128` still waits on a 768×128 that wins equal-node. SF Elo 2000, N≥40 only after a **promoted** eval, and only against the frozen SF18 binary.
 
 ---
 
@@ -158,6 +161,9 @@ Still not next: replay `kat_candidate.bin`, `kat_nsce25k.bin`, `nnue_nsce25k_ft.
 - Equal-node 25k, **N=400**, same seed: baseline **43-338-19**, score 0.530, **+21 ± 13**. Candidate score 0.470. No SPRT. ([sf25k nodes400](../experiments/20260814_sf25k_768_nodes400/report.md))
 - Same match with RFP/razor/futility off, N=400: baseline **44-332-24**, +17 ± 14. ([sf25k noprune400](../experiments/20260814_sf25k_768_noprune400/report.md))
 - Depth-10 prune_diag: candidate 0.47× nodes / 1.38× nps; startpos 2.20× bushier; Kiwipete 0.14×. ([sf25k prune](../experiments/20260814_sf25k_768_prune/report.md))
+- PATH `stockfish` is Stockfish **17**. Official SF18 and dev-20260810-5062aee5 pinned in [`frozen-targets`](../experiments/frozen-targets/manifest.json). Historical “SF18” ladder rungs used SF17.
+- Holdout affine fit (N=20157, SF 25k labels): SF 768 is already on SF units (origin 1.05×); frozen baseline is ~2× those labels (origin 0.51×). ([evalscale](../experiments/20260814_evalscale_nodes/report.md))
+- Equal-node 25k N=200: `EvalScale=511` on baseline **12-179-9**, +5 ± 16 (coin flip). `nnue_sf25k` @1091 **23-169-8**, +26 ± 19; @1519 **28-160-12**, +28 ± 22. No SPRT. `EvalScale` stays 1000.
 
 ### 2026-08-13
 

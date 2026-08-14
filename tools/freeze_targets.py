@@ -15,9 +15,20 @@ from experiment_common import build_manifest, sha256_file, write_manifest  # noq
 
 def version(binary: Path) -> str:
     try:
-        return subprocess.check_output([str(binary), "--version"], text=True, stderr=subprocess.STDOUT).strip()
-    except (OSError, subprocess.CalledProcessError):
+        proc = subprocess.run(
+            [str(binary)],
+            input="uci\nquit\n",
+            text=True,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return "version-unavailable"
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("id name "):
+            return line[len("id name ") :].strip()
+    return "version-unavailable"
 
 
 def target(binary: Path, label: str) -> dict[str, str]:
@@ -36,6 +47,12 @@ def main() -> int:
     parser.add_argument("--engine", required=True, type=Path, help="NSCE binary under test")
     parser.add_argument("--stockfish18", required=True, type=Path)
     parser.add_argument("--stockfish-dev", required=True, type=Path)
+    parser.add_argument(
+        "--stockfish-historical",
+        type=Path,
+        default=None,
+        help="optional PATH/ladder binary (this lab's historical Stockfish 17)",
+    )
     parser.add_argument("--config-a", type=Path, default=ROOT / "tools/configs/baseline.uci")
     parser.add_argument("--config-b", type=Path, default=ROOT / "tools/configs/baseline.uci")
     parser.add_argument("--openings", type=Path, default=ROOT / "tools/openings_balanced.epd")
@@ -47,6 +64,8 @@ def main() -> int:
         target(args.stockfish18, "stockfish-18-stable"),
         target(args.stockfish_dev, "stockfish-current-development"),
     ]
+    if args.stockfish_historical:
+        references.append(target(args.stockfish_historical, "stockfish-17-historical-ladder"))
     manifest = build_manifest(
         ROOT,
         args.engine,

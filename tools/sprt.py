@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ablation_match import play_game  # noqa: E402
-from experiment_common import build_manifest, paired_schedule, sha256_file, write_manifest  # noqa: E402
+from experiment_common import attach_frozen_targets, build_manifest, paired_schedule, sha256_file, write_manifest  # noqa: E402
 from uci_common import UciEngine, load_openings  # noqa: E402
 
 
@@ -127,6 +127,11 @@ def main() -> int:
         "--resume",
         action="store_true",
         help="continue from outdir/sprt_<name-b>.json if present (same seed/schedule)",
+    )
+    ap.add_argument(
+        "--frozen-targets",
+        default=str(ROOT / "experiments/frozen-targets/manifest.json"),
+        help="pin Stockfish/NSCE identities into the experiment manifest",
     )
     args = ap.parse_args()
 
@@ -268,7 +273,10 @@ def main() -> int:
     def write_current_manifest() -> None:
         write_manifest(
             outdir / "manifest.json",
-            build_manifest(ROOT, engine, [Path(args.cfg_a), Path(args.cfg_b)], openings_path, args.seed, manifest_extra),
+            attach_frozen_targets(
+                build_manifest(ROOT, engine, [Path(args.cfg_a), Path(args.cfg_b)], openings_path, args.seed, manifest_extra),
+                Path(args.frozen_targets) if args.frozen_targets else None,
+            ),
         )
 
     try:

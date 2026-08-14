@@ -259,13 +259,13 @@ class UciEngine:
         self._send("eval details")
         assert self.proc.stdout is not None
         parts = self.proc.stdout.readline().strip().split()
-        if not parts or parts[0] != "eval" or len(parts) % 2 != 1:
+        if len(parts) < 2 or parts[0] != "eval" or not parts[1].lstrip("-").isdigit():
             raise RuntimeError(f"{self.name}: expected eval details response")
-        return {
-            parts[index]: int(parts[index + 1])
-            for index in range(1, len(parts) - 1, 2)
-            if parts[index + 1].lstrip("-").isdigit()
-        }
+        details = {"eval": int(parts[1])}
+        for index in range(2, len(parts) - 1, 2):
+            if parts[index + 1].lstrip("-").isdigit():
+                details[parts[index]] = int(parts[index + 1])
+        return details
 
     def close(self) -> None:
         try:

@@ -14,4 +14,4 @@ setoption name UseRazoring value true
 setoption name UseRFP value true
 setoption name UseProbCut value true
 setoption name UseExtras value true
-setoption name EvalScale value 1000
+setoption name EvalScale value 511

@@ -169,3 +169,16 @@ def build_manifest(
 
 def write_manifest(path: Path, manifest: dict) -> None:
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+
+
+def attach_frozen_targets(manifest: dict, frozen_path: Path | None) -> dict:
+    """Copy pinned NSCE/Stockfish identities into an experiment manifest."""
+    if frozen_path is None or not frozen_path.exists():
+        return manifest
+    frozen = json.loads(frozen_path.read_text())
+    targets = frozen.get("targets")
+    if targets:
+        manifest["targets"] = targets
+        manifest["parameters"] = dict(manifest.get("parameters") or {})
+        manifest["parameters"]["frozen_targets"] = str(frozen_path.resolve())
+    return manifest

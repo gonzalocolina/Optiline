@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ablation_match import match  # noqa: E402
-from experiment_common import build_manifest, paired_schedule, write_manifest  # noqa: E402
+from experiment_common import attach_frozen_targets, build_manifest, paired_schedule, write_manifest  # noqa: E402
 from uci_common import UciEngine, elo_from_wdl, load_openings  # noqa: E402
 
 
@@ -89,10 +89,15 @@ def depth_ladder_custom(engine: Path, games: int, d_hi: int, d_lo: int, outdir: 
         lo.close()
 
 
-def resolve_stockfish() -> str | None:
+def resolve_stockfish(explicit: str | None = None) -> str | None:
+    if explicit and Path(explicit).exists():
+        return explicit
     env = os.environ.get("STOCKFISH")
     if env and Path(env).exists():
         return env
+    frozen = ROOT / "third_party" / "stockfish" / "stockfish-18"
+    if frozen.exists():
+        return str(frozen)
     w = shutil.which("stockfish")
     if w:
         return w
@@ -112,8 +117,9 @@ def stockfish_rung(
     openings_path: Path | None = None,
     max_plies: int = 120,
     nsce_config: Path | None = None,
+    stockfish: str | None = None,
 ) -> dict | None:
-    sf = resolve_stockfish()
+    sf = resolve_stockfish(stockfish)
     if not sf:
         return {
             "rung": f"stockfish_elo_{sf_elo}",
@@ -219,6 +225,15 @@ def main() -> int:
         action="store_true",
         help="skip self-play depth/weak rungs; only play limited-strength Stockfish",
     )
+    ap.add_argument(
+        "--stockfish",
+        default=str(ROOT / "third_party/stockfish/stockfish-18"),
+        help="pinned Stockfish binary; do not rely on PATH",
+    )
+    ap.add_argument(
+        "--frozen-targets",
+        default=str(ROOT / "experiments/frozen-targets/manifest.json"),
+    )
     args = ap.parse_args()
 
     engine = Path(args.engine)
@@ -251,6 +266,7 @@ def main() -> int:
             openings_path=openings_path,
             max_plies=args.max_plies,
             nsce_config=nsce_config,
+            stockfish=args.stockfish or None,
         )
     )
 
@@ -287,24 +303,27 @@ def main() -> int:
     with (outdir / "report.md").open("a") as f:
         f.write("\n" + "\n".join(lines) + "\n")
     configs = [ROOT / "tools" / "configs" / "baseline.uci"]
-    manifest = build_manifest(
-        ROOT,
-        engine,
-        configs,
-        openings_path,
-        args.seed,
-        {
-            "kind": "elo_ladder",
-            "games_per_rung": args.games,
-            "movetime_ms": args.movetime,
-            "max_plies": args.max_plies,
-            "stockfish_elo": args.sf_elo,
-            "stockfish": resolve_stockfish(),
-            "openings": str(openings_path),
-            "nsce_config": str(nsce_config),
-            "oracle": "nsce_status",
-            "only_stockfish": args.only_stockfish,
-        },
+    manifest = attach_frozen_targets(
+        build_manifest(
+            ROOT,
+            engine,
+            configs,
+            openings_path,
+            args.seed,
+            {
+                "kind": "elo_ladder",
+                "games_per_rung": args.games,
+                "movetime_ms": args.movetime,
+                "max_plies": args.max_plies,
+                "stockfish_elo": args.sf_elo,
+                "stockfish": resolve_stockfish(args.stockfish or None),
+                "openings": str(openings_path),
+                "nsce_config": str(nsce_config),
+                "oracle": "nsce_status",
+                "only_stockfish": args.only_stockfish,
+            },
+        ),
+        Path(args.frozen_targets) if args.frozen_targets else None,
     )
     write_manifest(outdir / "manifest.json", manifest)
     print("\n".join(lines))

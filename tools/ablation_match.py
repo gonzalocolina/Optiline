@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from experiment_common import build_manifest, paired_schedule, sha256_file, write_manifest  # noqa: E402
+from experiment_common import attach_frozen_targets, build_manifest, paired_schedule, sha256_file, write_manifest  # noqa: E402
 from uci_common import UciEngine, elo_from_wdl, load_openings  # noqa: E402
 
 
@@ -214,6 +214,7 @@ def run_matrix(
     adjudication_cp: int,
     adjudication_plies: int,
     search_matrix: bool = False,
+    frozen_targets: Path | None = None,
 ) -> None:
     configs = ROOT / "tools" / "configs"
     openings = load_openings(openings_path)
@@ -265,21 +266,24 @@ def run_matrix(
         (outdir / f"match_{name_a}_vs_{name_b}.json").write_text(json.dumps(r, indent=2))
 
     write_report(outdir, results, engine, games, movetime)
-    manifest = build_manifest(
-        ROOT,
-        engine,
-        [item for pair in pairs for item in (pair[1], pair[3])],
-        openings_path,
-        seed,
-        {
-            "kind": "search_ablation_matrix" if search_matrix else "ablation_matrix",
-            "games_per_match": games,
-            "movetime_ms": movetime,
-            "exploratory_short_tc": movetime < 50,
-            "max_plies": max_plies,
-            "adjudication_cp": adjudication_cp,
-            "adjudication_plies": adjudication_plies,
-        },
+    manifest = attach_frozen_targets(
+        build_manifest(
+            ROOT,
+            engine,
+            [item for pair in pairs for item in (pair[1], pair[3])],
+            openings_path,
+            seed,
+            {
+                "kind": "search_ablation_matrix" if search_matrix else "ablation_matrix",
+                "games_per_match": games,
+                "movetime_ms": movetime,
+                "exploratory_short_tc": movetime < 50,
+                "max_plies": max_plies,
+                "adjudication_cp": adjudication_cp,
+                "adjudication_plies": adjudication_plies,
+            },
+        ),
+        frozen_targets,
     )
     write_manifest(outdir / "manifest.json", manifest)
 
@@ -352,6 +356,11 @@ def main() -> int:
     ap.add_argument("--cfg-b", default="")
     ap.add_argument("--name-a", default="A")
     ap.add_argument("--name-b", default="B")
+    ap.add_argument(
+        "--frozen-targets",
+        default=str(ROOT / "experiments/frozen-targets/manifest.json"),
+        help="pin Stockfish/NSCE identities into the experiment manifest",
+    )
     args = ap.parse_args()
 
     engine = Path(args.engine)
@@ -371,6 +380,7 @@ def main() -> int:
     outdir = Path(args.outdir) if args.outdir else ROOT / "experiments" / date.today().strftime("%Y%m%d")
 
     openings_path = Path(args.openings)
+    frozen_targets = Path(args.frozen_targets) if args.frozen_targets else None
     if args.matrix or args.search_matrix:
         run_matrix(
             engine,
@@ -383,6 +393,7 @@ def main() -> int:
             args.adjudication_cp,
             args.adjudication_plies,
             args.search_matrix,
+            frozen_targets,
         )
         return 0
 
@@ -409,24 +420,27 @@ def main() -> int:
         args.nodes,
     )
     write_report(outdir, [r], engine, args.games, args.movetime)
-    manifest = build_manifest(
-        ROOT,
-        engine,
-        [Path(args.cfg_a), Path(args.cfg_b)],
-        openings_path,
-        args.seed,
-        {
-            "kind": "ablation_match",
-            "games": args.games,
-            "movetime_ms": args.movetime,
-            "nodes_per_move": args.nodes,
-            "exploratory_short_tc": args.movetime < 50,
-            "max_plies": args.max_plies,
-            "adjudication_cp": args.adjudication_cp,
-            "adjudication_plies": args.adjudication_plies,
-            "engine_b": str(engine_b.resolve()),
-            "engine_b_sha256": sha256_file(engine_b),
-        },
+    manifest = attach_frozen_targets(
+        build_manifest(
+            ROOT,
+            engine,
+            [Path(args.cfg_a), Path(args.cfg_b)],
+            openings_path,
+            args.seed,
+            {
+                "kind": "ablation_match",
+                "games": args.games,
+                "movetime_ms": args.movetime,
+                "nodes_per_move": args.nodes,
+                "exploratory_short_tc": args.movetime < 50,
+                "max_plies": args.max_plies,
+                "adjudication_cp": args.adjudication_cp,
+                "adjudication_plies": args.adjudication_plies,
+                "engine_b": str(engine_b.resolve()),
+                "engine_b_sha256": sha256_file(engine_b),
+            },
+        ),
+        frozen_targets,
     )
     write_manifest(outdir / "manifest.json", manifest)
     return 0

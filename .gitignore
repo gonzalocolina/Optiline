@@ -20,7 +20,7 @@ __pycache__/
 .vscode/
 *.gcda
 *.gcno
-third_party/stockfish/
+third_party/stockfish/*
 !third_party/stockfish/README.md
 experiments/**/*.json
 experiments/**/*.txt

@@ -1,0 +1,147 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "b209dada8d23fb8364c79b7fa60a9b996a41b214fdeeb6b7adf2397a4c82edb1"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": null,
+    "engine_b_sha256": null,
+    "engine_sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e",
+    "referenced_files": {}
+  },
+  "command": [
+    "tools/freeze_targets.py",
+    "--engine",
+    "build/nsce",
+    "--stockfish18",
+    "third_party/stockfish/stockfish-18",
+    "--stockfish-dev",
+    "third_party/stockfish/stockfish-dev",
+    "--stockfish-historical",
+    "third_party/stockfish/stockfish-17",
+    "--out",
+    "experiments/frozen-targets/manifest.json"
+  ],
+  "created_utc": "2026-08-14T15:52:56.645036+00:00",
+  "environment": {},
+  "git": {
+    "branch": "master",
+    "commit": "abb29d0e3afbfd0f1a4aa792ffed3fe3dd100176",
+    "dirty": true,
+    "status_porcelain": "M docs/experiments.md\n M docs/knowledge.md\n M docs/measurement.md\n M tools/ablation_match.py\n M tools/configs/baseline.uci\n M tools/elo_ladder.py\n M tools/experiment_common.py\n M tools/freeze_targets.py\n M tools/sprt.py\n M tools/uci_common.py\n M train/validate_nnue.py\n?? experiments/frozen-targets/"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "controls": {
+      "equal_node_and_equal_time_required": true,
+      "hash_mb": 16,
+      "threads": 1
+    },
+    "kind": "frozen-strength-targets",
+    "reference_targets": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "sha256": "f4451f72ff871602b851769479948197d952b195d65951ce819b42bd850099d6",
+        "version": "Stockfish dev-20260810-5062aee5"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "internal",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "true",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260814,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+      "sha256": "4b94ce680132f47666d51d24ace5b0cb52f0d01400ca86b7e3b1a86bffcc6ee8",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "sha256": "f4451f72ff871602b851769479948197d952b195d65951ce819b42bd850099d6",
+        "version": "Stockfish dev-20260810-5062aee5"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "24d6aa180fc628d0fed060114561f3b5fbf5a68fa897465bb858d4965a5cc9c0",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

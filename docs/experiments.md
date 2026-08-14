@@ -76,14 +76,20 @@ Peldaños: depth-ladder self-play → weak NSCE → Stockfish limitado (si `stoc
 
 ## Stockfish (local)
 
-Binary under `third_party/stockfish/` (gitignored). Ensure:
+Binaries under `third_party/stockfish/` (gitignored). **Do not use PATH.** Pin
+official Stockfish 18 and the current development snapshot with
+`tools/freeze_targets.py`; `elo_ladder.py --stockfish` defaults to
+`third_party/stockfish/stockfish-18`.
+
+Historical ladder reports labeled "SF18" used PATH `stockfish`, which is
+**Stockfish 17**. Keep that binary as `stockfish-17` for provenance; new rungs
+use the frozen SF18 hash.
+
+Verify:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"   # symlink created on install
-# or: export STOCKFISH=/path/to/stockfish
+printf 'uci\nquit\n' | third_party/stockfish/stockfish-18 | head -3
 ```
-
-Verify: `stockfish <<< $'uci\nquit' | head -3`
 
 ## Reproducibility contract
 
