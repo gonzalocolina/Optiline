@@ -1,0 +1,107 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260814_sf25k_768_noprune/baseline_noprune.uci": "96fa92ec47587bc77d5ac2241948356420c32e594ecbbf2c02b8d2bd0eb4a028",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260814_sf25k_768_noprune/nnue_sf25k_noprune.uci": "f2baf9162a9f1ec973c286a1f735a9f70f0e9bf00f7e3694c648130d9dec2d22"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
+    "engine_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e",
+    "referenced_files": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_sf25k.bin": "2e5f01e654f1eba8a3af65b3876c32519564a407b62355c75d20cb4d278d42d3"
+    }
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--cfg-a",
+    "experiments/20260814_sf25k_768_noprune/baseline_noprune.uci",
+    "--cfg-b",
+    "experiments/20260814_sf25k_768_noprune/nnue_sf25k_noprune.uci",
+    "--name-a",
+    "baseline_noprune",
+    "--name-b",
+    "nnue_sf25k_noprune",
+    "--games",
+    "400",
+    "--nodes",
+    "25000",
+    "--max-plies",
+    "60",
+    "--seed",
+    "20260814",
+    "--outdir",
+    "experiments/20260814_sf25k_768_noprune400"
+  ],
+  "created_utc": "2026-08-14T14:25:44.720950+00:00",
+  "environment": {},
+  "git": {
+    "commit": "97600de69eacf882e16c8092aedc9c90caac3f27",
+    "dirty": true
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
+    "exploratory_short_tc": false,
+    "games": 400,
+    "kind": "ablation_match",
+    "max_plies": 60,
+    "movetime_ms": 100,
+    "nodes_per_move": 25000
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nnue_sf25k.bin",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "false",
+    "UseFutility": "false",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "false",
+    "UseRazoring": "false",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260814,
+  "toolchain": {
+    "cmake_cache_sha256": "bc41496caac83ba67febdc50163eba5720f5bc7c9888e3276189bb30c8b3a811",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

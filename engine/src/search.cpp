@@ -1191,7 +1191,10 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
               << " se " << last_stats_.singular_extensions << '/' << last_stats_.singular_attempts << " iir "
               << last_stats_.iir_reductions << " qs_tt " << last_stats_.qs_tt_cutoffs << " root_moves "
               << last_stats_.root_moves << " probcut " << last_stats_.probcut_cutoffs << '/'
-              << last_stats_.probcut_attempts << std::endl;
+              << last_stats_.probcut_attempts << " null " << last_stats_.null_cutoffs << '/'
+              << last_stats_.null_attempts << " razor " << last_stats_.razor_cutoffs << '/'
+              << last_stats_.razor_attempts << " rfp " << last_stats_.rfp_cutoffs << '/' << last_stats_.rfp_attempts
+              << " futility " << last_stats_.futility_prunes << " lmp " << last_stats_.lmp_prunes << std::endl;
 #endif
   info.nodes = nodes_.load(std::memory_order_relaxed);
   info.time_ms = static_cast<int>((steady_now_ns() - start_ns_.load(std::memory_order_relaxed)) / 1'000'000LL);

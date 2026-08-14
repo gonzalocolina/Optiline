@@ -110,7 +110,10 @@ int main(int argc, char** argv) {
             << " first_cut_pct=" << first_cut << " lmr=" << total_stats.lmr_attempts
             << " researches=" << total_stats.lmr_researches
             << " see_order=" << total_stats.see_order_calls << " see_prune=" << total_stats.see_prune_calls
-            << " see_pruned=" << total_stats.see_prunes;
+            << " see_pruned=" << total_stats.see_prunes << " null=" << total_stats.null_cutoffs << '/'
+            << total_stats.null_attempts << " razor=" << total_stats.razor_cutoffs << '/'
+            << total_stats.razor_attempts << " rfp=" << total_stats.rfp_cutoffs << '/' << total_stats.rfp_attempts
+            << " futility=" << total_stats.futility_prunes << " lmp=" << total_stats.lmp_prunes;
 #endif
   std::cout << '\n';
   return 0;

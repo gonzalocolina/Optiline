@@ -24,6 +24,9 @@ python3 -m venv .venv
   --data train/data/nnue_stockfish_d8.jsonl \
   --epochs 80 --seed 20260802
 
+# Fine-tune from the frozen HCE default (`--init internal`), a .npz checkpoint,
+# or an NSCENNUE .bin instead of random init.
+
 .venv/bin/python train/validate_nnue.py \
   --engine build/nsce --data train/data/nnue_stockfish_d8.jsonl
 ```
@@ -31,7 +34,9 @@ python3 -m venv .venv
 `train_nnue.py` trains the exact `768x128x1` topology consumed by C++, uses a
 FEN-hash holdout split, augments only the training split by board/color symmetry,
 restores the best validation epoch, quantizes to the `NSCENNUE` format and rejects
-int16 accumulator overflow. The versioned metrics contain dataset/network SHA-256.
+int16 accumulator overflow. `--init internal` starts from the frozen HCE default
+instead of random weights (also accepts a `.npz` checkpoint or an `NSCENNUE`
+`.bin`). The versioned metrics contain dataset/network SHA-256.
 
 The bundled network is genuinely optimized from teacher labels, but it is still a
 small piece-square network rather than a Stockfish HalfKP/king-bucket architecture.

@@ -6,7 +6,7 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-13 (evening: KAT 2× H0, extras-off H0, Hash/TM inconclusive) |
+| Last updated | 2026-08-14 (SF 25k 768: MAE pass, equal-node N=400 fail +21 ± 13 to baseline) |
 | Engine | NSCE 0.10 |
 | Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
 | Protocol | [hypothesis.md](hypothesis.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
@@ -49,7 +49,7 @@ These are the claims we act on until a later log entry supersedes them.
 
 ### Measurement pitfalls (paid for in lab time)
 
-- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors).
+- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors). Equal-node self-play at 25k nodes is ~1 s/game here: **N=40 is still too wide** (±50 Elo, ~80% draws). Use **N≥400** (or SPRT) for that gate.
 - Stockfish has no `status`. The oracle must always be **NSCE**. Otherwise `bestmove 0000` after mate aborts the match ([20260813_sf18_1600](../experiments/20260813_sf18_1600/report.md)).
 - Pair-level pentanomial LLR with near-zero empirical variance explodes after one opening pair. Floor per-pair variance at **0.04** and do not accept H0/H1 before **`--min-games 40`**. A 2-game H1 is invalid ([20260813_controller_fitted](../experiments/20260813_controller_fitted/report.md)).
 - Do not compare holdout MAE across different corpora (120k vs 1M). The 1M holdout is harder.
@@ -61,7 +61,9 @@ These are the claims we act on until a later log entry supersedes them.
 
 - `NSCEKAT1`: 32 horizontally-mirrored king buckets × 768, PS factorization folded at export, 12-dim dense threat residual. MIT-clean.
 - Holdout MAE on 1M Lichess evals plateaus around **114 cp** at 16 epochs (hidden 128, batch 512, lr 4e-4). Target ~70 cp was not reached. **Do not raise `kHidden` until MAE stops falling with more data.**
-- At **equal nodes** (25k/move, N=20) 8-epoch KAT vs internal is a coin flip (4-12-4). At **equal time** (100 ms) it loses SPRT, including **after** the 2× timed-node speedup (H0 13-51-52, score 0.332). The failure mode is a **bushier tree / less effective depth**, not inference cost. Do **not** replay this `kat_candidate.bin` at 100 ms.
+- At **equal nodes** (25k/move, N=20) 8-epoch Lichess KAT vs internal is a coin flip (4-12-4). At **equal time** (100 ms) it loses SPRT, including **after** the 2× timed-node speedup (H0 13-51-52, score 0.332). The failure mode is a **bushier tree / less effective depth**, not inference cost. Do **not** replay `kat_candidate.bin` at 100 ms.
+- NSCE self-distill (200k FENs, teacher `go nodes 25000`, same holdout as the trainers): from-scratch **768×128** is **worse** than internal (engine MAE 84.8 vs 65.1). Fine-tune from internal HCE weights on the same JSONL is still worse (**72.3 vs 65.1**, −7.2 cp). **KAT** on the same labels **beats** internal MAE (58.1 vs 65.1, +6.9 cp) but **loses equal-node N=40** (baseline 17-22-1, score 0.700, +147 ± 71). Better MAE on search-cp is not a search-Elo gate. Do not SPRT `kat_nsce25k.bin` or `nnue_nsce25k_ft.bin`. Do not compare these MAE numbers to the 114 cp Lichess holdout.
+- Stockfish teacher on the **same 200k FENs** (`go nodes 25000`, extras off, `--init internal`): engine MAE **113.0 vs internal+extras 143.6** (+30.5 cp, +21%). Holdout is SF search-cp, not NSCE 65.1. Equal-node 25k **N=400** (seed 20260814): baseline **43-338-19**, score 0.530, **+21 ± 13**. Candidate score 0.470. N=40 was +17 ± 50 (exploratory). Pruning-off N=400 is the same sign (+17 ± 14). Depth-10 totals 0.47× nodes (Kiwipete-dominated; startpos 2.20× bushier). Candidate is *faster* (no extras). Do not SPRT `nnue_sf25k.bin`. ([sf25k 768](../experiments/20260814_sf25k_768_nodes400/report.md))
 - 120k-corpus MAE 102 cp is not comparable to the 1M holdout.
 
 ### Search controller
@@ -88,6 +90,12 @@ These are the claims we act on until a later log entry supersedes them.
 | Hash 32 at 100 ms | Mostly draws; no ±5 Elo | Inconclusive 19-168-13, LLR +0.54, 200 games ([hash32_sprt](../experiments/20260813_hash32_sprt/report.md)) |
 | ID stop when remaining `< last_iter` (was `/ 2`) | Coin flip; reverted | Inconclusive 20-161-19, LLR +0.09, 200 games ([tm_sprt](../experiments/20260813_tm_sprt/report.md)) |
 | More epochs on the same 1M set | MAE flat after epoch 11 | Train history in `nets/kat_candidate.metrics.json` |
+| From-scratch 768 on 200k NSCE 25k-node labels | Engine MAE 84.8 vs internal 65.1 | [nsce25k 768](../experiments/20260814_nsce25k_768_train/report.md) |
+| Fine-tune 768 from internal on the same 200k | Engine MAE 72.3 vs 65.1; no equal-node | [nsce25k 768 ft](../experiments/20260814_nsce25k_768_ft/report.md) |
+| Promote / SPRT `kat_nsce25k.bin` | MAE +6.9 cp vs internal; equal-node N=40 score 0.300 | [nsce25k KAT](../experiments/20260814_nsce25k_kat_nodes/report.md) |
+| Promote / SPRT `nnue_sf25k.bin` | MAE +30.5 cp vs SF labels; equal-node N=400 score 0.470, +21 ± 13 to baseline | [sf25k nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
+| Treat N=40 equal-node 25k as a gate | ±50 Elo, ~80% draws; N=400 flipped “coin flip” into a loss | [nodes](../experiments/20260814_sf25k_768_nodes/report.md) vs [nodes400](../experiments/20260814_sf25k_768_nodes400/report.md) |
+| Label 500k more for this KAT | MAE already beat internal; equal-node still lost | Same report |
 | Raise hidden to 256 at 120k–1M | Memorizes; MAE still data-limited | 16-epoch plateau at 114 cp |
 | HCE `extras()` on top of KAT/HalfKP | Residual fights the net | Gated in `evaluate()` when `uses_king_buckets()` |
 | Promote fitted LMR controller | Slightly negative equal-time | Inconclusive 23-143-34, LLR −0.99 ([controller_sprt](../experiments/20260813_controller_sprt/report.md)) |
@@ -127,14 +135,29 @@ Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plie
 
 The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Do not skip to a later item to “try something.”
 
-1. **Self-distill labels from the current engine**, not more epochs on Lichess PVs and not another 100 ms SPRT of `kat_candidate.bin`. 1M extra epochs already plateaued at 114 cp. Use NSCE (`go nodes`, Hash 16, extras on) as teacher on the existing FEN set (or a 200k–500k slice) via `train/distill.py --nodes`. Train KAT and/or 768 on those cp. Teacher depth now compounds; Lichess dump quality does not. SPRT only if holdout MAE moves a lot (toward ~70) or equal-node N≥40 is clearly >0.5.
-2. **SF18 Elo 2000, N≥40** only after a **promoted** eval. Unrestricted SF still later.
+1. **SF-teacher 768 is closed.** MAE passed; equal-node N=400 lost (+21 ± 13 to baseline). Same sign with RFP/razor/futility off. Do not SPRT, do not raise `kHidden` on this net, do not replay at 100 ms.
+2. **NSCE self-distill 200k stays closed**. From-scratch MAE 84.8; fine-tune 72.3; KAT MAE win / equal-node loss.
+3. **768 hidden width ≠ 128** still waits on a 768×128 that wins **equal-node**, not just MAE. `kHidden=128` is compile-time. One width per SPRT.
+4. **SF18 Elo 2000, N≥40** only after a **promoted** eval. Unrestricted SF still later.
 
-Still not next: replay this KAT net at 100 ms, extras-off on 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess before self-distill.
+Still not next: replay `kat_candidate.bin`, `kat_nsce25k.bin`, `nnue_nsce25k_ft.bin`, or `nnue_sf25k.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768.
 
 ---
 
 ## Findings log
+
+### 2026-08-14
+
+- NSCE teacher `go nodes 25000` on 200k existing FENs → `train/data/nsce_nodes25k.jsonl` (0 null scores). Holdout N=20039 vs those labels, not vs Lichess 114 cp.
+- From-scratch 768×128 (`nnue_nsce25k.bin`, extras on): engine MAE **84.8 vs internal 65.1** (−30%). No 500k, no equal-node. ([nsce25k 768](../experiments/20260814_nsce25k_768_train/report.md))
+- Fine-tune 768 from internal (`nnue_nsce25k_ft.bin`, `--init internal`, extras on): engine MAE **72.3 vs 65.1** (−11%). Better than from-scratch, still a fail. No equal-node. ([nsce25k 768 ft](../experiments/20260814_nsce25k_768_ft/report.md))
+- KAT on the same JSONL (`kat_nsce25k.bin`, extras off): engine MAE **58.1 vs 65.1** (+6.9 cp). Equal-node 25k, N=40, seed 20260814: baseline **17-22-1**, score 0.700, +147 ± 71. KAT score 0.300. No SPRT. `baseline.uci` unchanged. ([nsce25k KAT](../experiments/20260814_nsce25k_kat_nodes/report.md))
+- Stockfish teacher `go nodes 25000` on the same 200k FENs → `train/data/sf18_nodes25k.jsonl` (0 null scores, sha256 `99c6a7a0…`).
+- 768×128 from internal (`nnue_sf25k.bin`, extras off): engine MAE **113.0 vs internal+extras 143.6** (+21%). MAE gate pass. ([sf25k 768 train](../experiments/20260814_sf25k_768_train/report.md))
+- Equal-node 25k, N=40, seed 20260814: baseline **5-32-3**, +17 ± 50 (exploratory). ([sf25k nodes](../experiments/20260814_sf25k_768_nodes/report.md))
+- Equal-node 25k, **N=400**, same seed: baseline **43-338-19**, score 0.530, **+21 ± 13**. Candidate score 0.470. No SPRT. ([sf25k nodes400](../experiments/20260814_sf25k_768_nodes400/report.md))
+- Same match with RFP/razor/futility off, N=400: baseline **44-332-24**, +17 ± 14. ([sf25k noprune400](../experiments/20260814_sf25k_768_noprune400/report.md))
+- Depth-10 prune_diag: candidate 0.47× nodes / 1.38× nps; startpos 2.20× bushier; Kiwipete 0.14×. ([sf25k prune](../experiments/20260814_sf25k_768_prune/report.md))
 
 ### 2026-08-13
 

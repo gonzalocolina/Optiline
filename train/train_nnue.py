@@ -20,6 +20,16 @@ FEATURES = 12 * 64
 HIDDEN = 128
 SCALE = 64
 PIECES = {p: i for i, p in enumerate("PNBRQKpnbrqk")}
+PIECE_VALUE = [100, 320, 330, 500, 900, 0]
+# Midgame PST from engine/src/nnue.cpp (white's perspective; black uses sq ^ 56).
+PST = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30, 20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10, 0, 0, -10, -5, 5, 5, 10, 10, -20, -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0],
+    [-50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30, 0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20, 15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40, -50, -40, -30, -30, -30, -30, -40, -50],
+    [-20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 10, 10, 5, 0, -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0, -10, -10, 10, 10, 10, 10, 10, 10, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10, -10, -10, -10, -10, -10, -20],
+    [0, 0, 0, 0, 0, 0, 0, 0, 5, 10, 10, 10, 10, 10, 10, 5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, 0, 0, 0, 5, 5, 0, 0, 0],
+    [-20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 5, 5, 5, 0, -10, -5, 0, 5, 5, 5, 5, 0, -5, 0, 0, 5, 5, 5, 5, 0, -5, -10, 5, 5, 5, 5, 5, 0, -10, -10, 0, 5, 0, 0, 0, 0, -10, -20, -10, -10, -5, -5, -10, -10, -20],
+    [-30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -20, -30, -30, -40, -40, -30, -30, -20, -10, -20, -20, -20, -20, -20, -20, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0, 10, 30, 20],
+]
 
 
 def encode_fen(fen: str) -> np.ndarray:
@@ -67,6 +77,66 @@ def load_dataset(path: Path, target_clip: float) -> tuple[np.ndarray, np.ndarray
     y = np.asarray([row[1] for row in rows], dtype=np.float32)
     fens = [row[2] for row in rows]
     return x, y, fens, hashlib.sha256(raw).hexdigest()
+
+
+def hce_internal_weights() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Float weights matching Nnue::load_default_from_hce() after dequantizing int16 / SCALE."""
+    w0_q = np.zeros((FEATURES, HIDDEN), dtype=np.int32)
+    for pc in range(12):
+        pt = pc % 6
+        black = pc >= 6
+        for sq in range(64):
+            pst_sq = sq ^ 56 if black else sq
+            val = PIECE_VALUE[pt] + PST[pt][pst_sq]
+            if black:
+                val = -val
+            for h in range(HIDDEN):
+                num = val * SCALE
+                w = num // HIDDEN if num >= 0 else -((-num) // HIDDEN)
+                w += ((h * 17 + sq * 3 + pc) & 7) - 3
+                w0_q[pc * 64 + sq, h] = np.clip(w, -32768, 32767)
+    w0 = (w0_q.astype(np.float32) / SCALE)
+    b0 = np.zeros(HIDDEN, dtype=np.float32)
+    w1 = np.full(HIDDEN, float(SCALE) / SCALE, dtype=np.float32)
+    b1 = np.zeros(1, dtype=np.float32)
+    return w0, b0, w1, b1
+
+
+def load_init_weights(source: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if source in {"internal", "hce", "<internal>"}:
+        return hce_internal_weights()
+    path = Path(source)
+    if not path.exists():
+        raise FileNotFoundError(f"init weights not found: {path}")
+    if path.suffix == ".npz":
+        packed = np.load(path)
+        w0 = packed["w0"].astype(np.float32)
+        b0 = packed["b0"].astype(np.float32)
+        w1 = packed["w1"].astype(np.float32)
+        b1 = np.asarray(packed["b1"], dtype=np.float32).reshape(1)
+        if w0.shape != (FEATURES, HIDDEN) or b0.shape != (HIDDEN,) or w1.shape != (HIDDEN,):
+            raise ValueError(f"unexpected npz shapes: w0={w0.shape} b0={b0.shape} w1={w1.shape}")
+        return w0, b0, w1, b1
+    raw = path.read_bytes()
+    if raw[:8] != b"NSCENNUE":
+        raise ValueError(f"init file is not NSCENNUE or npz: {path}")
+    features, hidden = struct.unpack_from("<ii", raw, 8)
+    if features != FEATURES or hidden != HIDDEN:
+        raise ValueError(f"unexpected NSCENNUE header: features={features} hidden={hidden}")
+    offset = 16
+    w0_q = np.frombuffer(raw, dtype="<i2", count=FEATURES * HIDDEN, offset=offset).reshape(FEATURES, HIDDEN)
+    offset += FEATURES * HIDDEN * 2
+    b0_q = np.frombuffer(raw, dtype="<i2", count=HIDDEN, offset=offset)
+    offset += HIDDEN * 2
+    w1_q = np.frombuffer(raw, dtype="<i2", count=HIDDEN, offset=offset)
+    offset += HIDDEN * 2
+    (b1_q,) = struct.unpack_from("<i", raw, offset)
+    return (
+        w0_q.astype(np.float32) / SCALE,
+        b0_q.astype(np.float32) / SCALE,
+        w1_q.astype(np.float32) / SCALE,
+        np.asarray([b1_q / float(SCALE * SCALE)], dtype=np.float32),
+    )
 
 
 def split_dataset(fens: list[str]) -> tuple[np.ndarray, np.ndarray]:
@@ -122,12 +192,16 @@ def train(
     batch_size: int,
     learning_rate: float,
     seed: int,
+    init: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
     rng = np.random.default_rng(seed)
-    w0 = rng.normal(0.0, 0.05, (FEATURES, HIDDEN)).astype(np.float32)
-    b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
-    w1 = rng.normal(0.0, 0.05, HIDDEN).astype(np.float32)
-    b1 = np.zeros(1, dtype=np.float32)
+    if init is None:
+        w0 = rng.normal(0.0, 0.05, (FEATURES, HIDDEN)).astype(np.float32)
+        b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
+        w1 = rng.normal(0.0, 0.05, HIDDEN).astype(np.float32)
+        b1 = np.zeros(1, dtype=np.float32)
+    else:
+        w0, b0, w1, b1 = (p.copy() for p in init)
     parameters = [w0, b0, w1, b1]
     first = [np.zeros_like(p) for p in parameters]
     second = [np.zeros_like(p) for p in parameters]
@@ -241,6 +315,11 @@ def main() -> int:
     parser.add_argument("--learning-rate", type=float, default=0.003)
     parser.add_argument("--target-clip", type=float, default=2000.0)
     parser.add_argument("--seed", type=int, default=20260802)
+    parser.add_argument(
+        "--init",
+        default="",
+        help="optional start weights: 'internal' (HCE default), .npz checkpoint, or NSCENNUE .bin",
+    )
     args = parser.parse_args()
 
     x, y, fens, dataset_sha256 = load_dataset(Path(args.data), args.target_clip)
@@ -250,6 +329,9 @@ def main() -> int:
     combined_y = np.concatenate([augmented_y, y[validation_indices]])
     combined_train_indices = np.arange(len(augmented_x))
     combined_validation_indices = np.arange(len(augmented_x), len(combined_x))
+    init_weights = load_init_weights(args.init) if args.init else None
+    if args.init:
+        print(f"init from {args.init}", flush=True)
     w0, b0, w1, b1, report = train(
         combined_x,
         combined_y,
@@ -259,6 +341,7 @@ def main() -> int:
         args.batch_size,
         args.learning_rate,
         args.seed,
+        init=init_weights,
     )
     quantized_prediction, diagnostics = quantize_and_export(Path(args.output), x, w0, b0, w1, b1)
 
@@ -276,6 +359,7 @@ def main() -> int:
             "validation_samples": len(validation_indices),
             "seed": args.seed,
             "epochs": args.epochs,
+            "init": args.init or None,
             "float_validation": metrics(
                 np.clip(x[validation_indices] @ w0 + b0, 0.0, 127.0) @ w1 + b1[0],
                 y[validation_indices],

@@ -30,6 +30,12 @@ def main() -> int:
     parser.add_argument("--data", default=str(ROOT / "train/data/nnue_stockfish_d8.jsonl"))
     parser.add_argument("--network", default=str(ROOT / "nets/nnue_trained.bin"))
     parser.add_argument("--output", default=str(ROOT / "nets/nnue_validation.json"))
+    parser.add_argument(
+        "--use-extras",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="UseExtras on the candidate net (KAT should pass --no-use-extras)",
+    )
     args = parser.parse_args()
 
     records = []
@@ -46,8 +52,9 @@ def main() -> int:
 
     baseline = UciEngine([args.engine], "baseline")
     trained = UciEngine([args.engine], "trained")
+    extras = "true" if args.use_extras else "false"
     baseline.apply_options({"EvalFile": "internal", "UseExtras": "true"})
-    trained.apply_options({"EvalFile": args.network})
+    trained.apply_options({"EvalFile": args.network, "UseExtras": extras})
     baseline_errors: list[int] = []
     trained_errors: list[int] = []
     try:
@@ -65,7 +72,10 @@ def main() -> int:
         "engine_sha256": hashlib.sha256(Path(args.engine).read_bytes()).hexdigest(),
         "network_sha256": hashlib.sha256(Path(args.network).read_bytes()).hexdigest(),
         "baseline_options": {"EvalFile": "internal", "UseExtras": True},
-        "trained_options": {"EvalFile": str(Path(args.network).resolve()), "UseExtras": True},
+        "trained_options": {
+            "EvalFile": str(Path(args.network).resolve()),
+            "UseExtras": bool(args.use_extras),
+        },
         "baseline": summarize(baseline_errors),
         "trained": summarize(trained_errors),
     }

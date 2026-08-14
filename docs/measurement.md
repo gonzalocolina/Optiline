@@ -24,7 +24,7 @@ Counters are local to each worker and aggregated after search:
 - TT probes / hits / cutoffs
 - first-move cutoff percentage and mean cutoff index
 - LMR attempts / researches
-- null / razor / RFP / futility / LMP
+- null / razor / RFP / futility / LMP (UCI `info string stats` emits `null a/b razor a/b rfp a/b futility n lmp n`)
 - qnodes and evaluations
 - SEE order / prune / successful prune counts
 - root moves claimed in parallel root split
@@ -32,7 +32,7 @@ Counters are local to each worker and aggregated after search:
 When enabled, UCI also emits:
 
 ```text
-info string stats qnodes_pct ... tt ... first_cut_pct ... lmr ... see ...
+info string stats qnodes_pct ... tt ... first_cut_pct ... lmr ... see ... null ... razor ... rfp ... futility ... lmp ...
 ```
 
 ## Ablation flags
@@ -132,6 +132,7 @@ current NSCE baseline rather than extending the plateaued Lichess run:
 
 ```bash
 python3 train/distill.py --teacher ./build/nsce --nodes 25000 \
+  --fens train/data/lichess_evals_1m.jsonl \
   --positions 200000 --output train/data/nsce_nodes25k.jsonl
 ```
 

@@ -46,6 +46,24 @@ def elo_from_wdl(wins: int, draws: int, losses: int) -> tuple[float, float]:
     return elo, max(elo - elo_low, elo_high - elo)
 
 
+def _parse_info_stats(line: str) -> dict[str, str]:
+    """Parse `info string stats k v k a/b ...` into a string-valued dict."""
+    parts = line.split()
+    try:
+        start = parts.index("stats") + 1
+    except ValueError:
+        return {}
+    parsed: dict[str, str] = {}
+    key: str | None = None
+    for token in parts[start:]:
+        if key is None:
+            key = token
+            continue
+        parsed[key] = token
+        key = None
+    return parsed
+
+
 def load_openings(path: Path) -> list[str]:
     fens: list[str] = []
     if not path.exists():
@@ -82,9 +100,11 @@ class UciEngine:
         self._send("isready")
         self._wait_for("readyok")
         self.last_nodes = 0
+        self.last_nps = 0
         self.last_depth = 0
         self.last_time_ms = 0
         self.last_score_cp = 0
+        self.last_stats: dict[str, str] = {}
         self.overruns = 0
 
     def _send(self, line: str) -> None:
@@ -122,6 +142,11 @@ class UciEngine:
 
     def new_game(self) -> None:
         self._send("ucinewgame")
+        self._send("isready")
+        self._wait_for("readyok")
+
+    def clear_hash(self) -> None:
+        self._send("setoption name Clear Hash")
         self._send("isready")
         self._wait_for("readyok")
 
@@ -163,14 +188,21 @@ class UciEngine:
 
     def _parse_search(self, lines: list[str]) -> str:
         self.last_nodes = 0
+        self.last_nps = 0
         self.last_depth = 0
         self.last_score_cp = 0
+        self.last_stats = {}
         best = "0000"
         for line in lines:
+            if line.startswith("info string stats "):
+                self.last_stats = _parse_info_stats(line)
+                continue
             if line.startswith("info "):
                 parts = line.split()
                 if "nodes" in parts:
                     self.last_nodes = int(parts[parts.index("nodes") + 1])
+                if "nps" in parts:
+                    self.last_nps = int(parts[parts.index("nps") + 1])
                 if "depth" in parts:
                     self.last_depth = int(parts[parts.index("depth") + 1])
                 if "score" in parts:

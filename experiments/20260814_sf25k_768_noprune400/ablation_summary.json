@@ -1,0 +1,3631 @@
+[
+  {
+    "name_a": "baseline_noprune",
+    "name_b": "nnue_sf25k_noprune",
+    "engine_a": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "cfg_a": "experiments/20260814_sf25k_768_noprune/baseline_noprune.uci",
+    "cfg_b": "experiments/20260814_sf25k_768_noprune/nnue_sf25k_noprune.uci",
+    "games": 400,
+    "pairs": 200,
+    "seed": 20260814,
+    "movetime_ms": 100,
+    "nodes_per_move": 25000,
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "W": 44,
+    "D": 332,
+    "L": 24,
+    "score": 0.525,
+    "elo_diff_a_minus_b": 17.386277512436138,
+    "elo_err_95": 14.065867401343453,
+    "nodes_per_game_a": 420840.1375,
+    "nodes_per_game_b": 435411.1975,
+    "time_ms_per_game_a": 567.1225,
+    "time_ms_per_game_b": 447.6075,
+    "overruns_a": 0,
+    "overruns_b": 0,
+    "games_log": [
+      {
+        "i": 0,
+        "pair_id": 0,
+        "a_is_white": true,
+        "fen": "r1bq1knr/pppp1ppp/B1n5/4p3/1b2P3/8/PPPP1PPP/RNBQK1NR w KQ - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 1,
+        "pair_id": 0,
+        "a_is_white": false,
+        "fen": "r1bq1knr/pppp1ppp/B1n5/4p3/1b2P3/8/PPPP1PPP/RNBQK1NR w KQ - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 2,
+        "pair_id": 1,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/p1nppp2/1p4pp/2p5/3NP3/1PN2P2/P1PP2PP/R1BQKB1R w KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 3,
+        "pair_id": 1,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/p1nppp2/1p4pp/2p5/3NP3/1PN2P2/P1PP2PP/R1BQKB1R w KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 4,
+        "pair_id": 2,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/ppppnppp/5n2/4p2P/4P3/2N2N2/PPPP1PP1/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 5,
+        "pair_id": 2,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/ppppnppp/5n2/4p2P/4P3/2N2N2/PPPP1PP1/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 6,
+        "pair_id": 3,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/1pp1p1pp/8/p2p1p2/b2P4/N4N2/PPPBPPPP/R2QKB1R b KQkq - 3 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 7,
+        "pair_id": 3,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/1pp1p1pp/8/p2p1p2/b2P4/N4N2/PPPBPPPP/R2QKB1R b KQkq - 3 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 8,
+        "pair_id": 4,
+        "a_is_white": true,
+        "fen": "rn2kbnr/ppp2ppp/3q4/3pp3/P2P2b1/7N/1PPBPPPP/RN1QKB1R w KQkq e6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 9,
+        "pair_id": 4,
+        "a_is_white": false,
+        "fen": "rn2kbnr/ppp2ppp/3q4/3pp3/P2P2b1/7N/1PPBPPPP/RN1QKB1R w KQkq e6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 10,
+        "pair_id": 5,
+        "a_is_white": true,
+        "fen": "rnbq1bnr/pp2kppp/4p3/2pp4/8/2P1P1Q1/PP1P1PPP/RNB1KBNR b KQ - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 11,
+        "pair_id": 5,
+        "a_is_white": false,
+        "fen": "rnbq1bnr/pp2kppp/4p3/2pp4/8/2P1P1Q1/PP1P1PPP/RNB1KBNR b KQ - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 12,
+        "pair_id": 6,
+        "a_is_white": true,
+        "fen": "r1bqk2r/pppp1ppp/2nb4/4N3/1PPPP3/8/P3BPnP/RNBQK2R w KQkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 13,
+        "pair_id": 6,
+        "a_is_white": false,
+        "fen": "r1bqk2r/pppp1ppp/2nb4/4N3/1PPPP3/8/P3BPnP/RNBQK2R w KQkq - 0 8",
+        "result_from_a": "1-0",
+        "plies": 50,
+        "termination": "checkmate"
+      },
+      {
+        "i": 14,
+        "pair_id": 7,
+        "a_is_white": true,
+        "fen": "rnb1qbnr/ppppkp2/7p/4p3/4P2p/NP3NP1/P1PPQP2/R1B1KB1R b KQ - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 15,
+        "pair_id": 7,
+        "a_is_white": false,
+        "fen": "rnb1qbnr/ppppkp2/7p/4p3/4P2p/NP3NP1/P1PPQP2/R1B1KB1R b KQ - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 16,
+        "pair_id": 8,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pppp1p1p/n5p1/1B2p3/3PP3/N7/PPP2PPP/R1BQK1NR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 17,
+        "pair_id": 8,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pppp1p1p/n5p1/1B2p3/3PP3/N7/PPP2PPP/R1BQK1NR b KQkq - 3 4",
+        "result_from_a": "1-0",
+        "plies": 57,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 18,
+        "pair_id": 9,
+        "a_is_white": true,
+        "fen": "r2qkbnr/pppbpppp/2n5/3p4/3P4/3QB3/PPP1PPPP/RN2KBNR w KQkq - 4 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 19,
+        "pair_id": 9,
+        "a_is_white": false,
+        "fen": "r2qkbnr/pppbpppp/2n5/3p4/3P4/3QB3/PPP1PPPP/RN2KBNR w KQkq - 4 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 20,
+        "pair_id": 10,
+        "a_is_white": true,
+        "fen": "rnb1k1nr/p1p2ppp/1p6/2P1p3/4PBP1/3B4/PPP2P1P/RN2K1NR b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 21,
+        "pair_id": 10,
+        "a_is_white": false,
+        "fen": "rnb1k1nr/p1p2ppp/1p6/2P1p3/4PBP1/3B4/PPP2P1P/RN2K1NR b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 22,
+        "pair_id": 11,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp3p/5p2/4p1p1/3PP1P1/2P1B3/P1PQ1P1P/R3KBNR b KQkq - 2 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 23,
+        "pair_id": 11,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp3p/5p2/4p1p1/3PP1P1/2P1B3/P1PQ1P1P/R3KBNR b KQkq - 2 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 24,
+        "pair_id": 12,
+        "a_is_white": true,
+        "fen": "1r1qkbnr/ppp2Npp/B2p4/n3p3/4P2P/7b/PPPP1PP1/RNBQK2R b KQk - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 25,
+        "pair_id": 12,
+        "a_is_white": false,
+        "fen": "1r1qkbnr/ppp2Npp/B2p4/n3p3/4P2P/7b/PPPP1PP1/RNBQK2R b KQk - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 26,
+        "pair_id": 13,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1pp1p2p/7n/p2p1pp1/1P1P3P/2N5/P1PKPPP1/R1BQ1BNR w kq f6 0 6",
+        "result_from_a": "1-0",
+        "plies": 54,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 27,
+        "pair_id": 13,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1pp1p2p/7n/p2p1pp1/1P1P3P/2N5/P1PKPPP1/R1BQ1BNR w kq f6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 28,
+        "pair_id": 14,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1p1p/6p1/4p3/P3P1n1/NP3N2/2PP1PPP/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 29,
+        "pair_id": 14,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1p1p/6p1/4p3/P3P1n1/NP3N2/2PP1PPP/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 30,
+        "pair_id": 15,
+        "a_is_white": true,
+        "fen": "1rbq1rk1/ppppbp1p/n4np1/1B2p2Q/P3P3/2NPB3/1PP2PPP/R3K1NR w KQ - 0 8",
+        "result_from_a": "0-1",
+        "plies": 54,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 31,
+        "pair_id": 15,
+        "a_is_white": false,
+        "fen": "1rbq1rk1/ppppbp1p/n4np1/1B2p2Q/P3P3/2NPB3/1PP2PPP/R3K1NR w KQ - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 32,
+        "pair_id": 16,
+        "a_is_white": true,
+        "fen": "rnbqkbn1/p2ppppr/1p6/2p4p/P1P1P3/5P2/1P1P2PP/RNBQKBNR w KQq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 33,
+        "pair_id": 16,
+        "a_is_white": false,
+        "fen": "rnbqkbn1/p2ppppr/1p6/2p4p/P1P1P3/5P2/1P1P2PP/RNBQKBNR w KQq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 34,
+        "pair_id": 17,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppnpp1p/6p1/2Pp4/4P3/7P/PP1P1PP1/RNBQKBNR w KQkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 35,
+        "pair_id": 17,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppnpp1p/6p1/2Pp4/4P3/7P/PP1P1PP1/RNBQKBNR w KQkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 36,
+        "pair_id": 18,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1ppp1p1p/6pn/p3p3/4PP2/P2P4/1PP3PP/RNBQKBNR w KQkq - 3 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 37,
+        "pair_id": 18,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1ppp1p1p/6pn/p3p3/4PP2/P2P4/1PP3PP/RNBQKBNR w KQkq - 3 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 38,
+        "pair_id": 19,
+        "a_is_white": true,
+        "fen": "r1bqk1nr/1ppp1ppp/2n5/p3p3/4P2b/2N2N2/PPPPKPPP/R1B1QB1R w kq a6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 39,
+        "pair_id": 19,
+        "a_is_white": false,
+        "fen": "r1bqk1nr/1ppp1ppp/2n5/p3p3/4P2b/2N2N2/PPPPKPPP/R1B1QB1R w kq a6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 40,
+        "pair_id": 20,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1pppppp/1p6/8/QPP5/8/P2PPPPP/RNB1KBNR w KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 41,
+        "pair_id": 20,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1pppppp/1p6/8/QPP5/8/P2PPPPP/RNB1KBNR w KQkq - 3 4",
+        "result_from_a": "1-0",
+        "plies": 55,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 42,
+        "pair_id": 21,
+        "a_is_white": true,
+        "fen": "1nbqkbr1/1ppp1ppp/r4n2/p3p3/4P3/6P1/PPPP1PBP/RNBQK1NR w KQ - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 43,
+        "pair_id": 21,
+        "a_is_white": false,
+        "fen": "1nbqkbr1/1ppp1ppp/r4n2/p3p3/4P3/6P1/PPPP1PBP/RNBQK1NR w KQ - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 44,
+        "pair_id": 22,
+        "a_is_white": true,
+        "fen": "rnbq2nr/1pppkppp/p7/1Bb1p3/4P3/5N2/PPPP1PPP/RNBQKR2 w Q - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 45,
+        "pair_id": 22,
+        "a_is_white": false,
+        "fen": "rnbq2nr/1pppkppp/p7/1Bb1p3/4P3/5N2/PPPP1PPP/RNBQKR2 w Q - 2 5",
+        "result_from_a": "1-0",
+        "plies": 45,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 46,
+        "pair_id": 23,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppppp1/5n1p/8/8/2P2P1P/PP1PP1P1/RNBQKBNR b KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 47,
+        "pair_id": 23,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppppp1/5n1p/8/8/2P2P1P/PP1PP1P1/RNBQKBNR b KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 48,
+        "pair_id": 24,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp2ppp/3p3n/4P2Q/4P3/8/PPP2PPP/RNB1KBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 49,
+        "pair_id": 24,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp2ppp/3p3n/4P2Q/4P3/8/PPP2PPP/RNB1KBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 50,
+        "pair_id": 25,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/p1qppppp/8/1pp4Q/4P2P/8/PPPPBPP1/RNB1K1NR w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 51,
+        "pair_id": 25,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/p1qppppp/8/1pp4Q/4P2P/8/PPPPBPP1/RNB1K1NR w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 52,
+        "pair_id": 26,
+        "a_is_white": true,
+        "fen": "rnbqk2r/pp1p1ppp/2pb3n/4p3/Q3P3/N1P5/PP1P1PPP/R1B1KBNR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 53,
+        "pair_id": 26,
+        "a_is_white": false,
+        "fen": "rnbqk2r/pp1p1ppp/2pb3n/4p3/Q3P3/N1P5/PP1P1PPP/R1B1KBNR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 54,
+        "pair_id": 27,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1p1pppp/1p3n2/3p4/3P4/2PQ4/PP2PPPP/RNB1KBNR w KQkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 55,
+        "pair_id": 27,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1p1pppp/1p3n2/3p4/3P4/2PQ4/PP2PPPP/RNB1KBNR w KQkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 56,
+        "pair_id": 28,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/1pp2ppp/nQ2q3/p2pp3/P2P4/5P2/1PP1P1PP/RNB1KBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 57,
+        "pair_id": 28,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/1pp2ppp/nQ2q3/p2pp3/P2P4/5P2/1PP1P1PP/RNB1KBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 58,
+        "pair_id": 29,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/pp1p1ppp/2p1q3/4p3/4P3/6N1/PPPPKPPP/RNBQ1B1R w kq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 59,
+        "pair_id": 29,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/pp1p1ppp/2p1q3/4p3/4P3/6N1/PPPPKPPP/RNBQ1B1R w kq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 60,
+        "pair_id": 30,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/pp1ppppp/n4n2/1Bp5/4P3/6P1/PPPP1P1P/RNBQK1NR w KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 61,
+        "pair_id": 30,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/pp1ppppp/n4n2/1Bp5/4P3/6P1/PPPP1P1P/RNBQK1NR w KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 62,
+        "pair_id": 31,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/1ppp2p1/p1n5/5pBp/3pP3/2Q5/PPP1NPPP/RN2KB1R w KQkq h6 0 7",
+        "result_from_a": "1-0",
+        "plies": 48,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 63,
+        "pair_id": 31,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/1ppp2p1/p1n5/5pBp/3pP3/2Q5/PPP1NPPP/RN2KB1R w KQkq h6 0 7",
+        "result_from_a": "1-0",
+        "plies": 48,
+        "termination": "checkmate"
+      },
+      {
+        "i": 64,
+        "pair_id": 32,
+        "a_is_white": true,
+        "fen": "rnb1k1nr/pppp1ppp/8/2b1p2q/4P3/5N2/PPPP1PPP/RNBQKB1R w kq - 6 5",
+        "result_from_a": "1-0",
+        "plies": 46,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 65,
+        "pair_id": 32,
+        "a_is_white": false,
+        "fen": "rnb1k1nr/pppp1ppp/8/2b1p2q/4P3/5N2/PPPP1PPP/RNBQKB1R w kq - 6 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 66,
+        "pair_id": 33,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1ppp1ppp/1n6/p3N3/4P3/3B3P/PPPP1PP1/RNBQK2R b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 67,
+        "pair_id": 33,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1ppp1ppp/1n6/p3N3/4P3/3B3P/PPPP1PP1/RNBQK2R b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 68,
+        "pair_id": 34,
+        "a_is_white": true,
+        "fen": "rnb1kb1r/2ppq1p1/pp3n2/4p2p/P2PP3/5N2/1PP2PPP/RNBQK2R w KQ - 1 9",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 69,
+        "pair_id": 34,
+        "a_is_white": false,
+        "fen": "rnb1kb1r/2ppq1p1/pp3n2/4p2p/P2PP3/5N2/1PP2PPP/RNBQK2R w KQ - 1 9",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 70,
+        "pair_id": 35,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/ppp1q1p1/n2p3p/5p2/P2QP1P1/4B3/RPP2P1P/1N2KBNR w Kkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 71,
+        "pair_id": 35,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/ppp1q1p1/n2p3p/5p2/P2QP1P1/4B3/RPP2P1P/1N2KBNR w Kkq - 0 8",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "checkmate"
+      },
+      {
+        "i": 72,
+        "pair_id": 36,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/ppp2p2/2np2p1/1B2p2p/1P2P3/5N2/P1PPKPPP/RNBQ3R b kq b3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 73,
+        "pair_id": 36,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/ppp2p2/2np2p1/1B2p2p/1P2P3/5N2/P1PPKPPP/RNBQ3R b kq b3 0 6",
+        "result_from_a": "1-0",
+        "plies": 53,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 74,
+        "pair_id": 37,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/pp1pqppp/8/2p1p3/4P3/1P6/P1PPQPPP/RNB1KBNR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 75,
+        "pair_id": 37,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/pp1pqppp/8/2p1p3/4P3/1P6/P1PPQPPP/RNB1KBNR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 76,
+        "pair_id": 38,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppppqppp/4p3/8/4P3/8/PPPPQPPP/RNB1KBNR w KQkq - 2 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 77,
+        "pair_id": 38,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppppqppp/4p3/8/4P3/8/PPPPQPPP/RNB1KBNR w KQkq - 2 3",
+        "result_from_a": "0-1",
+        "plies": 46,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 78,
+        "pair_id": 39,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pp1ppp1p/2n5/1Bp3p1/4P3/8/PPPP1PPP/RNBQ1KNR w kq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 79,
+        "pair_id": 39,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pp1ppp1p/2n5/1Bp3p1/4P3/8/PPPP1PPP/RNBQ1KNR w kq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 80,
+        "pair_id": 40,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/p1p2ppp/8/1p1pp2b/3P4/2P1B1P1/PP2PP1P/RN1QKBNR b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 81,
+        "pair_id": 40,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/p1p2ppp/8/1p1pp2b/3P4/2P1B1P1/PP2PP1P/RN1QKBNR b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 82,
+        "pair_id": 41,
+        "a_is_white": true,
+        "fen": "r1b1k1nr/pppp1p1p/2n3p1/2b1p3/2Q1P2q/3P1N2/PPPB1PPP/RN2KB1R b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 83,
+        "pair_id": 41,
+        "a_is_white": false,
+        "fen": "r1b1k1nr/pppp1p1p/2n3p1/2b1p3/2Q1P2q/3P1N2/PPPB1PPP/RN2KB1R b KQkq - 2 6",
+        "result_from_a": "1-0",
+        "plies": 39,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 84,
+        "pair_id": 42,
+        "a_is_white": true,
+        "fen": "rnbq1bnr/pp1pk2p/4p3/2p2pp1/4P3/2P2P2/PP1PBNPP/RNBQK2R b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 85,
+        "pair_id": 42,
+        "a_is_white": false,
+        "fen": "rnbq1bnr/pp1pk2p/4p3/2p2pp1/4P3/2P2P2/PP1PBNPP/RNBQK2R b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 86,
+        "pair_id": 43,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p1p1pp1/p1p1p2p/8/P2P4/1PP2N2/4PPPP/RNBQKB1R b KQkq a3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 87,
+        "pair_id": 43,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p1p1pp1/p1p1p2p/8/P2P4/1PP2N2/4PPPP/RNBQKB1R b KQkq a3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 88,
+        "pair_id": 44,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/2ppqppp/pp6/1B6/3PPp2/N7/PPP3PP/R1BQK1NR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 89,
+        "pair_id": 44,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/2ppqppp/pp6/1B6/3PPp2/N7/PPP3PP/R1BQK1NR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 90,
+        "pair_id": 45,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p4ppp/4pn2/1ppp4/3PP2P/8/PPPB1PP1/RN1QKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 91,
+        "pair_id": 45,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p4ppp/4pn2/1ppp4/3PP2P/8/PPPB1PP1/RN1QKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 92,
+        "pair_id": 46,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1pp2p1p/3Bp1p1/p2p4/3PN3/1P6/P1P1PPPP/R2QKBNR w KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 93,
+        "pair_id": 46,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1pp2p1p/3Bp1p1/p2p4/3PN3/1P6/P1P1PPPP/R2QKBNR w KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 94,
+        "pair_id": 47,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/p2p1ppp/1pn2n2/2p1p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 95,
+        "pair_id": 47,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/p2p1ppp/1pn2n2/2p1p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 96,
+        "pair_id": 48,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1p1pp1pp/p6n/2p1Pp2/6PP/8/PPPP1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 97,
+        "pair_id": 48,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1p1pp1pp/p6n/2p1Pp2/6PP/8/PPPP1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "0-1",
+        "plies": 38,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 98,
+        "pair_id": 49,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pp1p/5n2/3p2p1/8/5N1P/PPPPPPP1/RNBQKB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 99,
+        "pair_id": 49,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pp1p/5n2/3p2p1/8/5N1P/PPPPPPP1/RNBQKB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 100,
+        "pair_id": 50,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p2pppp/3p4/p1p5/4P3/6PP/PPPP1P2/RNBQKBNR w KQkq a6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 101,
+        "pair_id": 50,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p2pppp/3p4/p1p5/4P3/6PP/PPPP1P2/RNBQKBNR w KQkq a6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 102,
+        "pair_id": 51,
+        "a_is_white": true,
+        "fen": "rnbqkn1r/pppp1ppp/8/4p2Q/1b2P3/2NP2P1/PPP2P1P/RNB1KB1R b KQkq - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 103,
+        "pair_id": 51,
+        "a_is_white": false,
+        "fen": "rnbqkn1r/pppp1ppp/8/4p2Q/1b2P3/2NP2P1/PPP2P1P/RNB1KB1R b KQkq - 4 6",
+        "result_from_a": "0-1",
+        "plies": 58,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 104,
+        "pair_id": 52,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppp2pp/4p3/5p2/6P1/8/PPPPPPBP/RNBQK1NR w KQkq - 0 3",
+        "result_from_a": "1-0",
+        "plies": 46,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 105,
+        "pair_id": 52,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppp2pp/4p3/5p2/6P1/8/PPPPPPBP/RNBQK1NR w KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 106,
+        "pair_id": 53,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1p1p/4p3/1B4pQ/4n2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 107,
+        "pair_id": 53,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1p1p/4p3/1B4pQ/4n2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5",
+        "result_from_a": "0-1",
+        "plies": 32,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 108,
+        "pair_id": 54,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p2ppppp/1pp2n2/8/3P4/5PPP/PPP1P3/RNBQKBNR b KQkq - 0 4",
+        "result_from_a": "0-1",
+        "plies": 53,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 109,
+        "pair_id": 54,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p2ppppp/1pp2n2/8/3P4/5PPP/PPP1P3/RNBQKBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 110,
+        "pair_id": 55,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/3ppppp/2n5/ppp5/4P2P/2P2QP1/PP1P1P2/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1-0",
+        "plies": 58,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 111,
+        "pair_id": 55,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/3ppppp/2n5/ppp5/4P2P/2P2QP1/PP1P1P2/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 112,
+        "pair_id": 56,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/p3pp2/bp1p4/2p3pp/4P3/1P3N2/PBPP1PPP/RN1QK2R w KQkq - 0 7",
+        "result_from_a": "1-0",
+        "plies": 56,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 113,
+        "pair_id": 56,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/p3pp2/bp1p4/2p3pp/4P3/1P3N2/PBPP1PPP/RN1QK2R w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 114,
+        "pair_id": 57,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/pp1ppppp/5n2/2p5/1n2PP2/2N5/PPPPQ1PP/R1B1KBNR w KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 115,
+        "pair_id": 57,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/pp1ppppp/5n2/2p5/1n2PP2/2N5/PPPPQ1PP/R1B1KBNR w KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 116,
+        "pair_id": 58,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/p1pp1ppp/1pn3q1/4p3/2P1P2P/P4N2/1P1P1PP1/RNBQKB1R w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 117,
+        "pair_id": 58,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/p1pp1ppp/1pn3q1/4p3/2P1P2P/P4N2/1P1P1PP1/RNBQKB1R w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 118,
+        "pair_id": 59,
+        "a_is_white": true,
+        "fen": "r1bqk2r/pppp1ppp/2n5/3np1b1/4P3/5N1P/PPPPBPP1/RNBQ1RK1 b kq - 6 7",
+        "result_from_a": "0-1",
+        "plies": 55,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 119,
+        "pair_id": 59,
+        "a_is_white": false,
+        "fen": "r1bqk2r/pppp1ppp/2n5/3np1b1/4P3/5N1P/PPPPBPP1/RNBQ1RK1 b kq - 6 7",
+        "result_from_a": "0-1",
+        "plies": 54,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 120,
+        "pair_id": 60,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1pp1ppp/1p6/4p3/P3P3/7P/1PPP1PP1/RNBQKBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 121,
+        "pair_id": 60,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1pp1ppp/1p6/4p3/P3P3/7P/1PPP1PP1/RNBQKBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 122,
+        "pair_id": 61,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1p1np1p/1B6/1p1pp1pQ/4P3/3P4/PPP2PPP/RN2KBNR w KQkq g6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 123,
+        "pair_id": 61,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1p1np1p/1B6/1p1pp1pQ/4P3/3P4/PPP2PPP/RN2KBNR w KQkq g6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 124,
+        "pair_id": 62,
+        "a_is_white": true,
+        "fen": "rnbq1b1r/2pkpppp/1p1p1n2/p7/4P1P1/2PP1P2/PP2N2P/RNBQKB1R b KQ - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 125,
+        "pair_id": 62,
+        "a_is_white": false,
+        "fen": "rnbq1b1r/2pkpppp/1p1p1n2/p7/4P1P1/2PP1P2/PP2N2P/RNBQKB1R b KQ - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 126,
+        "pair_id": 63,
+        "a_is_white": true,
+        "fen": "r1bq1b1r/pppp1ppp/2nk3n/4p3/4P3/N6P/PPPPQPPR/R1B1KBN1 w Q - 5 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 127,
+        "pair_id": 63,
+        "a_is_white": false,
+        "fen": "r1bq1b1r/pppp1ppp/2nk3n/4p3/4P3/N6P/PPPPQPPR/R1B1KBN1 w Q - 5 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 128,
+        "pair_id": 64,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1ppppp1/1p3n2/7p/4P3/2P2N2/PP1PQPPP/RNB1KB1R b KQkq - 0 4",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 129,
+        "pair_id": 64,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1ppppp1/1p3n2/7p/4P3/2P2N2/PP1PQPPP/RNB1KB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 130,
+        "pair_id": 65,
+        "a_is_white": true,
+        "fen": "rnbq1b1r/ppp1kp1p/3p2pn/4p3/4P3/1Q6/PPPP1PPP/RNB1KBNR b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 131,
+        "pair_id": 65,
+        "a_is_white": false,
+        "fen": "rnbq1b1r/ppp1kp1p/3p2pn/4p3/4P3/1Q6/PPPP1PPP/RNB1KBNR b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 132,
+        "pair_id": 66,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/pppp1ppp/8/4P1q1/P1P4P/5P2/1P2P1P1/RNBQKBNR b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 133,
+        "pair_id": 66,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/pppp1ppp/8/4P1q1/P1P4P/5P2/1P2P1P1/RNBQKBNR b KQkq - 0 6",
+        "result_from_a": "1-0",
+        "plies": 59,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 134,
+        "pair_id": 67,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pp2pppp/2np4/2p5/4P3/2NB4/PPPP1PPP/1RBQK1NR b Kkq - 3 4",
+        "result_from_a": "0-1",
+        "plies": 59,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 135,
+        "pair_id": 67,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pp2pppp/2np4/2p5/4P3/2NB4/PPPP1PPP/1RBQK1NR b Kkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 136,
+        "pair_id": 68,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/p1pp1ppp/2n2n2/1p2p3/4P2P/P2B1N2/1PPP1PP1/RNBQK2R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 137,
+        "pair_id": 68,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/p1pp1ppp/2n2n2/1p2p3/4P2P/P2B1N2/1PPP1PP1/RNBQK2R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 138,
+        "pair_id": 69,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/p1pqpppp/1p1p4/8/4P1P1/1PN4P/P1PPBP2/R1BQK1NR b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 139,
+        "pair_id": 69,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/p1pqpppp/1p1p4/8/4P1P1/1PN4P/P1PPBP2/R1BQK1NR b KQkq - 2 6",
+        "result_from_a": "1-0",
+        "plies": 43,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 140,
+        "pair_id": 70,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp1p2/7p/1B2N1p1/1bP1P3/NP6/P2P1PPP/R1BQK2R b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 141,
+        "pair_id": 70,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp1p2/7p/1B2N1p1/1bP1P3/NP6/P2P1PPP/R1BQK2R b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 142,
+        "pair_id": 71,
+        "a_is_white": true,
+        "fen": "rnb1kbr1/pp1p1ppp/1qp2n2/4p3/4PPQ1/6P1/PPPP3P/RNBK1BNR w q - 1 8",
+        "result_from_a": "0-1",
+        "plies": 54,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 143,
+        "pair_id": 71,
+        "a_is_white": false,
+        "fen": "rnb1kbr1/pp1p1ppp/1qp2n2/4p3/4PPQ1/6P1/PPPP3P/RNBK1BNR w q - 1 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 144,
+        "pair_id": 72,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1p2pppp/5n2/p1pp4/4P3/N6P/PPPP1PPR/R1BQKBN1 w Qkq a6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 145,
+        "pair_id": 72,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1p2pppp/5n2/p1pp4/4P3/N6P/PPPP1PPR/R1BQKBN1 w Qkq a6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 146,
+        "pair_id": 73,
+        "a_is_white": true,
+        "fen": "rn1qk1nr/p1ppbppp/bp6/4p3/PP1PP1Q1/6P1/2PN1P1P/R1B1KBNR b KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 147,
+        "pair_id": 73,
+        "a_is_white": false,
+        "fen": "rn1qk1nr/p1ppbppp/bp6/4p3/PP1PP1Q1/6P1/2PN1P1P/R1B1KBNR b KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 148,
+        "pair_id": 74,
+        "a_is_white": true,
+        "fen": "1rb1kbnr/ppp1qp1p/2n5/3pp1p1/3PP3/PP3N2/2P2PPP/RNBQKB1R w KQk d6 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 149,
+        "pair_id": 74,
+        "a_is_white": false,
+        "fen": "1rb1kbnr/ppp1qp1p/2n5/3pp1p1/3PP3/PP3N2/2P2PPP/RNBQKB1R w KQk d6 0 7",
+        "result_from_a": "0-1",
+        "plies": 27,
+        "termination": "checkmate"
+      },
+      {
+        "i": 150,
+        "pair_id": 75,
+        "a_is_white": true,
+        "fen": "r3kbnr/ppp2ppp/2np4/4pbq1/4P2N/1QP5/PP1P1PPP/RNB1KB1R b KQkq - 3 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 151,
+        "pair_id": 75,
+        "a_is_white": false,
+        "fen": "r3kbnr/ppp2ppp/2np4/4pbq1/4P2N/1QP5/PP1P1PPP/RNB1KB1R b KQkq - 3 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 152,
+        "pair_id": 76,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pp2pp1p/B5p1/3P3n/1p6/8/P1PP1PPP/RNBQK1NR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 153,
+        "pair_id": 76,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pp2pp1p/B5p1/3P3n/1p6/8/P1PP1PPP/RNBQK1NR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 154,
+        "pair_id": 77,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppppp1/5n2/7p/7P/5N2/PPPPPPPR/RNBQKB2 b Qkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 155,
+        "pair_id": 77,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppppp1/5n2/7p/7P/5N2/PPPPPPPR/RNBQKB2 b Qkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 156,
+        "pair_id": 78,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pp1p/6p1/3p1n2/3PPBP1/5N2/PPP2P1P/RN1QKB1R b KQkq e3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 157,
+        "pair_id": 78,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pp1p/6p1/3p1n2/3PPBP1/5N2/PPP2P1P/RN1QKB1R b KQkq e3 0 5",
+        "result_from_a": "1-0",
+        "plies": 55,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 158,
+        "pair_id": 79,
+        "a_is_white": true,
+        "fen": "rnbqk2r/2pp1ppp/1p1b1n2/p3p3/2B1P3/6P1/PPPP1P1P/RNBQK1NR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 159,
+        "pair_id": 79,
+        "a_is_white": false,
+        "fen": "rnbqk2r/2pp1ppp/1p1b1n2/p3p3/2B1P3/6P1/PPPP1P1P/RNBQK1NR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 160,
+        "pair_id": 80,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/ppp1pppp/2b5/3p4/P2P4/5P2/1PPBP1PP/RN1QKBNR b KQkq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 161,
+        "pair_id": 80,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/ppp1pppp/2b5/3p4/P2P4/5P2/1PPBP1PP/RN1QKBNR b KQkq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 162,
+        "pair_id": 81,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1pppp1p/p4np1/4P3/8/8/PPPP1PPP/RNBQK1NR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 163,
+        "pair_id": 81,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1pppp1p/p4np1/4P3/8/8/PPPP1PPP/RNBQK1NR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 164,
+        "pair_id": 82,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/1ppppppp/n7/p7/3PPn2/8/PPP3PP/RNBQKBNR b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 165,
+        "pair_id": 82,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/1ppppppp/n7/p7/3PPn2/8/PPP3PP/RNBQKBNR b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 166,
+        "pair_id": 83,
+        "a_is_white": true,
+        "fen": "1rbqkb1r/pppppppp/n4n2/8/6P1/3P3P/PPPKPP2/RNBQ1BNR b k - 2 4",
+        "result_from_a": "1-0",
+        "plies": 51,
+        "termination": "checkmate"
+      },
+      {
+        "i": 167,
+        "pair_id": 83,
+        "a_is_white": false,
+        "fen": "1rbqkb1r/pppppppp/n4n2/8/6P1/3P3P/PPPKPP2/RNBQ1BNR b k - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 168,
+        "pair_id": 84,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p1p1ppp/p3p3/2p5/4P3/2N4N/PPPP1PPP/R1BQKB1R w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 169,
+        "pair_id": 84,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p1p1ppp/p3p3/2p5/4P3/2N4N/PPPP1PPP/R1BQKB1R w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 170,
+        "pair_id": 85,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p2pppp1/2p2n1p/1p6/2B1P3/2P5/PP1P1PPP/RNBQK1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 171,
+        "pair_id": 85,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p2pppp1/2p2n1p/1p6/2B1P3/2P5/PP1P1PPP/RNBQK1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 172,
+        "pair_id": 86,
+        "a_is_white": true,
+        "fen": "rn1qkb1r/pb1p1ppp/1pp5/3np3/8/3PP1PP/PPP2PB1/RNBQ1KNR w kq - 4 7",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 173,
+        "pair_id": 86,
+        "a_is_white": false,
+        "fen": "rn1qkb1r/pb1p1ppp/1pp5/3np3/8/3PP1PP/PPP2PB1/RNBQ1KNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 174,
+        "pair_id": 87,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1pp1pp1p/p2p3n/6p1/P6P/3P4/RPPKPPP1/1NBQ1BNR w kq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 175,
+        "pair_id": 87,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1pp1pp1p/p2p3n/6p1/P6P/3P4/RPPKPPP1/1NBQ1BNR w kq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 176,
+        "pair_id": 88,
+        "a_is_white": true,
+        "fen": "rnb1kb1r/ppppqp2/5np1/4N2p/4P3/3Q4/PPPP1PPP/RNB1KB1R w KQkq h6 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 177,
+        "pair_id": 88,
+        "a_is_white": false,
+        "fen": "rnb1kb1r/ppppqp2/5np1/4N2p/4P3/3Q4/PPPP1PPP/RNB1KB1R w KQkq h6 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 178,
+        "pair_id": 89,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/1p1p1pp1/p2b3p/4p3/2p4P/P2PP3/1PP1QPP1/RNB1KBNR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 179,
+        "pair_id": 89,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/1p1p1pp1/p2b3p/4p3/2p4P/P2PP3/1PP1QPP1/RNB1KBNR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 180,
+        "pair_id": 90,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pp1p1ppp/B4n2/2p1p3/4P3/8/PPPP1PPP/RNBQK1NR w KQkq e6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 181,
+        "pair_id": 90,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pp1p1ppp/B4n2/2p1p3/4P3/8/PPPP1PPP/RNBQK1NR w KQkq e6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 182,
+        "pair_id": 91,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/p1pnpppp/1p1q3B/3p4/3P4/7N/PPPKPPPP/RN1Q1B1R w kq - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 183,
+        "pair_id": 91,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/p1pnpppp/1p1q3B/3p4/3P4/7N/PPPKPPPP/RN1Q1B1R w kq - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 184,
+        "pair_id": 92,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1p2ppp/1p1p4/4p3/4P3/3P4/PPPQ1PPP/RNB1KBNR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 185,
+        "pair_id": 92,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1p2ppp/1p1p4/4p3/4P3/3P4/PPPQ1PPP/RNB1KBNR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 186,
+        "pair_id": 93,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pp1pp1p1/5p2/2p4p/4P3/5N2/PPPP1PPP/RNBQKBR1 w Qkq h6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 187,
+        "pair_id": 93,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pp1pp1p1/5p2/2p4p/4P3/5N2/PPPP1PPP/RNBQKBR1 w Qkq h6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 188,
+        "pair_id": 94,
+        "a_is_white": true,
+        "fen": "1rb1kbnr/1ppp1ppp/2n5/p3p1q1/P3P1P1/5N1P/1PPPBP2/RNBQK2R b KQk - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 189,
+        "pair_id": 94,
+        "a_is_white": false,
+        "fen": "1rb1kbnr/1ppp1ppp/2n5/p3p1q1/P3P1P1/5N1P/1PPPBP2/RNBQK2R b KQk - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 190,
+        "pair_id": 95,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1p1pppp/3p4/1p5Q/P3P3/3P2P1/1PP2P1P/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 191,
+        "pair_id": 95,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1p1pppp/3p4/1p5Q/P3P3/3P2P1/1PP2P1P/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 192,
+        "pair_id": 96,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/p1pnpppp/1p3n2/3p4/3P1P2/1P2P3/P1PB2PP/RN1QKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 193,
+        "pair_id": 96,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/p1pnpppp/1p3n2/3p4/3P1P2/1P2P3/P1PB2PP/RN1QKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 194,
+        "pair_id": 97,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp1ppp/8/4p3/3bP3/6P1/PPPPNP1P/RNBQKBR1 b Qkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 195,
+        "pair_id": 97,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp1ppp/8/4p3/3bP3/6P1/PPPPNP1P/RNBQKBR1 b Qkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 196,
+        "pair_id": 98,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/ppp1p1p1/2np4/5p1p/2P3P1/4P2P/PP1P1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 197,
+        "pair_id": 98,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/ppp1p1p1/2np4/5p1p/2P3P1/4P2P/PP1P1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 198,
+        "pair_id": 99,
+        "a_is_white": true,
+        "fen": "rnbqk2r/1pp2p2/p2bpn1p/3p2p1/3P2P1/2B1PP1B/PPP4P/RN1QK1NR w KQkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 199,
+        "pair_id": 99,
+        "a_is_white": false,
+        "fen": "rnbqk2r/1pp2p2/p2bpn1p/3p2p1/3P2P1/2B1PP1B/PPP4P/RN1QK1NR w KQkq - 0 8",
+        "result_from_a": "0-1",
+        "plies": 57,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 200,
+        "pair_id": 100,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppqp1ppp/4p3/2p5/P1P1P3/6P1/1P1P1P1P/RNBQKBNR b KQkq a3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 201,
+        "pair_id": 100,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppqp1ppp/4p3/2p5/P1P1P3/6P1/1P1P1P1P/RNBQKBNR b KQkq a3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 202,
+        "pair_id": 101,
+        "a_is_white": true,
+        "fen": "rnb1kb1r/ppqppppp/8/2p2n2/4P3/7N/PPPPKPPP/RNBQ1BR1 w kq - 6 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 203,
+        "pair_id": 101,
+        "a_is_white": false,
+        "fen": "rnb1kb1r/ppqppppp/8/2p2n2/4P3/7N/PPPPKPPP/RNBQ1BR1 w kq - 6 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 204,
+        "pair_id": 102,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1pp1ppp/5n2/1p2p3/1P6/8/PBPPPPPP/RN1QKBNR w KQkq e6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 205,
+        "pair_id": 102,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1pp1ppp/5n2/1p2p3/1P6/8/PBPPPPPP/RN1QKBNR w KQkq e6 0 4",
+        "result_from_a": "0-1",
+        "plies": 59,
+        "termination": "checkmate"
+      },
+      {
+        "i": 206,
+        "pair_id": 103,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pppn/8/3p4/3P1P1p/NP5P/P1P1P1P1/R1BQKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 207,
+        "pair_id": 103,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pppn/8/3p4/3P1P1p/NP5P/P1P1P1P1/R1BQKBNR w KQkq - 0 6",
+        "result_from_a": "1-0",
+        "plies": 59,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 208,
+        "pair_id": 104,
+        "a_is_white": true,
+        "fen": "rnbqkbr1/pppp1ppp/7n/4p3/P3P1P1/8/1PPPNP1P/RNBQKB1R b KQq g3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 209,
+        "pair_id": 104,
+        "a_is_white": false,
+        "fen": "rnbqkbr1/pppp1ppp/7n/4p3/P3P1P1/8/1PPPNP1P/RNBQKB1R b KQq g3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 210,
+        "pair_id": 105,
+        "a_is_white": true,
+        "fen": "rnbq1bnr/ppp1kp1p/6p1/1N1Pp3/8/6P1/PPPP1P1P/R1BQKBNR b KQ - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 211,
+        "pair_id": 105,
+        "a_is_white": false,
+        "fen": "rnbq1bnr/ppp1kp1p/6p1/1N1Pp3/8/6P1/PPPP1P1P/R1BQKBNR b KQ - 0 5",
+        "result_from_a": "1-0",
+        "plies": 55,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 212,
+        "pair_id": 106,
+        "a_is_white": true,
+        "fen": "rn1qkb1r/p1p2ppp/3p1n2/1p2p3/4P1bP/3P1NP1/PPP2P2/RNBQKB1R b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 213,
+        "pair_id": 106,
+        "a_is_white": false,
+        "fen": "rn1qkb1r/p1p2ppp/3p1n2/1p2p3/4P1bP/3P1NP1/PPP2P2/RNBQKB1R b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 214,
+        "pair_id": 107,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/2pn1ppp/1p1p2n1/p2Pp2B/4P3/7P/PPPN1PP1/R1BQK1NR w KQkq - 4 8",
+        "result_from_a": "1-0",
+        "plies": 60,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 215,
+        "pair_id": 107,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/2pn1ppp/1p1p2n1/p2Pp2B/4P3/7P/PPPN1PP1/R1BQK1NR w KQkq - 4 8",
+        "result_from_a": "1-0",
+        "plies": 59,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 216,
+        "pair_id": 108,
+        "a_is_white": true,
+        "fen": "rnb1kb1r/pppp1p1p/5qpn/4p3/4P3/N6P/PPPP1PP1/1RBQKBNR w Kkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 217,
+        "pair_id": 108,
+        "a_is_white": false,
+        "fen": "rnb1kb1r/pppp1p1p/5qpn/4p3/4P3/N6P/PPPP1PP1/1RBQKBNR w Kkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 218,
+        "pair_id": 109,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pp1ppppp/8/2p4n/8/P1NP1P2/1PP1P1PP/R1BQKBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 219,
+        "pair_id": 109,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pp1ppppp/8/2p4n/8/P1NP1P2/1PP1P1PP/R1BQKBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 220,
+        "pair_id": 110,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppppqppp/8/4p3/4P2P/6P1/PPPP1P2/RNBQKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 221,
+        "pair_id": 110,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppppqppp/8/4p3/4P2P/6P1/PPPP1P2/RNBQKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 222,
+        "pair_id": 111,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppp2pp1/3p3p/4p1q1/1B1PP3/P7/1PPK1PPP/RN1Q1BNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 223,
+        "pair_id": 111,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppp2pp1/3p3p/4p1q1/1B1PP3/P7/1PPK1PPP/RN1Q1BNR w kq - 4 7",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 224,
+        "pair_id": 112,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppnppp/8/4p3/4P3/N2Q1N2/PPPP1PPP/R1B1KB1R b KQkq - 5 5",
+        "result_from_a": "0-1",
+        "plies": 46,
+        "termination": "checkmate"
+      },
+      {
+        "i": 225,
+        "pair_id": 112,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppnppp/8/4p3/4P3/N2Q1N2/PPPP1PPP/R1B1KB1R b KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 226,
+        "pair_id": 113,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/pp1p1ppp/2n5/2pBq3/4P3/6P1/PPPP1P1P/RNBQK1NR b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 227,
+        "pair_id": 113,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/pp1p1ppp/2n5/2pBq3/4P3/6P1/PPPP1P1P/RNBQK1NR b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 228,
+        "pair_id": 114,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/p1pp1pp1/7p/1p2p1q1/4P1P1/1P6/P1PPNP1P/RNBQKB1R w KQkq b6 0 5",
+        "result_from_a": "1-0",
+        "plies": 55,
+        "termination": "checkmate"
+      },
+      {
+        "i": 229,
+        "pair_id": 114,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/p1pp1pp1/7p/1p2p1q1/4P1P1/1P6/P1PPNP1P/RNBQKB1R w KQkq b6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 230,
+        "pair_id": 115,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppp1p1p/6p1/8/3pP3/8/PPPB1PPP/RNQ1KBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 231,
+        "pair_id": 115,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppp1p1p/6p1/8/3pP3/8/PPPB1PPP/RNQ1KBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 232,
+        "pair_id": 116,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppq1p3/2p2pp1/1Q1p3p/3P4/2P5/PP2PPPP/R1BNKBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 233,
+        "pair_id": 116,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppq1p3/2p2pp1/1Q1p3p/3P4/2P5/PP2PPPP/R1BNKBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 234,
+        "pair_id": 117,
+        "a_is_white": true,
+        "fen": "r1bqkr2/pppp1ppp/n3pn2/5Q2/4P3/b7/PPPPBPPP/RNB1K1NR w KQq - 6 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 235,
+        "pair_id": 117,
+        "a_is_white": false,
+        "fen": "r1bqkr2/pppp1ppp/n3pn2/5Q2/4P3/b7/PPPPBPPP/RNB1K1NR w KQq - 6 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 236,
+        "pair_id": 118,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/ppp4p/3b4/3p1pp1/1P1Pp3/2P1PN2/P2Q1PPP/RNB1KB1R w KQkq - 1 7",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 237,
+        "pair_id": 118,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/ppp4p/3b4/3p1pp1/1P1Pp3/2P1PN2/P2Q1PPP/RNB1KB1R w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 238,
+        "pair_id": 119,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1ppp1ppp/p7/4pP2/4P3/5N2/PPPP2PP/RNBQKBR1 b Qkq - 1 5",
+        "result_from_a": "1-0",
+        "plies": 55,
+        "termination": "checkmate"
+      },
+      {
+        "i": 239,
+        "pair_id": 119,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1ppp1ppp/p7/4pP2/4P3/5N2/PPPP2PP/RNBQKBR1 b Qkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 240,
+        "pair_id": 120,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pppppppp/8/8/1nP5/8/PPQPPPPP/RNB1KBNR w KQkq - 3 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 241,
+        "pair_id": 120,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pppppppp/8/8/1nP5/8/PPQPPPPP/RNB1KBNR w KQkq - 3 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 242,
+        "pair_id": 121,
+        "a_is_white": true,
+        "fen": "1rbqkbnr/ppppnp1p/8/4p1p1/4P3/1P3Q2/P1PP1PPP/RNBK1BNR w k - 4 6",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 243,
+        "pair_id": 121,
+        "a_is_white": false,
+        "fen": "1rbqkbnr/ppppnp1p/8/4p1p1/4P3/1P3Q2/P1PP1PPP/RNBK1BNR w k - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 244,
+        "pair_id": 122,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pp3ppp/8/2ppp3/3PP3/3Q4/PPP2PPP/RNB1KBNR w KQkq c6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 245,
+        "pair_id": 122,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pp3ppp/8/2ppp3/3PP3/3Q4/PPP2PPP/RNB1KBNR w KQkq c6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 246,
+        "pair_id": 123,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/ppppn1pp/n7/3Ppp2/1P2P3/7P/P1P1QPP1/RNB1KBNR b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 247,
+        "pair_id": 123,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/ppppn1pp/n7/3Ppp2/1P2P3/7P/P1P1QPP1/RNB1KBNR b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 248,
+        "pair_id": 124,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/pppp1pp1/2n2q1p/4p3/4P3/3P1NP1/PPP2P1P/RNBQKB1R w KQkq - 1 5",
+        "result_from_a": "0-1",
+        "plies": 42,
+        "termination": "checkmate"
+      },
+      {
+        "i": 249,
+        "pair_id": 124,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/pppp1pp1/2n2q1p/4p3/4P3/3P1NP1/PPP2P1P/RNBQKB1R w KQkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 250,
+        "pair_id": 125,
+        "a_is_white": true,
+        "fen": "r1bq1k1r/1pp1ppbp/2n2np1/pB1p4/2P1P2P/N4Q2/PP1P1PP1/R1B1K1NR w KQ - 2 8",
+        "result_from_a": "1-0",
+        "plies": 60,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 251,
+        "pair_id": 125,
+        "a_is_white": false,
+        "fen": "r1bq1k1r/1pp1ppbp/2n2np1/pB1p4/2P1P2P/N4Q2/PP1P1PP1/R1B1K1NR w KQ - 2 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 252,
+        "pair_id": 126,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp1ppp/4p3/1Bb5/4P3/1P3P2/P1PP2PP/RNBQK1NR w KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 253,
+        "pair_id": 126,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp1ppp/4p3/1Bb5/4P3/1P3P2/P1PP2PP/RNBQK1NR w KQkq - 2 5",
+        "result_from_a": "0-1",
+        "plies": 49,
+        "termination": "checkmate"
+      },
+      {
+        "i": 254,
+        "pair_id": 127,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1pp1p1p1/7p/3p1p2/pPPP4/6PP/P2NPP2/R1BQKBNR b KQkq c3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 255,
+        "pair_id": 127,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1pp1p1p1/7p/3p1p2/pPPP4/6PP/P2NPP2/R1BQKBNR b KQkq c3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 256,
+        "pair_id": 128,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pp1ppppp/8/2p4n/8/P1NP1P2/1PP1P1PP/R1BQKBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 257,
+        "pair_id": 128,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pp1ppppp/8/2p4n/8/P1NP1P2/1PP1P1PP/R1BQKBNR b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 258,
+        "pair_id": 129,
+        "a_is_white": true,
+        "fen": "r1bqk1nr/1ppp1ppp/2n5/p3p3/4P2b/2N2N2/PPPPKPPP/R1B1QB1R w kq a6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 259,
+        "pair_id": 129,
+        "a_is_white": false,
+        "fen": "r1bqk1nr/1ppp1ppp/2n5/p3p3/4P2b/2N2N2/PPPPKPPP/R1B1QB1R w kq a6 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 260,
+        "pair_id": 130,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pppn/8/3p4/3P1P1p/NP5P/P1P1P1P1/R1BQKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 261,
+        "pair_id": 130,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pppn/8/3p4/3P1P1p/NP5P/P1P1P1P1/R1BQKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 262,
+        "pair_id": 131,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p1p1pp1/p1p1p2p/8/P2P4/1PP2N2/4PPPP/RNBQKB1R b KQkq a3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 263,
+        "pair_id": 131,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p1p1pp1/p1p1p2p/8/P2P4/1PP2N2/4PPPP/RNBQKB1R b KQkq a3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 264,
+        "pair_id": 132,
+        "a_is_white": true,
+        "fen": "rn1qkb1r/pb1p1ppp/1pp5/3np3/8/3PP1PP/PPP2PB1/RNBQ1KNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 265,
+        "pair_id": 132,
+        "a_is_white": false,
+        "fen": "rn1qkb1r/pb1p1ppp/1pp5/3np3/8/3PP1PP/PPP2PB1/RNBQ1KNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 266,
+        "pair_id": 133,
+        "a_is_white": true,
+        "fen": "1nbqkbr1/1ppp1ppp/r4n2/p3p3/4P3/6P1/PPPP1PBP/RNBQK1NR w KQ - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 267,
+        "pair_id": 133,
+        "a_is_white": false,
+        "fen": "1nbqkbr1/1ppp1ppp/r4n2/p3p3/4P3/6P1/PPPP1PBP/RNBQK1NR w KQ - 4 6",
+        "result_from_a": "0-1",
+        "plies": 43,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 268,
+        "pair_id": 134,
+        "a_is_white": true,
+        "fen": "rnbqk2r/1pp2p2/p2bpn1p/3p2p1/3P2P1/2B1PP1B/PPP4P/RN1QK1NR w KQkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 269,
+        "pair_id": 134,
+        "a_is_white": false,
+        "fen": "rnbqk2r/1pp2p2/p2bpn1p/3p2p1/3P2P1/2B1PP1B/PPP4P/RN1QK1NR w KQkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 270,
+        "pair_id": 135,
+        "a_is_white": true,
+        "fen": "1rb1kbnr/ppp1qp1p/2n5/3pp1p1/3PP3/PP3N2/2P2PPP/RNBQKB1R w KQk d6 0 7",
+        "result_from_a": "1-0",
+        "plies": 44,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 271,
+        "pair_id": 135,
+        "a_is_white": false,
+        "fen": "1rb1kbnr/ppp1qp1p/2n5/3pp1p1/3PP3/PP3N2/2P2PPP/RNBQKB1R w KQk d6 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 272,
+        "pair_id": 136,
+        "a_is_white": true,
+        "fen": "rnbq1bnr/ppp1kp1p/6p1/1N1Pp3/8/6P1/PPPP1P1P/R1BQKBNR b KQ - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 273,
+        "pair_id": 136,
+        "a_is_white": false,
+        "fen": "rnbq1bnr/ppp1kp1p/6p1/1N1Pp3/8/6P1/PPPP1P1P/R1BQKBNR b KQ - 0 5",
+        "result_from_a": "0-1",
+        "plies": 56,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 274,
+        "pair_id": 137,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/1ppp2p1/p1n5/5pBp/3pP3/2Q5/PPP1NPPP/RN2KB1R w KQkq h6 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 275,
+        "pair_id": 137,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/1ppp2p1/p1n5/5pBp/3pP3/2Q5/PPP1NPPP/RN2KB1R w KQkq h6 0 7",
+        "result_from_a": "1-0",
+        "plies": 56,
+        "termination": "checkmate"
+      },
+      {
+        "i": 276,
+        "pair_id": 138,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppppqppp/4p3/8/4P3/8/PPPPQPPP/RNB1KBNR w KQkq - 2 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 277,
+        "pair_id": 138,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppppqppp/4p3/8/4P3/8/PPPPQPPP/RNB1KBNR w KQkq - 2 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 278,
+        "pair_id": 139,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1p1p/6p1/4p3/P3P1n1/NP3N2/2PP1PPP/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 279,
+        "pair_id": 139,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1p1p/6p1/4p3/P3P1n1/NP3N2/2PP1PPP/R1BQKB1R b KQkq - 0 5",
+        "result_from_a": "1-0",
+        "plies": 49,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 280,
+        "pair_id": 140,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppppp1/5n1p/8/8/2P2P1P/PP1PP1P1/RNBQKBNR b KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 281,
+        "pair_id": 140,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppppp1/5n1p/8/8/2P2P1P/PP1PP1P1/RNBQKBNR b KQkq - 0 3",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 282,
+        "pair_id": 141,
+        "a_is_white": true,
+        "fen": "1rbqkb1r/pppppppp/n4n2/8/6P1/3P3P/PPPKPP2/RNBQ1BNR b k - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 283,
+        "pair_id": 141,
+        "a_is_white": false,
+        "fen": "1rbqkb1r/pppppppp/n4n2/8/6P1/3P3P/PPPKPP2/RNBQ1BNR b k - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 284,
+        "pair_id": 142,
+        "a_is_white": true,
+        "fen": "rn1qk1nr/p1ppbppp/bp6/4p3/PP1PP1Q1/6P1/2PN1P1P/R1B1KBNR b KQkq - 2 7",
+        "result_from_a": "0-1",
+        "plies": 60,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 285,
+        "pair_id": 142,
+        "a_is_white": false,
+        "fen": "rn1qk1nr/p1ppbppp/bp6/4p3/PP1PP1Q1/6P1/2PN1P1P/R1B1KBNR b KQkq - 2 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 286,
+        "pair_id": 143,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1pp1ppp/1p6/4p3/P3P3/7P/1PPP1PP1/RNBQKBNR b KQkq - 0 5",
+        "result_from_a": "1-0",
+        "plies": 33,
+        "termination": "checkmate"
+      },
+      {
+        "i": 287,
+        "pair_id": 143,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1pp1ppp/1p6/4p3/P3P3/7P/1PPP1PP1/RNBQKBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 288,
+        "pair_id": 144,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pppp1p1p/n5p1/1B2p3/3PP3/N7/PPP2PPP/R1BQK1NR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 289,
+        "pair_id": 144,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pppp1p1p/n5p1/1B2p3/3PP3/N7/PPP2PPP/R1BQK1NR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 290,
+        "pair_id": 145,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppppqppp/8/4p3/4P2P/6P1/PPPP1P2/RNBQKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 291,
+        "pair_id": 145,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppppqppp/8/4p3/4P2P/6P1/PPPP1P2/RNBQKBNR b KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 292,
+        "pair_id": 146,
+        "a_is_white": true,
+        "fen": "rnb1kb1r/pppp1p1p/5qpn/4p3/4P3/N6P/PPPP1PP1/1RBQKBNR w Kkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 293,
+        "pair_id": 146,
+        "a_is_white": false,
+        "fen": "rnb1kb1r/pppp1p1p/5qpn/4p3/4P3/N6P/PPPP1PP1/1RBQKBNR w Kkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 294,
+        "pair_id": 147,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/p3pp2/bp1p4/2p3pp/4P3/1P3N2/PBPP1PPP/RN1QK2R w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 295,
+        "pair_id": 147,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/p3pp2/bp1p4/2p3pp/4P3/1P3N2/PBPP1PPP/RN1QK2R w KQkq - 0 7",
+        "result_from_a": "0-1",
+        "plies": 42,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 296,
+        "pair_id": 148,
+        "a_is_white": true,
+        "fen": "r1bqk2r/pppp1ppp/2n5/3np1b1/4P3/5N1P/PPPPBPP1/RNBQ1RK1 b kq - 6 7",
+        "result_from_a": "1-0",
+        "plies": 38,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 297,
+        "pair_id": 148,
+        "a_is_white": false,
+        "fen": "r1bqk2r/pppp1ppp/2n5/3np1b1/4P3/5N1P/PPPPBPP1/RNBQ1RK1 b kq - 6 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 298,
+        "pair_id": 149,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/1p1p1pp1/p2b3p/4p3/2p4P/P2PP3/1PP1QPP1/RNB1KBNR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 299,
+        "pair_id": 149,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/1p1p1pp1/p2b3p/4p3/2p4P/P2PP3/1PP1QPP1/RNB1KBNR w KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 300,
+        "pair_id": 150,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/pppp1pp1/2n2q1p/4p3/4P3/3P1NP1/PPP2P1P/RNBQKB1R w KQkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 301,
+        "pair_id": 150,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/pppp1pp1/2n2q1p/4p3/4P3/3P1NP1/PPP2P1P/RNBQKB1R w KQkq - 1 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 302,
+        "pair_id": 151,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppppp1/5n2/7p/7P/5N2/PPPPPPPR/RNBQKB2 b Qkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 303,
+        "pair_id": 151,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppppp1/5n2/7p/7P/5N2/PPPPPPPR/RNBQKB2 b Qkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 304,
+        "pair_id": 152,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/p1qppppp/8/1pp4Q/4P2P/8/PPPPBPP1/RNB1K1NR w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 305,
+        "pair_id": 152,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/p1qppppp/8/1pp4Q/4P2P/8/PPPPBPP1/RNB1K1NR w KQkq - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 306,
+        "pair_id": 153,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1pppppp/1p6/8/QPP5/8/P2PPPPP/RNB1KBNR w KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 307,
+        "pair_id": 153,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1pppppp/1p6/8/QPP5/8/P2PPPPP/RNB1KBNR w KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 308,
+        "pair_id": 154,
+        "a_is_white": true,
+        "fen": "rnbq1bnr/pp2kppp/4p3/2pp4/8/2P1P1Q1/PP1P1PPP/RNB1KBNR b KQ - 2 5",
+        "result_from_a": "1-0",
+        "plies": 53,
+        "termination": "checkmate"
+      },
+      {
+        "i": 309,
+        "pair_id": 154,
+        "a_is_white": false,
+        "fen": "rnbq1bnr/pp2kppp/4p3/2pp4/8/2P1P1Q1/PP1P1PPP/RNB1KBNR b KQ - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 310,
+        "pair_id": 155,
+        "a_is_white": true,
+        "fen": "r1bq1b1r/pppp1ppp/2nk3n/4p3/4P3/N6P/PPPPQPPR/R1B1KBN1 w Q - 5 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 311,
+        "pair_id": 155,
+        "a_is_white": false,
+        "fen": "r1bq1b1r/pppp1ppp/2nk3n/4p3/4P3/N6P/PPPPQPPR/R1B1KBN1 w Q - 5 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 312,
+        "pair_id": 156,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/p2p1ppp/1pn2n2/2p1p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 313,
+        "pair_id": 156,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/p2p1ppp/1pn2n2/2p1p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 314,
+        "pair_id": 157,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp1ppp/8/4p3/3bP3/6P1/PPPPNP1P/RNBQKBR1 b Qkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 315,
+        "pair_id": 157,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp1ppp/8/4p3/3bP3/6P1/PPPPNP1P/RNBQKBR1 b Qkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 316,
+        "pair_id": 158,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1p2ppp/1p1p4/4p3/4P3/3P4/PPPQ1PPP/RNB1KBNR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 317,
+        "pair_id": 158,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1p2ppp/1p1p4/4p3/4P3/3P4/PPPQ1PPP/RNB1KBNR w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 318,
+        "pair_id": 159,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1pp1ppp/5n2/1p2p3/1P6/8/PBPPPPPP/RN1QKBNR w KQkq e6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 319,
+        "pair_id": 159,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1pp1ppp/5n2/1p2p3/1P6/8/PBPPPPPP/RN1QKBNR w KQkq e6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 320,
+        "pair_id": 160,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p1p1ppp/p3p3/2p5/4P3/2N4N/PPPP1PPP/R1BQKB1R w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 321,
+        "pair_id": 160,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p1p1ppp/p3p3/2p5/4P3/2N4N/PPPP1PPP/R1BQKB1R w KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 322,
+        "pair_id": 161,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1p1pppp/1p3n2/3p4/3P4/2PQ4/PP2PPPP/RNB1KBNR w KQkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 323,
+        "pair_id": 161,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1p1pppp/1p3n2/3p4/3P4/2PQ4/PP2PPPP/RNB1KBNR w KQkq - 1 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 45,
+        "termination": "draw"
+      },
+      {
+        "i": 324,
+        "pair_id": 162,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pp2pppp/2np4/2p5/4P3/2NB4/PPPP1PPP/1RBQK1NR b Kkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 325,
+        "pair_id": 162,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pp2pppp/2np4/2p5/4P3/2NB4/PPPP1PPP/1RBQK1NR b Kkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 326,
+        "pair_id": 163,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/ppp2pp1/3p3p/4p1q1/1B1PP3/P7/1PPK1PPP/RN1Q1BNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 327,
+        "pair_id": 163,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/ppp2pp1/3p3p/4p1q1/1B1PP3/P7/1PPK1PPP/RN1Q1BNR w kq - 4 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 328,
+        "pair_id": 164,
+        "a_is_white": true,
+        "fen": "rnb1k1nr/p1p2ppp/1p6/2P1p3/4PBP1/3B4/PPP2P1P/RN2K1NR b KQkq - 0 7",
+        "result_from_a": "0-1",
+        "plies": 35,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 329,
+        "pair_id": 164,
+        "a_is_white": false,
+        "fen": "rnb1k1nr/p1p2ppp/1p6/2P1p3/4PBP1/3B4/PPP2P1P/RN2K1NR b KQkq - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 330,
+        "pair_id": 165,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp3p/5p2/4p1p1/3PP1P1/2P1B3/P1PQ1P1P/R3KBNR b KQkq - 2 8",
+        "result_from_a": "0-1",
+        "plies": 25,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 331,
+        "pair_id": 165,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp3p/5p2/4p1p1/3PP1P1/2P1B3/P1PQ1P1P/R3KBNR b KQkq - 2 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 332,
+        "pair_id": 166,
+        "a_is_white": true,
+        "fen": "r1bq1knr/pppp1ppp/B1n5/4p3/1b2P3/8/PPPP1PPP/RNBQK1NR w KQ - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 333,
+        "pair_id": 166,
+        "a_is_white": false,
+        "fen": "r1bq1knr/pppp1ppp/B1n5/4p3/1b2P3/8/PPPP1PPP/RNBQK1NR w KQ - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 334,
+        "pair_id": 167,
+        "a_is_white": true,
+        "fen": "rnbq1b1r/ppp1kp1p/3p2pn/4p3/4P3/1Q6/PPPP1PPP/RNB1KBNR b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 335,
+        "pair_id": 167,
+        "a_is_white": false,
+        "fen": "rnbq1b1r/ppp1kp1p/3p2pn/4p3/4P3/1Q6/PPPP1PPP/RNB1KBNR b KQ - 1 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 336,
+        "pair_id": 168,
+        "a_is_white": true,
+        "fen": "rnbqkbr1/pppp1ppp/7n/4p3/P3P1P1/8/1PPPNP1P/RNBQKB1R b KQq g3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 337,
+        "pair_id": 168,
+        "a_is_white": false,
+        "fen": "rnbqkbr1/pppp1ppp/7n/4p3/P3P1P1/8/1PPPNP1P/RNBQKB1R b KQq g3 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 338,
+        "pair_id": 169,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p2pppp1/2p2n1p/1p6/2B1P3/2P5/PP1P1PPP/RNBQK1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 339,
+        "pair_id": 169,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p2pppp1/2p2n1p/1p6/2B1P3/2P5/PP1P1PPP/RNBQK1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 340,
+        "pair_id": 170,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/p1pnpppp/1p1q3B/3p4/3P4/7N/PPPKPPPP/RN1Q1B1R w kq - 4 5",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 341,
+        "pair_id": 170,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/p1pnpppp/1p1q3B/3p4/3P4/7N/PPPKPPPP/RN1Q1B1R w kq - 4 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 342,
+        "pair_id": 171,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1pp1p1p1/7p/3p1p2/pPPP4/6PP/P2NPP2/R1BQKBNR b KQkq c3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 343,
+        "pair_id": 171,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1pp1p1p1/7p/3p1p2/pPPP4/6PP/P2NPP2/R1BQKBNR b KQkq c3 0 6",
+        "result_from_a": "1-0",
+        "plies": 39,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 344,
+        "pair_id": 172,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/pp1ppppp/5n2/2p5/1n2PP2/2N5/PPPPQ1PP/R1B1KBNR w KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 345,
+        "pair_id": 172,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/pp1ppppp/5n2/2p5/1n2PP2/2N5/PPPPQ1PP/R1B1KBNR w KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 346,
+        "pair_id": 173,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/ppp1q1p1/n2p3p/5p2/P2QP1P1/4B3/RPP2P1P/1N2KBNR w Kkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 347,
+        "pair_id": 173,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/ppp1q1p1/n2p3p/5p2/P2QP1P1/4B3/RPP2P1P/1N2KBNR w Kkq - 0 8",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 348,
+        "pair_id": 174,
+        "a_is_white": true,
+        "fen": "r1b1k1nr/pppp1p1p/2n3p1/2b1p3/2Q1P2q/3P1N2/PPPB1PPP/RN2KB1R b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 349,
+        "pair_id": 174,
+        "a_is_white": false,
+        "fen": "r1b1k1nr/pppp1p1p/2n3p1/2b1p3/2Q1P2q/3P1N2/PPPB1PPP/RN2KB1R b KQkq - 2 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 350,
+        "pair_id": 175,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/pppp1p1p/4p3/1B4pQ/4n2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 351,
+        "pair_id": 175,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/pppp1p1p/4p3/1B4pQ/4n2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 352,
+        "pair_id": 176,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1p2pppp/5n2/p1pp4/4P3/N6P/PPPP1PPR/R1BQKBN1 w Qkq a6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 353,
+        "pair_id": 176,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1p2pppp/5n2/p1pp4/4P3/N6P/PPPP1PPR/R1BQKBN1 w Qkq a6 0 5",
+        "result_from_a": "1-0",
+        "plies": 51,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 354,
+        "pair_id": 177,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pppp1p1p/6p1/8/3pP3/8/PPPB1PPP/RNQ1KBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 355,
+        "pair_id": 177,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pppp1p1p/6p1/8/3pP3/8/PPPB1PPP/RNQ1KBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 356,
+        "pair_id": 178,
+        "a_is_white": true,
+        "fen": "rnbq1b1r/2pkpppp/1p1p1n2/p7/4P1P1/2PP1P2/PP2N2P/RNBQKB1R b KQ - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 357,
+        "pair_id": 178,
+        "a_is_white": false,
+        "fen": "rnbq1b1r/2pkpppp/1p1p1n2/p7/4P1P1/2PP1P2/PP2N2P/RNBQKB1R b KQ - 0 6",
+        "result_from_a": "1-0",
+        "plies": 48,
+        "termination": "checkmate"
+      },
+      {
+        "i": 358,
+        "pair_id": 179,
+        "a_is_white": true,
+        "fen": "rn1qkb1r/p1p2ppp/3p1n2/1p2p3/4P1bP/3P1NP1/PPP2P2/RNBQKB1R b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 359,
+        "pair_id": 179,
+        "a_is_white": false,
+        "fen": "rn1qkb1r/p1p2ppp/3p1n2/1p2p3/4P1bP/3P1NP1/PPP2P2/RNBQKB1R b KQkq - 0 6",
+        "result_from_a": "1-0",
+        "plies": 57,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 360,
+        "pair_id": 180,
+        "a_is_white": true,
+        "fen": "rnbqk1nr/pppp1ppp/4p3/1Bb5/4P3/1P3P2/P1PP2PP/RNBQK1NR w KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 361,
+        "pair_id": 180,
+        "a_is_white": false,
+        "fen": "rnbqk1nr/pppp1ppp/4p3/1Bb5/4P3/1P3P2/P1PP2PP/RNBQK1NR w KQkq - 2 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 362,
+        "pair_id": 181,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pp3ppp/8/2ppp3/3PP3/3Q4/PPP2PPP/RNB1KBNR w KQkq c6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 363,
+        "pair_id": 181,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pp3ppp/8/2ppp3/3PP3/3Q4/PPP2PPP/RNB1KBNR w KQkq c6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 364,
+        "pair_id": 182,
+        "a_is_white": true,
+        "fen": "rnb1qbnr/ppppkp2/7p/4p3/4P2p/NP3NP1/P1PPQP2/R1B1KB1R b KQ - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 365,
+        "pair_id": 182,
+        "a_is_white": false,
+        "fen": "rnb1qbnr/ppppkp2/7p/4p3/4P2p/NP3NP1/P1PPQP2/R1B1KB1R b KQ - 0 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 366,
+        "pair_id": 183,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/ppp2p2/2np2p1/1B2p2p/1P2P3/5N2/P1PPKPPP/RNBQ3R b kq b3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 367,
+        "pair_id": 183,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/ppp2p2/2np2p1/1B2p2p/1P2P3/5N2/P1PPKPPP/RNBQ3R b kq b3 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 368,
+        "pair_id": 184,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppppnppp/8/4p3/4P3/N2Q1N2/PPPP1PPP/R1B1KB1R b KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 369,
+        "pair_id": 184,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppppnppp/8/4p3/4P3/N2Q1N2/PPPP1PPP/R1B1KB1R b KQkq - 5 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 370,
+        "pair_id": 185,
+        "a_is_white": true,
+        "fen": "r1bqkbnr/pp1ppp1p/2n5/1Bp3p1/4P3/8/PPPP1PPP/RNBQ1KNR w kq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 371,
+        "pair_id": 185,
+        "a_is_white": false,
+        "fen": "r1bqkbnr/pp1ppp1p/2n5/1Bp3p1/4P3/8/PPPP1PPP/RNBQ1KNR w kq - 2 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 372,
+        "pair_id": 186,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pp1p/6p1/3p1n2/3PPBP1/5N2/PPP2P1P/RN1QKB1R b KQkq e3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 373,
+        "pair_id": 186,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pp1p/6p1/3p1n2/3PPBP1/5N2/PPP2P1P/RN1QKB1R b KQkq e3 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 374,
+        "pair_id": 187,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/1p2pppp/3p4/p1p5/4P3/6PP/PPPP1P2/RNBQKBNR w KQkq a6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 375,
+        "pair_id": 187,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/1p2pppp/3p4/p1p5/4P3/6PP/PPPP1P2/RNBQKBNR w KQkq a6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 376,
+        "pair_id": 188,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/1p1pp1pp/p6n/2p1Pp2/6PP/8/PPPP1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 377,
+        "pair_id": 188,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/1p1pp1pp/p6n/2p1Pp2/6PP/8/PPPP1P2/RNBQKBNR w KQkq f6 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 378,
+        "pair_id": 189,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/ppp1pp1p/5n2/3p2p1/8/5N1P/PPPPPPP1/RNBQKB1R b KQkq - 0 4",
+        "result_from_a": "1-0",
+        "plies": 56,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 379,
+        "pair_id": 189,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/ppp1pp1p/5n2/3p2p1/8/5N1P/PPPPPPP1/RNBQKB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 380,
+        "pair_id": 190,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/pp1pqppp/8/2p1p3/4P3/1P6/P1PPQPPP/RNB1KBNR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 381,
+        "pair_id": 190,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/pp1pqppp/8/2p1p3/4P3/1P6/P1PPQPPP/RNB1KBNR b KQkq - 3 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 382,
+        "pair_id": 191,
+        "a_is_white": true,
+        "fen": "r1bqkb1r/1ppppppp/n7/p7/3PPn2/8/PPP3PP/RNBQKBNR b KQkq - 2 6",
+        "result_from_a": "0-1",
+        "plies": 33,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 383,
+        "pair_id": 191,
+        "a_is_white": false,
+        "fen": "r1bqkb1r/1ppppppp/n7/p7/3PPn2/8/PPP3PP/RNBQKBNR b KQkq - 2 6",
+        "result_from_a": "1-0",
+        "plies": 49,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 384,
+        "pair_id": 192,
+        "a_is_white": true,
+        "fen": "rn1qkbnr/p1p2ppp/8/1p1pp2b/3P4/2P1B1P1/PP2PP1P/RN1QKBNR b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 385,
+        "pair_id": 192,
+        "a_is_white": false,
+        "fen": "rn1qkbnr/p1p2ppp/8/1p1pp2b/3P4/2P1B1P1/PP2PP1P/RN1QKBNR b KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 386,
+        "pair_id": 193,
+        "a_is_white": true,
+        "fen": "r1b1kbnr/1pp2ppp/nQ2q3/p2pp3/P2P4/5P2/1PP1P1PP/RNB1KBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 387,
+        "pair_id": 193,
+        "a_is_white": false,
+        "fen": "r1b1kbnr/1pp2ppp/nQ2q3/p2pp3/P2P4/5P2/1PP1P1PP/RNB1KBNR w KQkq - 1 7",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 388,
+        "pair_id": 194,
+        "a_is_white": true,
+        "fen": "1rbqkbnr/ppppnp1p/8/4p1p1/4P3/1P3Q2/P1PP1PPP/RNBK1BNR w k - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 389,
+        "pair_id": 194,
+        "a_is_white": false,
+        "fen": "1rbqkbnr/ppppnp1p/8/4p1p1/4P3/1P3Q2/P1PP1PPP/RNBK1BNR w k - 4 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 390,
+        "pair_id": 195,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/p1p1pppp/3p4/1p5Q/P3P3/3P2P1/1PP2P1P/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 391,
+        "pair_id": 195,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/p1p1pppp/3p4/1p5Q/P3P3/3P2P1/1PP2P1P/RNB1KBNR b KQkq - 0 5",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 392,
+        "pair_id": 196,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p1ppppp1/1p3n2/7p/4P3/2P2N2/PP1PQPPP/RNB1KB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 393,
+        "pair_id": 196,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p1ppppp1/1p3n2/7p/4P3/2P2N2/PP1PQPPP/RNB1KB1R b KQkq - 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 394,
+        "pair_id": 197,
+        "a_is_white": true,
+        "fen": "rnbqkb1r/p4ppp/4pn2/1ppp4/3PP2P/8/PPPB1PP1/RN1QKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 395,
+        "pair_id": 197,
+        "a_is_white": false,
+        "fen": "rnbqkb1r/p4ppp/4pn2/1ppp4/3PP2P/8/PPPB1PP1/RN1QKBNR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 396,
+        "pair_id": 198,
+        "a_is_white": true,
+        "fen": "rnbqkbnr/pp1pp1p1/5p2/2p4p/4P3/5N2/PPPP1PPP/RNBQKBR1 w Qkq h6 0 4",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      },
+      {
+        "i": 397,
+        "pair_id": 198,
+        "a_is_white": false,
+        "fen": "rnbqkbnr/pp1pp1p1/5p2/2p4p/4P3/5N2/PPPP1PPP/RNBQKBR1 w Qkq h6 0 4",
+        "result_from_a": "0-1",
+        "plies": 45,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 398,
+        "pair_id": 199,
+        "a_is_white": true,
+        "fen": "rnb1kbnr/2ppqppp/pp6/1B6/3PPp2/N7/PPP3PP/R1BQK1NR w KQkq - 0 6",
+        "result_from_a": "1-0",
+        "plies": 52,
+        "termination": "consensus_eval"
+      },
+      {
+        "i": 399,
+        "pair_id": 199,
+        "a_is_white": false,
+        "fen": "rnb1kbnr/2ppqppp/pp6/1B6/3PPp2/N7/PPP3PP/R1BQK1NR w KQkq - 0 6",
+        "result_from_a": "1/2-1/2",
+        "plies": 60,
+        "termination": "max_plies"
+      }
+    ]
+  }
+]
