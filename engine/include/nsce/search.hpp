@@ -23,6 +23,22 @@ namespace nsce {
 class PolicyNet;
 class SearchController;
 
+// Raw evaluator output vs the value the tree prunes with (raw + correction).
+// TT and correction history always store `raw`; QS/search consume `corrected`.
+struct SearchEval {
+  int raw = VALUE_NONE;
+  int corrected = VALUE_NONE;
+};
+
+inline SearchEval compose_search_eval(int raw, int correction) {
+  if (raw == VALUE_NONE) return {};
+  return {raw, raw + correction};
+}
+
+inline int raw_eval_from_tt(bool found, const TTEntry& tte) {
+  return (found && tte.eval_valid) ? static_cast<int>(tte.eval) : VALUE_NONE;
+}
+
 struct SearchLimits {
   int depth = 0;
   int64_t nodes = 0;
@@ -121,6 +137,7 @@ class Search {
   ~Search();
 
   void set_position(const Position& pos);
+  const Position& root_position() const { return root_; }
   SearchInfo go(const SearchLimits& limits);
   void prepare();
   SearchInfo go_prepared(const SearchLimits& limits);

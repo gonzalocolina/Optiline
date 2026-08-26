@@ -23,6 +23,7 @@ Uci::Uci() {
   init_bitboards();
   Zobrist::init();
   if (!context_.nnue.load("nets/nnue_trained.bin")) context_.nnue.load_default_from_hce();
+  context_.nnue.set_enabled(context_.nnue_wanted);
   context_.policy.load_default();
   context_.policy.set_enabled(false);
   context_.controller.load_default();
@@ -248,8 +249,8 @@ void Uci::handle_setoption(std::istringstream& is) {
       search_.set_threads(std::clamp(std::stoi(value), 1, 64));
     }
   else if (name == "UseNNUE") {
-    bool on = (value == "true" || value == "1");
-    context_.nnue.set_enabled(on);
+    context_.nnue_wanted = (value == "true" || value == "1");
+    context_.nnue.set_enabled(context_.nnue_wanted);
     pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
     search_.clear_search_state();
@@ -280,6 +281,7 @@ void Uci::handle_setoption(std::istringstream& is) {
     context_.use_extras = value == "true" || value == "1";
     pos_.set_use_extras(context_.use_extras);
     search_.clear_search_state();
+    search_.set_position(pos_);
   } else if (name == "EvalScale") {
     search_.set_eval_scale(std::stoi(value));
     search_.clear_search_state();
@@ -292,6 +294,7 @@ void Uci::handle_setoption(std::istringstream& is) {
         return;
       }
     }
+    context_.nnue.set_enabled(context_.nnue_wanted);
     pos_.set_nnue(&context_.nnue);
     pos_.set_fen(pos_.fen());
     search_.clear_search_state();

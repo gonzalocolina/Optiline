@@ -137,6 +137,19 @@ TEST(BoardTest, RejectsMalformedFen) {
   EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8 w - - 0 1"), std::runtime_error);
   EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8/8 x - - 0 1"), std::runtime_error);
   EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8/8 w - z9 0 1"), std::runtime_error);
+  EXPECT_THROW(pos.set_fen("8/8/8/8/8/8/8/8 w - - 0 1"), std::runtime_error);
+  EXPECT_THROW(pos.set_fen("4k3/8/8/8/8/8/8/3KK3 w - - 0 1"), std::runtime_error);
+  EXPECT_THROW(pos.set_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 1"), std::runtime_error);
+}
+
+TEST(BoardTest, StartposRoundTripsAndCanonicalizesIllegalEp) {
+  Position pos;
+  pos.set_startpos();
+  EXPECT_EQ(pos.fen(), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  pos.set_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e4 0 1");
+  EXPECT_EQ(pos.ep_square(), SQ_NONE);
+  pos.set_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+  EXPECT_EQ(pos.ep_square(), SQ_E3);
 }
 
 TEST(BoardTest, ConcurrentInitializationProducesValidPositions) {

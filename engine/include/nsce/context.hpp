@@ -13,6 +13,7 @@ struct EngineContext {
   PolicyNet policy;
   SearchController controller;
   bool use_extras = true;
+  bool nnue_wanted = true;
 };
 
 }  // namespace nsce

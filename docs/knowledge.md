@@ -165,6 +165,10 @@ Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE s
 
 ## Findings log
 
+### 2026-08-27
+
+- P0 TT-eval contract (raw in TT, correction once) vs pre-P0 binary, same `baseline.uci`. Equal-node 25k N=200 seed 20260814: pre-P0 **13-177-10**, score 0.507, **+5 ± 17**. P0 candidate score 0.493. Diagnostic coin flip; no SPRT; ships as correctness. ([tt eval raw](../experiments/20260827_tt_eval_raw/report.md))
+
 ### 2026-08-14
 
 - Eval manufacture/judgment rewritten into a fixed 9-step order: clone the frozen static arbiter before any richer net; NSCE search coin; leaf labels; deployed C++ integers; games with results; one change + extras contract; equal-node N≥200 then equal-time; king-relative without threats only after that; search retune only for a winning eval. ([eval_pipeline.md](eval_pipeline.md))

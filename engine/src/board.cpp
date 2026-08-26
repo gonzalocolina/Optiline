@@ -26,6 +26,35 @@ int castling_mask_for_square(Square s) {
   }
 }
 
+void validate_kings_and_castling(const Position& pos, CastlingRights cr) {
+  if (pos.piece_count(WHITE, KING) != 1 || pos.piece_count(BLACK, KING) != 1)
+    throw std::runtime_error("invalid fen kings");
+  if ((cr & WHITE_OO) && (pos.piece_on(SQ_E1) != W_KING || pos.piece_on(SQ_H1) != W_ROOK))
+    throw std::runtime_error("invalid fen castling");
+  if ((cr & WHITE_OOO) && (pos.piece_on(SQ_E1) != W_KING || pos.piece_on(SQ_A1) != W_ROOK))
+    throw std::runtime_error("invalid fen castling");
+  if ((cr & BLACK_OO) && (pos.piece_on(SQ_E8) != B_KING || pos.piece_on(SQ_H8) != B_ROOK))
+    throw std::runtime_error("invalid fen castling");
+  if ((cr & BLACK_OOO) && (pos.piece_on(SQ_E8) != B_KING || pos.piece_on(SQ_A8) != B_ROOK))
+    throw std::runtime_error("invalid fen castling");
+}
+
+Square canonicalize_ep(const Position& pos, Square ep, Color stm) {
+  if (ep == SQ_NONE) return SQ_NONE;
+  const int rank = rank_of(ep);
+  if (pos.piece_on(ep) != NO_PIECE) return SQ_NONE;
+  if (stm == WHITE) {
+    if (rank != 5) return SQ_NONE;
+    const Square origin = static_cast<Square>(static_cast<int>(ep) - 8);
+    if (pos.piece_on(origin) != B_PAWN) return SQ_NONE;
+  } else {
+    if (rank != 2) return SQ_NONE;
+    const Square origin = static_cast<Square>(static_cast<int>(ep) + 8);
+    if (pos.piece_on(origin) != W_PAWN) return SQ_NONE;
+  }
+  return ep;
+}
+
 }  // namespace
 
 Position::Position() {
@@ -186,6 +215,8 @@ void Position::set_fen(const std::string& fen) {
 
   ep_square_ = ep == "-" ? SQ_NONE : string_to_square(ep);
   if (ep != "-" && ep_square_ == SQ_NONE) throw std::runtime_error("invalid fen en passant");
+  validate_kings_and_castling(*this, castling_);
+  ep_square_ = canonicalize_ep(*this, ep_square_, side_);
   halfmove_ = parsed_halfmove;
   fullmove_ = parsed_fullmove;
   key_ = compute_key();

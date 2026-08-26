@@ -274,3 +274,26 @@ TEST(NnueTest, LoadsKatAndKeepsMirroredKingMoveIncremental) {
   EXPECT_NE(hce, evaluate(pos));
   std::filesystem::remove(path);
 }
+
+TEST(NnueTest, LoadDoesNotForceEnabledAndFailedLoadLeavesNet) {
+  init_bitboards();
+  Zobrist::init();
+  Nnue nnue;
+  nnue.set_enabled(false);
+  ASSERT_TRUE(nnue.load_default_from_hce());
+  EXPECT_FALSE(nnue.is_enabled());
+
+  nnue.set_enabled(true);
+  Position pos;
+  pos.set_nnue(&nnue);
+  pos.set_startpos();
+  const int before = nnue.evaluate(pos);
+
+  EXPECT_FALSE(nnue.load("/no/such/nsce-eval.bin"));
+  EXPECT_TRUE(nnue.is_enabled());
+  EXPECT_EQ(nnue.evaluate(pos), before);
+
+  nnue.set_enabled(false);
+  ASSERT_TRUE(nnue.load_default_from_hce());
+  EXPECT_FALSE(nnue.is_enabled());
+}

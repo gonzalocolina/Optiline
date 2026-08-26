@@ -539,14 +539,16 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
     }
   }
 
+  int raw_eval = VALUE_NONE;
   int stand = VALUE_NONE;
   if (!in_check) {
-    if (found && tte.eval_valid) {
-      stand = tte.eval + correction(w, pos, ss, ply);
-    } else {
+    raw_eval = raw_eval_from_tt(found, tte);
+    if (raw_eval == VALUE_NONE) {
       NSCE_STAT_INC(w, evaluations);
-      stand = evaluate_for_search(pos) + correction(w, pos, ss, ply);
+      raw_eval = evaluate_for_search(pos);
     }
+    const SearchEval sample = compose_search_eval(raw_eval, correction(w, pos, ss, ply));
+    stand = sample.corrected;
     NSCE_STAT_ADD(w, eval_abs_sum, std::abs(stand));
     if (found && std::abs(tt_score) < VALUE_MATE - 256) {
       const int before_tt = stand;
@@ -614,7 +616,7 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
       NSCE_STAT_INC(w, beta_cutoffs);
       NSCE_STAT_ADD(w, cutoff_index_sum, i);
       if (i == 0) NSCE_STAT_INC(w, first_move_cutoffs);
-      if (use_tt_) tt_.store(pos.key(), 0, score, BOUND_LOWER, m, ply, in_check ? VALUE_NONE : stand);
+      if (use_tt_) tt_.store(pos.key(), 0, score, BOUND_LOWER, m, ply, in_check ? VALUE_NONE : raw_eval);
       return score;
     }
     if (score > alpha) {
@@ -625,7 +627,7 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
 
   if (in_check && best_score == -VALUE_INFINITE) return mated_in(ply);
   if (use_tt_)
-    tt_.store(pos.key(), 0, best_score, bound, best_move, ply, in_check ? VALUE_NONE : stand);
+    tt_.store(pos.key(), 0, best_score, bound, best_move, ply, in_check ? VALUE_NONE : raw_eval);
   return best_score;
 }
 
@@ -709,18 +711,18 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   if (in_check) {
     ss->static_eval = VALUE_NONE;
   } else {
-    if (found && tte.eval_valid) {
-      raw_eval = tte.eval;
-    } else {
+    raw_eval = raw_eval_from_tt(found, tte);
+    if (raw_eval == VALUE_NONE) {
       NSCE_STAT_INC(w, evaluations);
       raw_eval = evaluate_for_search(pos);
     }
-    ss->static_eval = raw_eval;
-    record_leaf(pos, in_check ? "in_check_static" : "static", depth, ply, raw_eval);
     const int corr = correction(w, pos, ss, ply);
+    const SearchEval sample = compose_search_eval(raw_eval, corr);
+    ss->static_eval = sample.corrected;
+    record_leaf(pos, "static", depth, ply, sample.corrected);
     NSCE_STAT_ADD(w, eval_abs_sum, std::abs(raw_eval));
     NSCE_STAT_ADD(w, correction_abs_sum, std::abs(corr));
-    eval = raw_eval + corr;
+    eval = sample.corrected;
     const int hm = pos.halfmove_clock();
     if (hm >= 8) {
       eval = eval * (256 - std::min(hm, 200)) / 256;
@@ -830,7 +832,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
         if (stopped()) return alpha;
         if (score >= pc_beta) {
           NSCE_STAT_INC(w, probcut_cutoffs);
-          if (use_tt_) tt_.store(pos.key(), pc_depth + 1, score, BOUND_LOWER, m, ply, ss->static_eval);
+          if (use_tt_) tt_.store(pos.key(), pc_depth + 1, score, BOUND_LOWER, m, ply, raw_eval);
           return score;
         }
       }
@@ -1026,8 +1028,8 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     if (pc != NO_PIECE) history_update(w.history[pc][best_move.to()], history_bonus(depth));
   }
 
-  if (!excluded) update_correction(w, pos, ss->static_eval, best_score, bound, depth);
-  if (use_tt_ && !excluded) tt_.store(pos.key(), depth, best_score, bound, best_move, ply, ss->static_eval);
+  if (!excluded) update_correction(w, pos, raw_eval, best_score, bound, depth);
+  if (use_tt_ && !excluded) tt_.store(pos.key(), depth, best_score, bound, best_move, ply, raw_eval);
   return best_score;
 }
 

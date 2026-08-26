@@ -138,7 +138,7 @@ TEST_F(EngineTest, LegalNoisyIsSubsetOfLegal) {
 
 TEST_F(EngineTest, CastlingRequiresTheRook) {
   Position pos;
-  pos.set_fen("r3k2r/8/8/8/8/8/8/4K2R w KQkq - 0 1");
+  pos.set_fen("r3k2r/8/8/8/8/8/8/4K2R w Kkq - 0 1");
 
   MoveList list;
   generate_legal(pos, list);

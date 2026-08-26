@@ -238,4 +238,35 @@ TEST(SearchTest, TimeLimitStopsWithinBound) {
   EXPECT_LT(info.time_ms, 200);
 }
 
+TEST(SearchTest, ComposeSearchEvalKeepsRawAndAppliesCorrectionOnce) {
+  const SearchEval sample = compose_search_eval(96, 32);
+  EXPECT_EQ(sample.raw, 96);
+  EXPECT_EQ(sample.corrected, 128);
+  const SearchEval none = compose_search_eval(VALUE_NONE, 32);
+  EXPECT_EQ(none.raw, VALUE_NONE);
+  EXPECT_EQ(none.corrected, VALUE_NONE);
+
+  TTEntry tte;
+  tte.eval = 96;
+  tte.eval_valid = true;
+  EXPECT_EQ(raw_eval_from_tt(true, tte), 96);
+  EXPECT_EQ(raw_eval_from_tt(false, tte), VALUE_NONE);
+  tte.eval_valid = false;
+  EXPECT_EQ(raw_eval_from_tt(true, tte), VALUE_NONE);
+}
+
+TEST(SearchTest, SetPositionCopiesExtrasFlagOntoRoot) {
+  init_bitboards();
+  Zobrist::init();
+  Position pos;
+  pos.set_startpos();
+  pos.set_use_extras(false);
+  Search search;
+  search.set_position(pos);
+  EXPECT_FALSE(search.root_position().use_extras());
+  pos.set_use_extras(true);
+  search.set_position(pos);
+  EXPECT_TRUE(search.root_position().use_extras());
+}
+
 

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 
 #if defined(__AVX2__)
 #include <immintrin.h>
@@ -138,7 +139,7 @@ Nnue& Nnue::instance() {
 }
 
 bool Nnue::load_default_from_hce() {
-  net_ = NnueNet{};
+  NnueNet next{};
   const int H = NnueNet::kHidden;
   for (int pc = 0; pc < 12; ++pc) {
     PieceType pt = type_of(static_cast<Piece>(pc));
@@ -150,17 +151,18 @@ bool Nnue::load_default_from_hce() {
       for (int h = 0; h < H; ++h) {
         int w = (val * NnueNet::kWeightScale) / H;
         w += ((h * 17 + sq * 3 + pc) & 7) - 3;
-        net_.w0[pc * 64 + sq][h] = clamp_i16(w);
+        next.w0[pc * 64 + sq][h] = clamp_i16(w);
       }
     }
   }
   for (int h = 0; h < H; ++h) {
-    net_.b0[h] = 0;
-    net_.w1[h] = clamp_i16(NnueNet::kWeightScale);
+    next.b0[h] = 0;
+    next.w1[h] = clamp_i16(NnueNet::kWeightScale);
   }
-  net_.b1 = 0;
-  net_.loaded = true;
-  enabled_ = true;
+  next.b1 = 0;
+  next.loaded = true;
+  net_ = std::move(next);
+  set_enabled(enabled_);
   return true;
 }
 
@@ -196,27 +198,28 @@ bool Nnue::load(const std::string& path) {
       static_cast<uintmax_t>(NnueNet::kHidden) * 2 + static_cast<uintmax_t>(kat || halfkp ? 2 : 1) *
           NnueNet::kHidden * 2 + (kat ? NnueNet::kThreatDim * 2 : 0) + 4;
   if (file_size != expected_size) return false;
-  net_ = NnueNet{};
-  net_.kat = kat;
-  net_.halfkp = halfkp || kat;
+  NnueNet next{};
+  next.kat = kat;
+  next.halfkp = halfkp || kat;
   if (kat || halfkp) {
-    net_.halfkp_w0.resize(input_features);
+    next.halfkp_w0.resize(input_features);
     for (int f = 0; f < input_features; ++f)
-      in.read(reinterpret_cast<char*>(net_.halfkp_w0[f].data()), NnueNet::kHidden * 2);
+      in.read(reinterpret_cast<char*>(next.halfkp_w0[f].data()), NnueNet::kHidden * 2);
   } else {
     for (int f = 0; f < NnueNet::kFeatures; ++f)
-      in.read(reinterpret_cast<char*>(net_.w0[f].data()), NnueNet::kHidden * 2);
+      in.read(reinterpret_cast<char*>(next.w0[f].data()), NnueNet::kHidden * 2);
   }
-  in.read(reinterpret_cast<char*>(net_.b0.data()), NnueNet::kHidden * 2);
+  in.read(reinterpret_cast<char*>(next.b0.data()), NnueNet::kHidden * 2);
   if (kat || halfkp)
-    in.read(reinterpret_cast<char*>(net_.halfkp_w1.data()), 2 * NnueNet::kHidden * 2);
+    in.read(reinterpret_cast<char*>(next.halfkp_w1.data()), 2 * NnueNet::kHidden * 2);
   else
-    in.read(reinterpret_cast<char*>(net_.w1.data()), NnueNet::kHidden * 2);
-  if (kat) in.read(reinterpret_cast<char*>(net_.w_threat.data()), NnueNet::kThreatDim * 2);
-  in.read(reinterpret_cast<char*>(&net_.b1), 4);
+    in.read(reinterpret_cast<char*>(next.w1.data()), NnueNet::kHidden * 2);
+  if (kat) in.read(reinterpret_cast<char*>(next.w_threat.data()), NnueNet::kThreatDim * 2);
+  in.read(reinterpret_cast<char*>(&next.b1), 4);
   if (!in) return false;
-  net_.loaded = true;
-  enabled_ = true;
+  next.loaded = true;
+  net_ = std::move(next);
+  set_enabled(enabled_);
   return true;
 }
 
