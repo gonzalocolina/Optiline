@@ -184,7 +184,15 @@ def iter_source_records(path: Path) -> Iterator[dict]:
             yield {"fen": fen}
 
 
-def keep_source_record(record: dict, leaf_sites: set[str] | None) -> bool:
+def keep_source_record(
+    record: dict,
+    leaf_sites: set[str] | None,
+    label_kinds: set[str] | None = None,
+) -> bool:
+    if label_kinds:
+        kind = str(record.get("label_kind") or "search_leaf")
+        if kind not in label_kinds:
+            return False
     if not leaf_sites:
         return True
     site = record.get("site")
@@ -292,6 +300,11 @@ def main() -> int:
         help="comma-separated LeafTelemetry sites to keep (empty keeps all; "
         f"typical clone set: {','.join(DEFAULT_LEAF_SITES)})",
     )
+    ap.add_argument(
+        "--label-kinds",
+        default="",
+        help="comma-separated label_kind values to keep (path, search_leaf); empty keeps all",
+    )
     ap.add_argument("--sampler", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--self-play", action="store_true", help="sample positions from shallow teacher trajectories")
     ap.add_argument("--self-play-depth", type=int, default=4)
@@ -324,6 +337,7 @@ def main() -> int:
     if fens_path is not None and not fens_path.exists():
         raise RuntimeError(f"FEN source not found: {fens_path}")
     leaf_sites = {item.strip() for item in args.leaf_sites.split(",") if item.strip()} or None
+    label_kinds = {item.strip() for item in args.label_kinds.split(",") if item.strip()} or None
 
     if args.label == "static":
         teacher_cmd = args.teacher or str(ROOT / "build" / "nsce")
@@ -378,7 +392,7 @@ def main() -> int:
                 source_iter = (
                     record
                     for record in iter_source_records(fens_path)
-                    if keep_source_record(record, leaf_sites)
+                    if keep_source_record(record, leaf_sites, label_kinds)
                 )
                 if args.sample_uniform:
                     sources = reservoir_sample(source_iter, args.positions, args.seed)
@@ -402,7 +416,20 @@ def main() -> int:
                     lab["source_index"] = kept
                     lab["source_game"] = source.get("source_game") or f"fen:{args.seed}:{kept}"
                     lab["sample_uniform"] = bool(args.sample_uniform)
-                    for key in ("result", "outcome", "site", "in_check", "pieces", "ply", "halfmove", "phase"):
+                    for key in (
+                        "result",
+                        "outcome",
+                        "site",
+                        "in_check",
+                        "pieces",
+                        "ply",
+                        "halfmove",
+                        "phase",
+                        "label_kind",
+                        "opening_index",
+                        "color",
+                        "termination",
+                    ):
                         if key in source and key not in lab:
                             lab[key] = source[key]
                     write_label(f, lab, args.verbose, kept)

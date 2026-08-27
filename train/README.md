@@ -29,12 +29,22 @@ python3 train/selfplay.py --games 8 --movetime 80 --both-colors \
 Uses UCI `status` (`checkmate` / `stalemate` / `draw` / `ongoing`). A `max_plies`
 cutoff is **not** a draw: those positions are written without `result` so WDL mix
 does not treat an aborted game as 1/2-1/2. Path FENs from those games were
-equal-node coin flips. Stamp a finished-game result onto search leaves instead:
+equal-node coin flips. Search leaves keep provenance but **not** the game WDL:
 
 ```bash
 python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
   --limit 0 --positions-per-game 3 --nodes 25000 \
   --output train/data/leaves_with_results.jsonl
+```
+
+`--strip-results` rewrites an older dump so only played-path FENs keep `result`.
+`--path-output` writes those path FENs without searching. `--append` plus the
+`.seen.sqlite` index skips roots already collected.
+
+Streaming increment (resume self-play, then append leaves):
+
+```bash
+TARGET_GAMES=512 MOVETIME=100 bash train/run_datagen.sh
 ```
 
 Prefer balanced openings, not random walks and not the first slice of a dump.

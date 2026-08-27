@@ -71,38 +71,35 @@ Rejected table: [knowledge.md](knowledge.md).
 
 ## Next work, in order
 
-### 1. Leaf-label provenance
+### 1. Leaf-label provenance (done)
 
-[`train/collect_leaves.py`](../train/collect_leaves.py) `stamp_leaf` copies a
-finished-game WDL onto hypothetical search leaves. Keep **played-path** and
-**search-leaf** labels separate; sample by game/phase/site. Unfinished games
-stay unlabeled (`result` absent).
+[`train/collect_leaves.py`](../train/collect_leaves.py) `stamp_leaf` copies game
+WDL only onto the search root (`label_kind=path`). Hypothetical QS/static leaves
+are `search_leaf` and stay unlabeled. Salvage an old dump with `--strip-results`.
 
-### 2. 80k 768 protocol (cheap, expected coin flip)
+### 2. 80k 768 protocol (done)
 
-After P0 is in the binary used for labeling/search:
+Honest mix: 80k `search_leaf` static labels + 21 705 path FENs with real WDL.
+`nets/nnue_wdl_leaves80k.bin`, extras on. Equal-node 25k N=200 seed 20260814:
+baseline **12-175-13**, **−2 ± 17**. Coin flip; no SPRT.
+([report](../experiments/20260827_wdl_leaves80k/report.md))
 
-- Uniform sample of `train/data/leaves_with_results.jsonl` (already on disk,
-  4.6M unique) — **80k**, not another 20k.
-- `768×128`, extras **on**, `--init internal --augment mirror`,
-  `result-weight 0.20`, NSCE WDL coin ([eval_pipeline.md](eval_pipeline.md)
-  steps 5–7).
-- Equal-node N≥200 vs frozen baseline, then equal-time only if clearly above
-  0.5. Do not block datagen on this run.
+### 3. Datagen toward 100M leaves (increment started)
 
-### 3. Datagen toward 100M leaves
-
-Streaming self-play, exact NSCE WDL, unfinished games unlabeled. The 4.6M dump
-is a start, not a corpus. Optional NPS work (staged MovePicker, SEE reuse) is a
-**separate** candidate from any net.
+Streaming self-play, exact NSCE WDL, unfinished games unlabeled. Driver:
+[`train/run_datagen.sh`](../train/run_datagen.sh). First increment: 256→512
+games, +3.1M unique leaves
+([report](../experiments/20260827_datagen512/report.md)). Raise `TARGET_GAMES`
+and re-run. Skip roots already in `leaves_with_results.seen.sqlite`. Optional
+NPS work (staged MovePicker, SEE reuse) is a **separate** candidate from any net.
 
 ### 4. Frozen Stockfish targets before any new ladder
 
 Refresh [`experiments/frozen-targets/manifest.json`](../experiments/frozen-targets/manifest.json)
-to official **Stockfish 18** and **stockfish-dev-20260825-2edd935b**. Never
-resolve `stockfish` from PATH (that was SF17). Stay on SF18 Elo 2000, N≥40
-until a **promoted** eval wins that rung. Unrestricted equal-compute SF is
-still unplayed.
+to official **Stockfish 18** (`6b087694…`) and **stockfish-dev-20260825-2edd935b**
+(`aecdebba…`). Never resolve `stockfish` from PATH (that was SF17). Stay on SF18
+Elo 2000, N≥40 until a **promoted** eval wins that rung. Unrestricted
+equal-compute SF is still unplayed.
 
 ### 5. Only after an eval H1
 

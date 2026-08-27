@@ -8,7 +8,7 @@ gitignored; pin them with `tools/freeze_targets.py` and record hashes in
 | --- | --- | --- |
 | `stockfish` / `stockfish-17` | Stockfish 17 (2024-09-06) | Historical PATH/ladder binary. Pre-2026-08-14 reports labeled this "SF18". |
 | `stockfish-18` | Official [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) ubuntu-x86-64-avx2 | Frozen stable reference |
-| `stockfish-dev` | [dev-20260810-5062aee5](https://github.com/official-stockfish/Stockfish/releases/tag/stockfish-dev-20260810-5062aee5) linux-x86-64-universal | Frozen current-development reference |
+| `stockfish-dev` | [dev-20260825-2edd935b](https://github.com/official-stockfish/Stockfish/releases/tag/stockfish-dev-20260825-2edd935b) linux-x86-64-universal | Frozen current-development reference |
 
 ```bash
 python3 tools/freeze_targets.py \

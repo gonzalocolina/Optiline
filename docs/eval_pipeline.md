@@ -63,22 +63,30 @@ Ya hubo MAE mejor y Elo peor, dos veces.
 
 ## 5. Datos con resultado, no paseos ni el primer trozo del dump
 
-Partidas propias desde aperturas equilibradas, con el desenlace, mezcla de fases y de posiciones difíciles. Objetivo en espacio de victoria, con una parte de la nota del profesor y una parte del resultado. Un corte por `max_plies` no es tablas: esas FEN salen sin `result`.
+Partidas propias desde aperturas equilibradas, con el desenlace, mezcla de fases y de posiciones difíciles. Objetivo en espacio de victoria, con una parte de la nota del profesor y una parte del resultado. Un corte por `max_plies` no es tablas: esas FEN salen sin `result`. El WDL de la partida se copia solo al camino jugado (`label_kind=path`); las hojas hipotéticas del árbol (`search_leaf`) no heredan el desenlace.
 
 ```bash
 python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
   --limit 0 --positions-per-game 3 --nodes 25000 \
   --output train/data/leaves_with_results.jsonl
+python3 train/collect_leaves.py --strip-results \
+  --games train/data/selfplay_colors.jsonl \
+  --leaves train/data/leaves_with_results.jsonl
 python3 train/distill.py --label static --fens train/data/leaves_with_results.jsonl \
-  --leaf-sites q_stand_pat,static,in_check_static --sample-uniform --positions 80000 \
+  --leaf-sites q_stand_pat,static,in_check_static --label-kinds search_leaf \
+  --sample-uniform --positions 80000 \
   --teacher build/nsce -o train/data/nsce_static_leaf_results.jsonl
+python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
+  --path-output train/data/selfplay_path.jsonl
+python3 train/distill.py --label static --fens train/data/selfplay_path.jsonl \
+  --teacher build/nsce -o train/data/nsce_static_path.jsonl
 .venv/bin/python train/train_nnue.py \
   --data train/data/nsce_static_leaf_results.jsonl \
   --target-mode wdl --result-weight 0.20 --residualize-extras --init internal \
   --augment mirror
 ```
 
-Las FEN del camino (64 y 256) no bastaron. 20k hojas con desenlace tampoco (11-172-17, −10 ± 18). El dump de 4.6M ya está; el siguiente ensayo es una muestra uniforme más grande, no otra arquitectura.
+Las FEN del camino (64 y 256) no bastaron. 20k hojas con el WDL de la partida copiado a posiciones hipotéticas tampoco (11-172-17, −10 ± 18). El dump de 4.6M se salva quitando esos `result` falsos; el siguiente ensayo es 80k hojas honestas más el camino jugado, no otra arquitectura.
 
 ## 6. Un solo cambio por candidato, y el mismo contrato de extras
 
