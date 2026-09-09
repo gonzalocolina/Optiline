@@ -85,7 +85,7 @@ def load_openings(path: Path) -> list[str]:
 
 
 class UciEngine:
-    def __init__(self, cmd: list[str], name: str = "engine"):
+    def __init__(self, cmd: list[str], name: str = "engine", cwd: str | Path | None = None):
         self.name = name
         self.proc = subprocess.Popen(
             cmd,
@@ -94,6 +94,7 @@ class UciEngine:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            cwd=str(cwd) if cwd is not None else None,
         )
         self._send("uci")
         uci_lines = self._wait_for("uciok")

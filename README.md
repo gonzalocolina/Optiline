@@ -32,6 +32,8 @@ Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_SANITIZE`,
 # UCI options: Hash, Threads, UseNNUE, UsePolicy, UseSearchController,
 # EvalFile, PolicyFile, ControllerFile, TelemetryFile,
 # UseTT, UseSEE, UseLMR, UseNullMove, UseFutility, UseLMP, UseRazoring, UseRFP, UseProbCut
+./tools/play.sh                # tablero en http://127.0.0.1:8765/ (abre esa URL tú)
+./tools/play.sh --cli          # lo mismo en terminal (e4, Nf3 o e2e4)
 ```
 
 ```bash
