@@ -47,6 +47,7 @@ add_library(nsce_engine
   engine/src/search.cpp
   engine/src/uci.cpp
   engine/src/perft.cpp
+  engine/src/datagen.cpp
 )
 
 target_include_directories(nsce_engine PUBLIC engine/include)
@@ -135,6 +136,9 @@ target_link_libraries(nsce_bench_nnue PRIVATE nsce_engine)
 
 add_executable(nsce_bench_components engine/benches/bench_components.cpp)
 target_link_libraries(nsce_bench_components PRIVATE nsce_engine)
+
+add_executable(nsce_datagen engine/benches/datagen_main.cpp)
+target_link_libraries(nsce_datagen PRIVATE nsce_engine)
 
 add_test(
   NAME SearchBenchSmoke

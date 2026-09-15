@@ -161,14 +161,10 @@ bash train/run_clone_arbiter.sh
 
 Teacher centipawns are converted with **that teacher's** WDL curve into the
 NSCE search scale (`--teacher-wdl-scale` / `--search-wdl-scale`). Raw teacher
-cp stays metadata. MAE rejects broken nets; promotion is equal-node N≥200
-clearly above 0.5, then equal-time SPRT, one UCI change, extras contract.
+cp stays metadata. MAE rejects broken nets.
 
-Before promoting a result, run:
-
-```bash
-python3 tools/promotion_gate.py --stage eval \
-  --equal-node experiments/<nodes>/ablation_summary.json \
-  --sprt experiments/<run>/sprt_<candidate>.json \
-  --manifest experiments/<run>/manifest.json
-```
+**Elo claims since 2026-09-15 use `tools/fastchess_match.py` (full games).**
+`ablation_match.py` / `sprt.py` with `--max-plies 60` score truncated games as
+draws (~90 % of old equal-node gates) and must not be used as a strength
+verdict. Gate: screen `--st 100 --rounds 300`, promote `--tc 8+0.08 --sprt 0 5`,
+one UCI change, extras contract. See [handoff.md](handoff.md).

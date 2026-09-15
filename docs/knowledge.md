@@ -6,10 +6,21 @@ what has been measured, what failed, and what to try next.
 
 | Field | Value |
 | --- | --- |
-| Last updated | 2026-08-27 (80k honest leaf+path WDL: C++ MAE 3.09, equal-node 12-175-13, −2 ± 17) |
+| Last updated | 2026-09-15 evening (broken 60-ply instrument; full-game fastchess; unrestricted SF18 0-1-99; see [handoff.md](handoff.md)) |
 | Engine | NSCE 0.10 |
-| Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=internal`, `UseExtras=true`, `UseSearchController=false`, `UsePolicy=false`, Hash 16 |
-| Protocol | [hypothesis.md](hypothesis.md), [eval_pipeline.md](eval_pipeline.md), [experiments.md](experiments.md), [measurement.md](measurement.md) |
+| Frozen baseline | `tools/configs/baseline.uci` — `EvalFile=nets/nnue_search_leaves40k_rw0.bin`, extras on, policy/controller off, Hash 16, `EvalScale=1000`. Binary frozen as `build/nsce-frozen-20260915`. Vs unrestricted SF18 at 100 ms, full games: **0-1-99** (> 900 Elo behind). Vs internal net, same instrument: **123-33-44**, **+145 ± 45**. Limited SF18 Elo 2200 is a `UCI_Elo` handicap, not a rating. Previous internal arbiter: `tools/configs/baseline_internal.uci`. |
+| Protocol | [hypothesis.md](hypothesis.md), [eval_pipeline.md](eval_pipeline.md), [experiments.md](experiments.md), [measurement.md](measurement.md). **Elo instrument since 2026-09-15: `tools/fastchess_match.py`** (full games, adjudication, 14 concurrent, pentanomial). |
+
+> **Read first (2026-09-15).** Until this date every Elo gate here was run by
+> `ablation_match.py` / `sprt.py` with `--max-plies 60`, scoring the truncated
+> game as a draw. 175–180 of each 200 equal-node games ended that way. Those
+> gates could only see effects that mate or reach ±800 cp inside 30 moves, so
+> every "coin flip" / "±15" verdict below is **uninformative**, not negative.
+> The same promoted-vs-internal comparison recorded here as +23 ± 9 (SPRT,
+> 490 games) is **+145 ± 45** with full games (123-33-44, N=200,
+> [report](../experiments/20260915_instrument_internal_full/report.md)).
+> Older entries are kept unedited per the log rule; [handoff.md](handoff.md)
+> lists which ones to re-measure.
 
 ## How to add knowledge
 
@@ -35,24 +46,28 @@ These are the claims we act on until a later log entry supersedes them.
 
 ### Science
 
-- The north star is **equal-compute Stockfish latest** (same threads, TC, hash). Limited `UCI_Elo` is a weekly KPI, not that target. ([hypothesis.md](hypothesis.md))
+- The north star is **equal-compute Stockfish latest** (same threads, TC, hash). Limited `UCI_Elo` is a handicap rung, not a rating and not the weekly KPI. ([hypothesis.md](hypothesis.md), [handoff.md](handoff.md))
+- Elo lives in the **evaluator's data**, not in hand-tuned search constants. The promoted net is 40k search labels, a NumPy CPU trainer, and a one-sided `768×128` that still spends ~20 % of every node in `extras()`. Strong 1-person engines train ≥100 M positions on a dual-perspective net. The gap vs unrestricted SF18 is **> 900 Elo** (0-1-99 at 100 ms, full games).
+- Until 2026-09-15 every Elo gate used `ablation_match.py` / `sprt.py` with `--max-plies 60`, scoring truncated games as draws (~90 % of equal-node games). Those "coin flip ±15" verdicts are **uninformative**, not negative. Elo claims now come from `tools/fastchess_match.py` (full games). The same promoted-vs-internal comparison is **+145 ± 45** (123-33-44, N=200), not the old SPRT +23 ± 9.
 - Compete on **Elo/time** and **Elo/node**, not by cloning SFNNv13 or copying GPL search. Labels (cp / WDL) are allowed; Stockfish `.nnue` weights are not. Teacher cp is converted through **that teacher's** WDL curve into the **NSCE search coin** before it touches pruning thresholds. ([eval_pipeline.md](eval_pipeline.md))
 - A feature that wins **fixed nodes** and loses **fixed time** is too expensive, not “almost good.” Interpret the two matches separately. ([measurement.md](measurement.md))
 - Holdout MAE (float or C++) **rejects wreckage**; it does not promote. The tree reads signs and margins, not mean error. ([eval_pipeline.md](eval_pipeline.md))
 - The train → quantize → C++ **export** path can copy the frozen 768: `--init internal --epochs 0` has engine MAE **0** vs static labels and equal-node N=200 is **8-184-8** (score 0.500, +0 ± 14, identical nodes). Color-flip augmentation is not a ReLU symmetry (epoch-0 MAE 290 cp, sign accuracy 0). With `--augment none` or `mirror`, Adam stays on those notes (16 ep last-epoch MAE 0.14 / 0.33). Epoch 0 is now eligible as best. ([clone trainer](../experiments/20260814_clone_trainer/report.md))
-- 64 self-play games with real results (WDL mix 0.20, 768 + extras) produce a different net (C++ MAE 27.5 vs static) that is an equal-node **coin flip** (14-172-14, +0 ± 18). 256 games, both colors, stay a near-clone (C++ MAE 8.1) and still a coin flip (9-183-8, +2 ± 14). Search leaves from those finished games (4.6M unique, 20k labeled with a **copied** game result) are also a coin flip (11-172-17, candidate score 0.515, **−10 ± 18** to baseline). After fixing provenance, 80k honest search leaves plus 21 705 path WDL is still a coin flip (12-175-13, **−2 ± 17**, C++ MAE 3.09). Not a companion. ([wdl games](../experiments/20260814_wdl_games/report.md), [wdl colors](../experiments/20260814_wdl_colors/report.md), [wdl leaves](../experiments/20260814_wdl_leaves/report.md), [80k leaves](../experiments/20260827_wdl_leaves80k/report.md))
+- 64 self-play games with real results (WDL mix 0.20, 768 + extras) produce a different net (C++ MAE 27.5 vs static) that is an equal-node **coin flip** (14-172-14, +0 ± 18). 256 games, both colors, stay a near-clone (C++ MAE 8.1) and still a coin flip (9-183-8, +2 ± 14). Search leaves from those finished games (4.6M unique, 20k labeled with a **copied** game result) are also a coin flip (11-172-17, candidate score 0.515, **−10 ± 18** to baseline). After fixing provenance, 80k honest search leaves plus 21 705 path WDL is still a coin flip (12-175-13, **−2 ± 17**, C++ MAE 3.09). Scaling to 160k honest leaves plus 84 043 path WDL after 1024 games is the same (17-168-15, **+3 ± 19**, C++ MAE 3.85, candidate 0.495). After 2048 games, 320k leaves plus 167 991 path WDL is still a coin flip (10-181-9, **+2 ± 15**, C++ MAE 6.90, candidate 0.498). After 4096 games, 640k leaves plus 363 091 path WDL is the same (12-181-7, **+9 ± 15**, C++ MAE 5.17, candidate 0.488). Not a companion. Do not scale `--label static` further. ([wdl games](../experiments/20260814_wdl_games/report.md), [wdl colors](../experiments/20260814_wdl_colors/report.md), [wdl leaves](../experiments/20260814_wdl_leaves/report.md), [80k leaves](../experiments/20260827_wdl_leaves80k/report.md), [160k leaves](../experiments/20260827_wdl_leaves160k/report.md), [320k leaves](../experiments/20260829_wdl_leaves320k/report.md))
 - `Elo/nodo` is diagnostic only: pruning changes what a node means.
 
-### Frozen baseline (v0.10)
+### Frozen baseline (promoted 768)
 
-- Eval: HCE-distilled `768×128×1` (`EvalFile=internal`) **plus** classical `extras()` (mobility, files, outposts, hanging, king). `UseExtras=true` is **load-bearing** on this net: turning it off lost SPRT. Keep extras on the 768 path; keep extras off for king-bucket nets.
-- King-bucket nets (KAT / HalfKP): **`extras()` off**. The residual fights the net and biases learning.
-- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Ablation flags freeze each of these in `baseline.uci`. Hash stays **16 MB**. `EvalScale` stays **1000** until a calibrated scale wins equal-node N≥200 and a SPRT. Iterative-deepening still stops a new iteration when remaining `< last_iter / 2` (stricter soft-stop was a coin flip).
-- Policy and search controller: **off** on the frozen baseline.
+- Eval: search-teacher 40k@8000, result-weight 0, `768×128×1` (`EvalFile=nets/nnue_search_leaves40k_rw0.bin`) **plus** classical `extras()`. Full-game vs internal: **123-33-44**, **+145 ± 45**. Old 60-ply SPRT H1 (+23 ± 9) understated that. Keep extras on this 768 path; extras-off lost SPRT on the previous internal net (decisive 60-ply H0, not a coin flip). Previous arbiter: `tools/configs/baseline_internal.uci` (`EvalFile=internal`).
+- Strength: **> 900 Elo behind** unrestricted SF18 at 100 ms, 1 thread, Hash 16, full games (**0-1-99**). Limited SF18 `UCI_Elo=2200` (N=200, 67-88-45, +38 ± 36) is a handicap match, not this engine's rating.
+- King-bucket nets (KAT / HalfKP): **`extras()` off**. The residual fights the net and biases learning. KAT on this mix lost equal-node **111-87-2** (decisive even on the blind gate).
+- Search: PVS, TT, LMR, NMP with verify, RFP, razoring, futility, LMP, ProbCut, IIR, singular extensions (double SE on PV only), continuation 1/2/4/6, pick-next, QS fail-soft, quiet SEE, Lazy SMP. Hash stays **16 MB**. `EvalScale` stays **1000** until a full-game gate says otherwise (P0.2). Blanket check extension stays (SPRT [0, 10] N=3000 inconclusive). Iterative-deepening still stops a new iteration when remaining `< last_iter / 2`.
+- Policy and search controller: **off** until P0.2 re-measures them with full games.
 
 ### Measurement pitfalls (paid for in lab time)
 
-- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors). Equal-node self-play at 25k nodes is ~1 s/game here: **N=40 is still too wide** (±50 Elo, ~80% draws). Use **N≥200** (or SPRT) for that gate.
+- **The 60-ply gate was blind.** `ablation_match.py` / `sprt.py` stop at `--max-plies 60` and count those games as draws. ~90 % of equal-node gates ended that way, so almost every "coin flip ±15" could not see real Elo. Use `tools/fastchess_match.py` (full games, resign/draw adjudication). Keep the old runners for node/time telemetry only.
+- **N=20** Elo intervals on the SF ladder are too wide to promote. Use **N≥40** (paired colors). Equal-node self-play at 25k nodes is ~1 s/game here: **N=40 is still too wide** (±50 Elo, ~80% draws). Use **N≥200** (or SPRT) for that gate. Limited SF18 Elo 2200 at N=40 and N=80 both included 0; N=200 is the claim-quality *handicap* sample, not a rating.
 - Stockfish has no `status`. The oracle must always be **NSCE**. Otherwise `bestmove 0000` after mate aborts the match ([20260813_sf18_1600](../experiments/20260813_sf18_1600/report.md)).
 - Pair-level pentanomial LLR with near-zero empirical variance explodes after one opening pair. Floor per-pair variance at **0.04** and do not accept H0/H1 before **`--min-games 40`**. A 2-game H1 is invalid ([20260813_controller_fitted](../experiments/20260813_controller_fitted/report.md)).
 - Do not compare holdout MAE across different corpora (120k vs 1M). The 1M holdout is harder.
@@ -75,15 +90,21 @@ These are the claims we act on until a later log entry supersedes them.
 - Default prior (`NSCECTRL`, `bias=-120`) and fitted `NSCECTL2` (hist, improving, cut_node, SEE) are both **unpromoted**. Clamp stays **[-1, +2]**.
 - Fitted weights from 246k self-search LMR events: `w_cut=-11` dominates; `w_see=0`. Ridge MAE 14.4 on the residual. Equal-time SPRT slightly negative / inconclusive.
 - Without research/cutoff labels there is nothing useful to learn. Log LMR with `TelemetryFile` while the controller is **off**.
-- Re-fit only on the **winning** eval baseline, never mix KAT + controller in one SPRT.
+- Re-fit only on the **winning** eval baseline (this promoted 768), never mix KAT + controller in one SPRT.
 
 ### Policy
 
-- Piece→to + from→to is too weak to beat history. Conditioning a destination head on the KAT accumulator is postponed until KAT wins a SPRT; otherwise it relearns a PST.
+- Piece→to + from→to is too weak to beat history (lost equal-node on this 768). Conditioning a destination head on the KAT accumulator stays closed: king-relative without threats already lost equal-node.
 
 ---
 
 ## Rejected / do-not-repeat
+
+Rows whose evidence is a 60-ply "coin flip ±15" are **uninformative**, not
+negative. Re-measure those under P0.2 in [handoff.md](handoff.md). Signs that
+still stand: KAT 111-87-2, SF-teacher 768 N=400, extras-off H0, staged
+MovePicker **−48 ± 31** full games. Do not drop the blanket check extension
+(SPRT N=3000 inconclusive).
 
 | Idea | Why it is closed | Evidence |
 | --- | --- | --- |
@@ -91,7 +112,7 @@ These are the claims we act on until a later log entry supersedes them.
 | Promote KAT 1M×16 | MAE only 117→114; still losing | Inconclusive 36-86-78, LLR −2.11, 200 games ([kat_e16_sprt](../experiments/20260813_kat_e16_sprt/report.md)) |
 | Re-SPRT the same KAT net after 2× nps | Faster inference did not flip equal-time | H0 13-51-52, 116 games, score 0.332 ([kat_sprt_2x](../experiments/20260813_kat_sprt_2x/report.md)) |
 | `UseExtras=false` on the frozen 768 net | extras() is load-bearing here (unlike KAT) | H0 3-87-36, 126 games, score 0.369 ([extras_off_sprt](../experiments/20260813_extras_off_sprt/report.md)) |
-| Hash 32 at 100 ms | Mostly draws; no ±5 Elo | Inconclusive 19-168-13, LLR +0.54, 200 games ([hash32_sprt](../experiments/20260813_hash32_sprt/report.md)) |
+| Hash 32 at 100 ms | 60-ply inconclusive vs *internal*; re-measure Hash 32 on this 768 (P0.2) | Inconclusive 19-168-13, LLR +0.54, 200 games ([hash32_sprt](../experiments/20260813_hash32_sprt/report.md)) |
 | ID stop when remaining `< last_iter` (was `/ 2`) | Coin flip; reverted | Inconclusive 20-161-19, LLR +0.09, 200 games ([tm_sprt](../experiments/20260813_tm_sprt/report.md)) |
 | More epochs on the same 1M set | MAE flat after epoch 11 | Train history in `nets/kat_candidate.metrics.json` |
 | From-scratch 768 on 200k NSCE 25k-node labels | Engine MAE 84.8 vs internal 65.1 | [nsce25k 768](../experiments/20260814_nsce25k_768_train/report.md) |
@@ -112,10 +133,27 @@ These are the claims we act on until a later log entry supersedes them.
 | 64 self-play games + WDL result-weight 0.20 as an eval candidate | Equal-node N=200 is 14-172-14, +0 ± 18 | [wdl games](../experiments/20260814_wdl_games/report.md) |
 | 256 both-color self-play paths, same WDL mix | Near-clone (C++ MAE 8.1); equal-node 9-183-8, +2 ± 14 | [wdl colors](../experiments/20260814_wdl_colors/report.md) |
 | 20k search leaves stamped with those game results | C++ MAE 12.9; equal-node 11-172-17, −10 ± 18 (candidate 0.515) | [wdl leaves](../experiments/20260814_wdl_leaves/report.md) |
+| 80k honest search leaves + path WDL | C++ MAE 3.09; equal-node 12-175-13, −2 ± 17 | [80k leaves](../experiments/20260827_wdl_leaves80k/report.md) |
+| 160k honest search leaves + 84k path WDL | C++ MAE 3.85; equal-node 17-168-15, +3 ± 19 | [160k leaves](../experiments/20260827_wdl_leaves160k/report.md) |
+| 320k honest search leaves + 168k path WDL | C++ MAE 6.90; equal-node 10-181-9, +2 ± 15 | [320k leaves](../experiments/20260829_wdl_leaves320k/report.md) |
+| 640k honest search leaves + 363k path WDL | C++ MAE 5.17; equal-node 12-181-7, +9 ± 15 | [640k leaves](../experiments/20260829_wdl_leaves640k/report.md) |
+| Relabel the 40k search mix at `go nodes 25000` | Equal-node 6-180-14, −14 ± 15 (candidate 0.520); weaker than 8000-node mix | [search 40k n25k](../experiments/20260903_search_leaves40k_n25k/report.md) |
+| Double the 8000-node search mix to 80k+80k | Equal-node 9-173-18, −16 ± 18 (candidate 0.523); weaker than 40k mix | [search 80k](../experiments/20260903_search_leaves80k/report.md) |
+| 80k@8000 at result-weight 0 vs promoted 40k | Equal-node 9-180-11, −3 ± 16 (candidate 0.505) | [search 80k rw0](../experiments/20260904_search_leaves80k_rw0/report.md) |
+| Disjoint 40k@8000 rw0 from the 8192 dump | Equal-node 10-180-10, +0 ± 15 (candidate 0.500) | [search 40k 8192](../experiments/20260909_search_leaves40k_8192/report.md) |
+| 40k@8000 rw0 from appended 8192 leaves only | Equal-node 9-181-10, −2 ± 15 (candidate 0.503) | [search 40k newleaves](../experiments/20260909_search_leaves40k_newleaves/report.md) |
+| Fine-tune promoted 768 on that new-leaf mix | Equal-node 5-186-9, −7 ± 13 (candidate 0.510) | [search 40k newleaves ft](../experiments/20260909_search_leaves40k_newleaves_ft/report.md) |
+| KAT `--no-threats` on the promoted 40k mix | Equal-node 111-87-2, +212 ± 36 (candidate 0.228); C++ MAE vs static 138 | [kat 40k rw0](../experiments/20260909_kat_search40k_rw0/report.md) |
+| `EvalScale=926` on the promoted 768 | 60-ply coin flip; re-measure P0.2 | 10-176-14, −7 ± 17 ([evalscale 926](../experiments/20260909_evalscale926/report.md)) |
+| Re-fit LMR controller on the promoted 768 | 60-ply coin flip; re-measure P0.2 | 9-182-9, +0 ± 15 ([controller rw0](../experiments/20260909_controller_rw0/report.md)) |
+| From-to `NSCEPOLY` on the promoted 768 | Equal-node 27-166-7, +35 ± 20 (candidate 0.450) | [policy rw0](../experiments/20260909_policy_rw0/report.md) |
+| Staged MovePicker + SEE reuse (`build-nps/nsce`) | That implementation loses at equal time, full games | picker **−48 ± 31**, N=300 ([nps full](../experiments/20260915_nps_movepicker_time_full/report.md)); old 60-ply equal-node 20-170-10, +17 ± 19 |
+| Drop blanket check extension | SPRT [0, 10] N=3000 inconclusive; N=600 LOS 97 % did not hold | +3.8 ± 10.2, LLR −0.44 ([no-check SPRT](../experiments/20260915_no_check_ext_sprt/report.md)) |
 | Mix clone leaves into that train set and trust the holdout | Val is clone-dominated; best epoch 0 ships the clone | [wdl games](../experiments/20260814_wdl_games/report.md) |
 | Port more Stockfish search (multi-cut, threat-input sparse nets, SFNNv13) | GPL; keeps us behind Fishtest-tuned constants | License + hypothesis |
 | Train from Stockfish `.nnue` files | GPL / not our net | Labels only |
 | Treat N=20 SF18 2000 (7-8-5, +35) as a win | Interval ±120; N=40 reversed the sign | [v10](../experiments/20260813_v10/report.md) vs [sf18_2000](../experiments/20260813_sf18_2000/report.md) |
+| Treat N=40 or N=80 SF18 2200 as ≥2200 | Both CIs include 0; N=200 is the claim | [sf18 2200 n40](../experiments/20260903_sf18_2200_rw0/report.md), [n80](../experiments/20260904_sf18_2200_rw0_n80/report.md), [n200](../experiments/20260909_sf18_2200_rw0_n200/report.md) |
 | Use Stockfish as `status` oracle | Aborts on mate (`bestmove 0000`) | [sf18_1600](../experiments/20260813_sf18_1600/report.md) |
 | Accept SPRT H1 after one opening pair | Degenerate pentanomial variance | [controller_fitted](../experiments/20260813_controller_fitted/report.md) |
 
@@ -123,7 +161,16 @@ These are the claims we act on until a later log entry supersedes them.
 
 ## Ladder position
 
-Protocol: 100 ms, 1 thread, Hash 16, `openings_balanced.epd`, NSCE `status` oracle, paired colors.
+Full games (`tools/fastchess_match.py`), 100 ms, 1 thread, Hash 16,
+`openings_balanced.epd`, resign/draw adjudication.
+
+| Opponent | N | W-D-L (NSCE) | Elo ±95% | Notes |
+| --- | ---: | ---: | ---: | --- |
+| Internal net (`baseline_internal.uci`) | 200 | **123-33-44** | **+145 ± 45** | [instrument](../experiments/20260915_instrument_internal_full/report.md) |
+| Unrestricted SF18 | 100 | **0-1-99** | **> 900 behind** | [sf18 unlimited](../experiments/20260915_sf18_unlimited_100ms/report.md) |
+
+`UCI_Elo` handicap rungs (old Python harness, 60-ply draws) are **not** a
+rating. Historical table kept below.
 
 | Opponent | N | W-D-L (NSCE) | Score | Elo ±95% | Notes |
 | --- | ---: | ---: | ---: | ---: | --- |
@@ -132,41 +179,82 @@ Protocol: 100 ms, 1 thread, Hash 16, `openings_balanced.epd`, NSCE `status` orac
 | SF18 Elo 1600 (v0.10) | 20 | 15-2-3 | 0.800 | +241 ± 234 | Exploratory N |
 | SF18 Elo 1800 (v0.10) | 20 | 8-9-3 | 0.625 | +89 ± 118 | Exploratory N |
 | SF18 Elo 2000 (v0.10) | 20 | 7-8-5 | 0.550 | +35 ± 120 | **Superseded** |
-| **SF18 Elo 2000 (v0.10)** | **40** | **11-13-16** | **0.438** | **−44 ± 90** | Current rung; CI includes 0 |
-| SF18 Elo 2200 (v0.10) | 40 | 10-17-13 | 0.463 | −26 ± 82 | CI includes 0; `UCI_Elo` is not a precise rating |
+| SF18 Elo 2000 (v0.10 internal) | 40 | 11-13-16 | 0.438 | −44 ± 90 | Pre-promotion |
+| SF18 Elo 2000 (rw0, limited) | 40 | 25-8-7 | 0.725 | +168 ± 114 | Handicap rung |
+| SF18 Elo 2200 (v0.10 internal) | 40 | 10-17-13 | 0.463 | −26 ± 82 | Pre-promotion |
+| SF18 Elo 2200 (rw0, limited) | 40 | 17-14-9 | 0.600 | +70 ± 90 | CI includes 0 |
+| SF18 Elo 2200 (rw0, limited) | 80 | 30-25-25 | 0.531 | +22 ± 64 | CI includes 0 |
+| SF18 Elo 2200 (rw0, limited) | 200 | 67-88-45 | 0.555 | +38 ± 36 | Handicap; not a rating |
 
-Stay on **SF18 Elo 2000, N≥40** until a **promoted** eval (or search) wins that rung. Do not treat 2200 as harder than 2000 on a 40-game sample.
+Historical rungs through 2026-08-13 used PATH Stockfish 17.
 
-**Not played:** unrestricted equal-compute Stockfish 18 (no `UCI_LimitStrength`) against the frozen `stockfish-18` hash. Historical rungs used PATH Stockfish 17.
-
-Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plies` draws) — indecisive.
+Self-play: NSCE 0.9 vs 0.8 at 100 ms / 60 plies was 2-36-2 (almost all `max_plies` draws) — indecisive; that is the same broken instrument.
 
 ---
 
 ## Next levers
 
-The 2026-08-13 evening speedups (**KAT madd inference** + **latched time-up / less clock overhead**) roughly **double nodes in 200–700 ms searches**. Converting that 2× into Elo via the same KAT net, extras-off, Hash 32, or a stricter ID stop **failed or was a coin flip**. Affine `EvalScale` did not rescue the SF 768 either. Do not skip to a later item to “try something.”
+Order is [handoff.md](handoff.md). Do not skip P0.2 to start datagen.
 
-The evaluator is now manufactured and judged in a **fixed order** ([eval_pipeline.md](eval_pipeline.md)). Later steps are illegal until the earlier gate passes.
+1. **P0.2 — re-measure leftover 60-ply coin-flips with fastchess** (`--st 100 --rounds 300`): `EvalScale=926`, Hash 32 on this 768, `controller_rw0`, 40k λ=0.20, 80k rw0, 640k static. Annotate Rejected; do not delete old rows.
+2. **P0.3 / P0.4** — KPI vs `build/nsce-frozen-20260915` at 8+0.08; larger UHO book.
+3. **P1** — `nsce_datagen` ≥100 M bulletformat positions + bullet trainer + `(768→512)×2` SCReLU (`NSCEPER1`). Then `UseExtras=false` measured, not assumed. Gen1 after H1.
+4. **P2** — SPSA (`NSCE_TUNE` + weather-factory), not hand-tuned constants. Staged picker rewritten from scratch; do not revive `build-nps/nsce`.
+5. Clone-export and deployed-integer gates still apply. Do not scale `--label static`. Do not raise `result-weight` on the 40k mix as the Elo path.
 
-1. **Clone pipe passed, including the trainer.** Export MAE 0, equal-node 8-184-8. Color-flip was why Adam walked off; `--augment none|mirror` stays (16 ep MAE 0.14 / 0.33). Epoch 0 is kept when later epochs are worse. ([clone trainer](../experiments/20260814_clone_trainer/report.md))
-2. **One currency: NSCE search scale.** Teacher cp → that teacher's WDL → NSCE search cp. Keep raw cp as metadata. Never train on Stockfish cp and prune with NSCE thresholds.
-3. **Label leaves, not the first 200k root FENs.** Already used for the clone (`collect_leaves.py` + `--sample-uniform`). Keep that for any new labels.
-4. **Judge the deployed integers**, then games. MAE is a reject filter. Clone gate is live (`validate_nnue.py --gate clone`).
-5. **80k honest leaf+path WDL is still a coin flip** (C++ MAE 3.09, equal-node 12-175-13, −2 ± 17). Do not raise `result-weight`. Not KAT. Next corpus work is streaming self-play toward more unique leaves; unfinished games stay unlabeled. ([80k leaves](../experiments/20260827_wdl_leaves80k/report.md))
-6. **One change, extras contract.** 768 extras on, or king-bucket extras off. Never extras on KAT. Never net + policy + controller + scale in one SPRT.
-7. **True gate: beat this tree, N large.** Equal-node N≥200 (or SPRT) clearly above 0.5 vs frozen baseline; then equal-time. A net that wins nodes and loses clock is expensive.
-8. **Only then** a king-relative net **without** the 12-threat residual, same data/loss, vs the corrected 768.
-9. **Only then** grouped search-margin/EvalScale retune, then policy / LMR controller, for the eval that already won.
-
-Closed and not next: SF-teacher 768 (`nnue_sf25k.bin` at 1000/1091/1519), NSCE self-distill 200k, replay `kat_candidate.bin` / `kat_nsce25k.bin` / `nnue_nsce25k_ft.bin` at 100 ms, extras-off on the frozen 768, Hash 32 at 100 ms, another ID/TM constant at 100 ms (fail-low extra budget unmeasured), more ProbCut/IIR/SE constants, hidden 256 at 1M, another N=20 ladder, controller clamp relax, policy on KAT before an eval H1, 5M Lichess, 500k more labels for this KAT or this SF 768. `kHidden≠128` still waits on a 768×128 that wins equal-node. SF Elo 2000, N≥40 only after a **promoted** eval, and only against the frozen SF18 binary. Richer pawn/threat features, wider nets, faster inference of nets that already lose, and move-emitting attention nets stay out: they change the sport or reload a loser.
+Closed and not next: SF-teacher 768, NSCE self-distill 200k, replay KAT bins, extras-off on this 768, drop the check extension, `UCI_Elo` as a rating, GPL search / Stockfish `.nnue` weights, king buckets / hidden 1024 / threats before P1 gen1, Lazy SMP at 1-thread KPI. Richer features on nets that already lose stay out.
 
 ---
 
 ## Findings log
 
+### 2026-09-15
+
+- Instrument: `ablation_match.py` / `sprt.py` `--max-plies 60` scores truncated games as draws (~90 % of equal-node gates). Elo claims now from `tools/fastchess_match.py` (full games). Promoted 768 vs internal, 100 ms, N=200: **123-33-44**, **+145 ± 45** (old SPRT said +23). Decision: diagnostic of the gate. ([instrument](../experiments/20260915_instrument_internal_full/report.md))
+- Promoted 768 vs unrestricted SF18, 100 ms, N=100, full games: **0-1-99**, > 900 Elo behind. North star is this gap, not `UCI_Elo` 2200. ([sf18 unlimited](../experiments/20260915_sf18_unlimited_100ms/report.md))
+- Frozen vs staged-MovePicker `build-nps/nsce`, 100 ms, N=300, full games: frozen **134-73-93**, picker **−48 ± 31**. That implementation still loses. ([nps full](../experiments/20260915_nps_movepicker_time_full/report.md))
+- Drop blanket check extension: N=600 candidate **+23 ± 23**; SPRT [0, 10] N=3000 **inconclusive** LLR −0.44, **+3.8 ± 10.2**. Keep the extension. ([N=600](../experiments/20260915_no_check_ext/report.md), [SPRT](../experiments/20260915_no_check_ext_sprt/report.md))
+- Limited SF18 Elo 2200 N=200 is a handicap rung, not a rating: **67-88-45**, **+38 ± 36**, N=200, TC=100 ms, seed=20260814 (`experiments/20260909_sf18_2200_rw0_n200`). Superseded as a strength claim by unrestricted 0-1-99.
+
+### 2026-09-09
+
+- King-relative HalfKA-hm `--no-threats` on the promoted 40k@8000 mix, result-weight 0, extras off (`nets/kat_search_leaves40k_rw0.bin`). Equal-node 25k N=200 seed 20260814: baseline **111-87-2**, score 0.773, **+212 ± 36**. Candidate 0.228. Deployed C++ MAE vs frozen static **138**. No SPRT. Do not promote. Do not add the 12-threat residual on this loser. ([kat 40k rw0](../experiments/20260909_kat_search40k_rw0/report.md))
+- Affine `EvalScale=926` on the promoted 768 (holdout origin 0.926 vs frozen internal static). Equal-node 25k N=200 seed 20260814: baseline **10-176-14**, score 0.490, **−7 ± 17**. Candidate 0.515. Interval includes 0. No SPRT. Keep `EvalScale=1000`. ([evalscale 926](../experiments/20260909_evalscale926/report.md))
+- LMR controller re-fit on the promoted 768 (`nets/controller_rw0.bin`, 267 333 events, `w_cut=-9`). Equal-node 25k N=200 seed 20260814: baseline **9-182-9**, score 0.500, **+0 ± 15**. Candidate 0.500. No SPRT. Keep `UseSearchController=false`. ([controller rw0](../experiments/20260909_controller_rw0/report.md))
+- From-to policy (`nets/policy_rw0.bin`) from 256 self-play games with the promoted 768 (65-61-43 + 87 unfinished). Equal-node 25k N=200 seed 20260814: baseline **27-166-7**, score 0.550, **+35 ± 20**. Candidate 0.450. No SPRT. Keep `UsePolicy=false`. ([policy rw0](../experiments/20260909_policy_rw0/report.md))
+- Datagen self-play 6002→**8192** at 100 ms, 13×`Threads=1`, promoted 768: **2480-2184-1099** + 2429 unfinished (increment **589-531-307** + 763). `collect_leaves --append` skip 11809, **5480** new roots, **+36 817 302** unique leaves (24G jsonl). Path FENs **648 979**. ([datagen 8192](../experiments/20260909_datagen8192/report.md))
+- Disjoint 40k@8000 rw0 mix from the enlarged dump (exclude promoted 40k keys). Equal-node 25k N=200 seed 20260814: baseline **10-180-10**, score 0.500, **+0 ± 15**. Candidate 0.500. No SPRT. Keep the promoted 40k net. ([search 40k 8192](../experiments/20260909_search_leaves40k_8192/report.md))
+- 40k@8000 rw0 from **appended 8192 leaves only** (last 36.8M jsonl rows + increment path). Equal-node 25k N=200 seed 20260814: baseline **9-181-10**, score 0.498, **−2 ± 15**. Candidate 0.503. No SPRT. ([search 40k newleaves](../experiments/20260909_search_leaves40k_newleaves/report.md))
+- Fine-tune the promoted 768 on that mix (`--init` the promoted bin). Equal-node 25k N=200 seed 20260814: baseline **5-186-9**, score 0.490, **−7 ± 13**. Candidate 0.510. Interval includes 0. No SPRT. ([search 40k newleaves ft](../experiments/20260909_search_leaves40k_newleaves_ft/report.md))
+- Promoted eval vs pinned SF18 Elo 2200, N=200, 100 ms, seed 20260814, NSCE status: **67-88-45**, score 0.555, **+38 ± 36**. Interval excludes 0 (lower bound +2). N=40 and N=80 included 0. Wins the limited 2200 KPI. Unrestricted SF unplayed. ([sf18 2200 n200](../experiments/20260909_sf18_2200_rw0_n200/report.md))
+
+### 2026-09-03
+
+- 80k@8000 mix retrained at **result-weight 0** vs the promoted 40k net. Equal-node 25k N=200 seed 20260814: baseline **9-180-11**, score 0.495, **−3 ± 16**. Candidate 0.505. Interval includes 0. No SPRT. Do not promote. ([search 80k rw0](../experiments/20260904_search_leaves80k_rw0/report.md))
+- Promoted eval vs pinned SF18 Elo 2200, N=80, 100 ms, seed 20260814, NSCE status: **30-25-25**, score 0.531, **+22 ± 64**. Interval includes 0. N=40 (17-14-9, +70 ± 90) did not hold. Do not record ≥2200. ([sf18 2200 n80](../experiments/20260904_sf18_2200_rw0_n80/report.md))
+- Promoted eval vs pinned SF18 Elo 2200, N=40, 100 ms, seed 20260814, NSCE status: **17-14-9**, score 0.600, **+70 ± 90**. Interval includes 0. Superseded by N=80. ([sf18 2200 rw0](../experiments/20260903_sf18_2200_rw0/report.md))
+- Promoted eval (`nets/nnue_search_leaves40k_rw0.bin`) vs pinned SF18 Elo 2000, N=40, 100 ms, seed 20260814, NSCE status: **25-8-7**, score 0.725, **+168 ± 114**. Interval excludes 0. Wins the 2000 KPI (old internal rung was 11-13-16, −44 ± 90). ([sf18 2000 rw0](../experiments/20260903_sf18_2000_rw0/report.md))
+- Search-teacher 40k mix with **result-weight 0** (same `go nodes 8000` FENs), 768 extras on. Equal-node 25k N=200: baseline **3-177-20**, **−30 ± 16**. Equal-time SPRT **H1** at 490 games **38-447-5**, LLR **+2.97**, **+23 ± 9**. `promotion_gate --stage eval` PASS. `EvalFile` promoted; old internal arbiter at `tools/configs/baseline_internal.uci`. ([nodes](../experiments/20260903_search_leaves40k_rw0/report.md), [SPRT H1](../experiments/20260903_search_leaves40k_rw0_sprt/report.md))
+- Search-teacher 80k mix (80k `search_leaf` + 80k path, `go nodes 8000`), 768 extras on, `--init internal --augment mirror`, result-weight 0.20. Best epoch 32. Float MAE vs search/WDL **181**. Deployed MAE vs frozen static **16.48**. Equal-node 25k N=200 seed 20260814: baseline **9-173-18**, score 0.477, **−16 ± 18**. Candidate 0.523. Interval includes 0. `equal_node_clearly_winning` FAIL. No SPRT. Do not scale this mix further. ([search 80k](../experiments/20260903_search_leaves80k/report.md))
+- Search-teacher 40k relabeled at `go nodes 25000` (same FENs as the 8000 mix), 768 extras on, `--init internal --augment mirror`, result-weight 0.20. Best epoch 18. Float MAE vs search/WDL **202**. Deployed MAE vs frozen static **11.40** (N=6737). Equal-node 25k N=200 seed 20260814: baseline **6-180-14**, score 0.480, **−14 ± 15**. Candidate 0.520. Interval includes 0. `equal_node_clearly_winning` FAIL. No SPRT. Do not scale teacher nodes on this 40k set. ([search 40k n25k](../experiments/20260903_search_leaves40k_n25k/report.md))
+- Search-teacher 40k equal-time SPRT vs frozen baseline, 100 ms, max 400, seed 20260814: **inconclusive** **19-372-9**, LLR **+0.90**, pentanomial 0-7-177-15-1, candidate 0.5125, **+9 ± 9**. `promotion_gate --stage eval` FAIL. Do not promote `EvalFile`. Equal-node had passed (7-170-23, −28 ± 19). ([search 40k SPRT](../experiments/20260902_search_leaves40k_sprt/report.md))
+
+### 2026-09-02
+
+- Search-teacher 40k mix (40k `search_leaf` + 40k path, `go nodes 8000`), 768 extras on, `--init internal --augment mirror`, result-weight 0.20. Best epoch 10. Float MAE vs search/WDL **188**. Deployed MAE vs frozen static **9.82** (N=6737, `--gate none`). Equal-node 25k N=200 seed 20260814: baseline **7-170-23**, score 0.460, **−28 ± 19**. Candidate 0.540. Interval excludes 0. Equal-time SPRT next; `EvalFile` not promoted. Train crash `NameError: _variant_target` after `pack_active_rows` was restored. ([search 40k](../experiments/20260902_search_leaves40k/report.md))
+- Honest 640k search leaves + 363 091 path WDL after 4096 games, 768 extras on, `--init internal --augment mirror`, result-weight 0.20. C++ MAE **5.17** (N=84762), clone gate PASS. Equal-node 25k N=200 seed 20260814: baseline **12-181-7**, score 0.512, **+9 ± 15**. Candidate 0.488. `promotion_gate --stage eval` FAIL. No SPRT. Do not scale static labels further. ([640k leaves](../experiments/20260829_wdl_leaves640k/report.md))
+
+### 2026-08-29
+
+- Staged MovePicker + SEE reuse (`build-nps/nsce`) vs frozen `build/nsce`, same `baseline.uci`. Equal-node 25k N=200 seed 20260814: baseline **20-170-10**, score 0.525, **+17 ± 19**. Candidate 0.475. Depth-12 bench nps **865k→993k**. `promotion_gate --stage search` FAIL. No SPRT. Source reverted. ([nps movepicker](../experiments/20260829_nps_movepicker/report.md))
+- Streaming datagen 2048→4096 self-play at 100 ms both colors. **1299-1119-527** + 1151 unfinished. `collect_leaves --append` skipped 5895 then crashed at 2897/2940 (disk full); remaining 44 roots **+268 762**. Increment **+19 471 553** unique leaves. ([datagen 4096](../experiments/20260829_datagen4096/report.md))
+- Honest 320k search leaves + 167 991 path WDL after 2048 games, 768 extras on, `--init internal --augment mirror`, result-weight 0.20. C++ MAE **6.90** (N=40659), clone gate PASS. Equal-node 25k N=200 seed 20260814: baseline **10-181-9**, score 0.502, **+2 ± 15**. Candidate 0.498. `promotion_gate --stage eval` FAIL. No SPRT. ([320k leaves](../experiments/20260829_wdl_leaves320k/report.md))
+- Streaming datagen increment: self-play 1024→2048 at 100 ms both colors. **655-572-248** + 573 unfinished (no fake draws). Remainder after 1833 used 15×1-thread workers (not SMP). `collect_leaves --append` skipped 2902 known roots, 1523 new searches, **+10 129 214** unique leaves. ([datagen 2048](../experiments/20260827_datagen2048/report.md))
+
 ### 2026-08-27
 
+- Honest 160k search leaves + 84 043 path WDL after 1024 games, 768 extras on, `--init internal --augment mirror`, result-weight 0.20. C++ MAE **3.85** (N=21046), clone gate PASS. Equal-node 25k N=200 seed 20260814: baseline **17-168-15**, score 0.505, **+3 ± 19**. Candidate 0.495. `promotion_gate --stage eval` FAIL. No SPRT. ([160k leaves](../experiments/20260827_wdl_leaves160k/report.md))
+- Streaming datagen increment: self-play 512→1024 at 100 ms both colors. **323-275-120** + 306 unfinished (no fake draws). `collect_leaves --append` skipped 1413 known roots, 741 new searches, **+4 886 429** unique leaves. ([datagen 1024](../experiments/20260827_datagen1024/report.md))
 - Streaming datagen increment: self-play 256→512 at 100 ms both colors. **170-129-63** + 150 unfinished (no fake draws). `collect_leaves --append` skipped 672 known roots, 414 new searches, **+3 103 231** unique leaves. ([datagen 512](../experiments/20260827_datagen512/report.md))
 - Leaf provenance: `stamp_leaf` copies game WDL only onto the search root (`label_kind=path`). Hypothetical QS/static leaves are `search_leaf` and unlabeled. Salvaged `leaves_with_results.jsonl`: 4 613 450 records, **2 336** path with result (was every leaf).
 - Honest 80k search leaves + 21 705 path WDL, 768 extras on, `--init internal --augment mirror`, result-weight 0.20. C++ MAE **3.09** (N=9705), clone gate PASS. Equal-node 25k N=200 seed 20260814: baseline **12-175-13**, score 0.497, **−2 ± 17**. Candidate 0.502. `promotion_gate --stage eval` FAIL. No SPRT. ([80k leaves](../experiments/20260827_wdl_leaves80k/report.md))

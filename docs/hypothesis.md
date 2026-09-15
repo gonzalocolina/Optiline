@@ -18,7 +18,7 @@ bajo \(T_{NSCE} \approx T_{Stockfish}\) y mismos hilos/CPU/memoria.
 
 | KPI | Descripción |
 | --- | --- |
-| ΔElo (peldaño actual) | Elo vs oponente de la escalera en la que se compite |
+| ΔElo (peldaño actual) | Elo vs `build/nsce-frozen-20260915` a `--tc 8+0.08` (fastchess, partidas completas). `UCI_Elo` es un hándicap, no un rating. |
 | nodes/move | Nodos medios por jugada a TC fijo |
 | time overrun | Fracción de jugadas que exceden el presupuesto |
 | Elo/nodo (proxy) | ΔElo relativo / nodos (o score de match / nodos) |

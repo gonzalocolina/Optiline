@@ -66,17 +66,14 @@ constexpr int PST[PIECE_TYPE_NB][SQUARE_NB] = {
 
 Square flip(Square s) { return static_cast<Square>(static_cast<int>(s) ^ 56); }
 
-int extras(const Position& pos) {
-  int score = 10;  // tempo for the side that will move, applied in white-POV then flipped
-
-  const Bitboard wp = pos.pieces(WHITE, PAWN);
-  const Bitboard bp = pos.pieces(BLACK, PAWN);
-  const Bitboard occ = pos.occupied();
+// Pawn-only terms of extras(): doubled, passed (+ supported), isolated. They
+// depend on the two pawn bitboards alone, so they are memoised per thread by
+// the position's pawn key. The full 64-bit key is verified, so a hit returns
+// exactly what recomputing would.
+int pawn_structure(Bitboard wp, Bitboard bp) {
+  int score = 0;
   const Bitboard w_pawn_att = shift_ne(wp) | shift_nw(wp);
   const Bitboard b_pawn_att = shift_se(bp) | shift_sw(bp);
-
-  if (popcount(pos.pieces(WHITE, BISHOP)) >= 2) score += 35;
-  if (popcount(pos.pieces(BLACK, BISHOP)) >= 2) score -= 35;
 
   constexpr int kPassed[8] = {0, 8, 12, 20, 35, 60, 100, 0};
   for (int file = 0; file < 8; ++file) {
@@ -122,6 +119,40 @@ int extras(const Position& pos) {
     if (file < 7) adj |= FileBB[file + 1];
     if (!(bp & adj)) score += 10;
   }
+  return score;
+}
+
+struct PawnCacheEntry {
+  Key key = 0;
+  int score = 0;
+  bool valid = false;
+};
+constexpr std::size_t kPawnCacheSize = 8192;  // 8192 × 16 B = 128 KiB per thread
+thread_local PawnCacheEntry pawn_cache[kPawnCacheSize];
+
+int cached_pawn_structure(const Position& pos, Bitboard wp, Bitboard bp) {
+  const Key key = pos.pawn_key();
+  PawnCacheEntry& entry = pawn_cache[key & (kPawnCacheSize - 1)];
+  if (entry.valid && entry.key == key) return entry.score;
+  entry.key = key;
+  entry.score = pawn_structure(wp, bp);
+  entry.valid = true;
+  return entry.score;
+}
+
+int extras(const Position& pos) {
+  int score = 10;  // tempo for the side that will move, applied in white-POV then flipped
+
+  const Bitboard wp = pos.pieces(WHITE, PAWN);
+  const Bitboard bp = pos.pieces(BLACK, PAWN);
+  const Bitboard occ = pos.occupied();
+  const Bitboard w_pawn_att = shift_ne(wp) | shift_nw(wp);
+  const Bitboard b_pawn_att = shift_se(bp) | shift_sw(bp);
+
+  if (popcount(pos.pieces(WHITE, BISHOP)) >= 2) score += 35;
+  if (popcount(pos.pieces(BLACK, BISHOP)) >= 2) score -= 35;
+
+  score += cached_pawn_structure(pos, wp, bp);
 
   auto shield = [&](Color c) {
     Square king = pos.king_square(c);

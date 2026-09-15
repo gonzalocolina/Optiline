@@ -10,36 +10,26 @@ namespace {
 
 constexpr int SeeValue[PIECE_TYPE_NB] = {100, 320, 330, 500, 900, 20000};
 
-Bitboard attackers_to(Square target, Bitboard occupied, Bitboard pieces[COLOR_NB][PIECE_TYPE_NB]) {
-  return (pawn_attacks_bb(BLACK, target) & pieces[WHITE][PAWN]) |
-         (pawn_attacks_bb(WHITE, target) & pieces[BLACK][PAWN]) |
-         (knight_attacks_bb(target) & (pieces[WHITE][KNIGHT] | pieces[BLACK][KNIGHT])) |
-         (bishop_attacks_bb(target, occupied) &
-          (pieces[WHITE][BISHOP] | pieces[BLACK][BISHOP] | pieces[WHITE][QUEEN] | pieces[BLACK][QUEEN])) |
-         (rook_attacks_bb(target, occupied) &
-          (pieces[WHITE][ROOK] | pieces[BLACK][ROOK] | pieces[WHITE][QUEEN] | pieces[BLACK][QUEEN])) |
-         (king_attacks_bb(target) & (pieces[WHITE][KING] | pieces[BLACK][KING]));
-}
-
 }  // namespace
 
+// Swap-list SEE on the position's own bitboards. Squares that leave the board
+// during the exchange (the mover's origin, the captured piece, every used
+// attacker) are tracked in `occupied` only; the target square itself never
+// attacks itself, so the piece sitting on it needs no bookkeeping. This is the
+// same exchange sequence (least valuable attacker first, king only if it
+// cannot be recaptured, pawn arrivals on the last rank promote) as the previous
+// copy-the-board implementation, without materialising twelve bitboards per
+// call.
 int static_exchange_eval(const Position& pos, Move move) {
   if (move.is_castle()) return 0;
-
-  Bitboard pieces[COLOR_NB][PIECE_TYPE_NB]{};
-  for (int color = 0; color < COLOR_NB; ++color)
-    for (int type = 0; type < PIECE_TYPE_NB; ++type)
-      pieces[color][type] = pos.pieces(static_cast<Color>(color), static_cast<PieceType>(type));
 
   const Color us = pos.side_to_move();
   const Square from = move.from();
   const Square target = move.to();
-  const Bitboard target_bb = square_bb(target);
-  Piece moving_piece = pos.piece_on(from);
+  const Piece moving_piece = pos.piece_on(from);
   if (moving_piece == NO_PIECE) return 0;
 
-  PieceType moving_type = type_of(moving_piece);
-  PieceType target_type = moving_type;
+  PieceType target_type = type_of(moving_piece);
   Piece captured_piece = NO_PIECE;
   Square captured_square = target;
   if (move.is_ep()) {
@@ -56,49 +46,29 @@ int static_exchange_eval(const Position& pos, Move move) {
     gain[0] += SeeValue[target_type] - SeeValue[PAWN];
   }
 
-  Bitboard occupied = pos.occupied();
-  const Bitboard from_bb = square_bb(from);
-  pieces[us][moving_type] &= ~from_bb;
-  occupied &= ~from_bb;
-
-  if (captured_piece != NO_PIECE) {
-    Bitboard captured_bb = square_bb(captured_square);
-    pieces[~us][type_of(captured_piece)] &= ~captured_bb;
-    occupied &= ~captured_bb;
-  }
-
-  pieces[us][target_type] |= target_bb;
-  occupied |= target_bb;
-
-  Bitboard by_color[COLOR_NB] = {pos.pieces(WHITE), pos.pieces(BLACK)};
-  by_color[us] ^= from_bb;
-  by_color[us] |= target_bb;
-  if (captured_piece != NO_PIECE) by_color[~us] &= ~square_bb(captured_square);
+  Bitboard occupied = (pos.occupied() & ~square_bb(from)) | square_bb(target);
+  if (captured_piece != NO_PIECE) occupied &= ~square_bb(captured_square);
 
   Color side = ~us;
-  Color occupant_color = us;
   int depth = 0;
   while (depth < 31) {
-    Bitboard attackers = attackers_to(target, occupied, pieces) & by_color[side];
+    const Bitboard attackers = pos.attackers_to(target, occupied) & occupied & pos.pieces(side);
     if (!attackers) break;
 
     PieceType attacker_type = PAWN;
     Bitboard candidates = 0;
     for (int type = PAWN; type <= KING; ++type) {
-      candidates = attackers & pieces[side][type];
+      candidates = attackers & pos.pieces(side, static_cast<PieceType>(type));
       if (candidates) {
         attacker_type = static_cast<PieceType>(type);
         break;
       }
     }
-    if (!candidates) break;
 
-    Square attacker_square = lsb(candidates);
-    Bitboard attacker_bb = square_bb(attacker_square);
-    if (attacker_type == KING) {
-      Bitboard occupied_after = occupied & ~attacker_bb;
-      if (attackers_to(target, occupied_after, pieces) & by_color[~side]) break;
-    }
+    const Bitboard attacker_bb = square_bb(lsb(candidates));
+    const Bitboard occupied_after = occupied & ~attacker_bb;
+    if (attacker_type == KING && (pos.attackers_to(target, occupied_after) & occupied_after & pos.pieces(~side)))
+      break;
 
     ++depth;
     int promotion_gain = 0;
@@ -110,16 +80,8 @@ int static_exchange_eval(const Position& pos, Move move) {
     }
     gain[depth] = SeeValue[target_type] + promotion_gain - gain[depth - 1];
 
-    pieces[occupant_color][target_type] &= ~target_bb;
-    pieces[side][attacker_type] &= ~attacker_bb;
-    occupied &= ~attacker_bb;
-    by_color[side] &= ~attacker_bb;
-    pieces[side][arriving_type] |= target_bb;
-    by_color[occupant_color] &= ~target_bb;
-    by_color[side] |= target_bb;
-
+    occupied = occupied_after;
     target_type = arriving_type;
-    occupant_color = side;
     side = ~side;
   }
 

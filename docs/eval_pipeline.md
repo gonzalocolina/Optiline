@@ -3,6 +3,12 @@
 El orden importa: cada paso existe porque el anterior, si está roto, hace inútiles los siguientes.
 No se cambia el árbol de golpe ni se recarga la red. El árbitro tiene que ser reconocible para este PVS.
 
+**Desde 2026-09-15 el Elo se mide con `tools/fastchess_match.py` (partidas
+completas).** `ablation_match.py` / `sprt.py` a `--max-plies 60` cuentan el
+corte como tablas (~90 % de las puertas a igualdad de nodos) y no sirven como
+veredicto de fuerza. El plan de datos es ≥100 M de self-play a nodos fijos
+(`nsce_datagen` + bullet), no escalar `--label static`. Ver [handoff.md](handoff.md).
+
 Protocolo de laboratorio: [knowledge.md](knowledge.md), [experiments.md](experiments.md), [measurement.md](measurement.md).
 
 ## 1. Enseñar a copiar al árbitro que el árbol ya entiende
@@ -79,14 +85,16 @@ python3 train/distill.py --label static --fens train/data/leaves_with_results.js
 python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
   --path-output train/data/selfplay_path.jsonl
 python3 train/distill.py --label static --fens train/data/selfplay_path.jsonl \
-  --teacher build/nsce -o train/data/nsce_static_path.jsonl
+  --teacher build/nsce --positions 0 -o train/data/nsce_static_path.jsonl
 .venv/bin/python train/train_nnue.py \
   --data train/data/nsce_static_leaf_results.jsonl \
   --target-mode wdl --result-weight 0.20 --residualize-extras --init internal \
   --augment mirror
 ```
 
-Las FEN del camino (64 y 256) no bastaron. 20k hojas con el WDL de la partida copiado a posiciones hipotéticas tampoco (11-172-17, −10 ± 18). El dump de 4.6M se salva quitando esos `result` falsos; el siguiente ensayo es 80k hojas honestas más el camino jugado, no otra arquitectura.
+Las FEN del camino (64 y 256) no bastaron. 20k hojas con el WDL de la partida copiado a posiciones hipotéticas tampoco (11-172-17, −10 ± 18). 80k hojas honestas más el camino (12-175-13, −2 ± 17), 160k más 84k de camino (17-168-15, +3 ± 19), 320k más 168k de camino (10-181-9, +2 ± 15) y 640k más 363k de camino (12-181-7, +9 ± 15) siguen siendo moneda al aire. Escalar `--label static` no es el siguiente trabajo. El mix de búsqueda 40k a `go nodes 8000` con **`result-weight 0`** gana igualdad de nodos (3-177-20, −30 ± 16) y SPRT a igualdad de tiempo (**H1** 38-447-5, LLR +2.97). `EvalFile` promocionado a `nets/nnue_search_leaves40k_rw0.bin`. SF18 Elo 2000
+(N=40) y Elo 2200 limitado (N=200, **67-88-45**, **+38 ± 36**) están medidos.
+No subir `result-weight`. Stockfish sin límite de Elo sigue sin jugarse.
 
 ## 6. Un solo cambio por candidato, y el mismo contrato de extras
 
@@ -121,11 +129,12 @@ Misma tubería ya demostrada: red respecto al rey **sin** el residuo de 12 amena
 
 ```bash
 .venv/bin/python train/train_kat.py --no-threats \
-  --data train/data/nsce_static_games.jsonl \
-  --target-mode wdl --search-wdl-scale 400
+  --data train/data/nsce_search_mix_40k.jsonl \
+  --target-mode wdl --search-wdl-scale 400 --teacher-wdl-scale 400 \
+  --result-weight 0.0 --epochs 32 --seed 20260814
 ```
 
-KAT ya era “más barroco” y perdió. El árbol reconocerá un primo del árbitro actual, no un extraño con más sensores.
+KAT ya era “más barroco” y perdió. Medido 2026-09-09 contra la 768 promovida: igualdad de nodos **111-87-2**, **+212 ± 36**, candidato 0.228. No SPRT. El árbol reconocerá un primo del árbitro actual, no un extraño con más sensores. No añadir amenazas ni hidden 256 sobre este perdedor.
 
 ## 9. Retocar la búsqueda solo para el árbitro que ya gane
 
