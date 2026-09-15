@@ -1,13 +1,32 @@
-# Training pipeline (Phases 4–7 + lab)
+# Training pipeline
 
-Evaluator manufacture is ordered. Do not skip to KAT, Stockfish labels, or a
-wider net until the frozen 768 arbiter can be cloned. Canonical protocol:
+**Elo path (2026-09-15):** `build/nsce_datagen` (bulletformat, ≥100 M positions)
+then a bullet trainer, not this NumPy loop. Gate with
+`python3 tools/fastchess_match.py` (full games). See
+[docs/handoff.md](../docs/handoff.md) P1.
+
+`selfplay.py`, `collect_leaves.py`, `distill.py --label static`, and
+`train/run_datagen.sh` are **legacy**. They built the promoted 40k mix; do not
+scale `--label static` further. `ablation_match.py` / `sprt.py` with
+`--max-plies 60` are telemetry only.
+
+Evaluator export still has to clone. Canonical protocol:
 [docs/eval_pipeline.md](../docs/eval_pipeline.md).
 
-## 1. Clone the frozen arbiter (required first)
+## 0. Engine datagen (current)
+
+```bash
+./build/nsce_datagen --out train/data/gen0.bin --games 1200000 --nodes 5000 \
+  --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
+```
+
+Shuffle with bullet-utils before training. Do not start the Python self-play
+path for a new generation.
+
+## 1. Clone the frozen arbiter (export check)
 
 Static C++ eval (internal net + extras), same `768×128`, quantized binary must
-reproduce those notes and not lose equal-node N≥200.
+reproduce those notes. This is an export/sanity gate, not the Elo path.
 
 ```bash
 bash train/run_clone_arbiter.sh
@@ -39,7 +58,11 @@ python3 train/collect_leaves.py --games train/data/selfplay_colors.jsonl \
 
 `--strip-results` rewrites an older dump so only played-path FENs keep `result`.
 `--path-output` writes those path FENs without searching. `--append` plus the
-`.seen.sqlite` index skips roots already collected.
+`.seen.sqlite` index skips roots already collected. `WORKERS` also parallelizes
+those root searches (one `Threads=1` engine each; uniqueness stays in the parent
+sqlite). That is not Lazy SMP. Telemetry is rewound after each search so the raw
+dump cannot fill the disk. Collect refuses to start, and stops `--append`-safely,
+if free space drops below 512 MB.
 
 Streaming increment (resume self-play, then append leaves):
 
@@ -48,7 +71,10 @@ TARGET_GAMES=512 MOVETIME=100 bash train/run_datagen.sh
 ```
 
 Prefer balanced openings, not random walks and not the first slice of a dump.
-Default `--max-plies` is 200.
+Default `--max-plies` is 200. Self-play is one 1-thread engine per game;
+`WORKERS` (default `nproc-1`) runs independent games in parallel, then the same
+count of leaf-root searches. That is not Lazy SMP and does not change
+`baseline.uci`.
 
 ## Trained NNUE (after the clone pipe works)
 
@@ -84,7 +110,7 @@ variants on demand; `--dense-legacy` is retained only for controlled regression
 comparisons.
 
 MAE on float or C++ integers rejects wreckage; it does not promote. Promotion is
-equal-node N≥200 clearly above 0.5, then equal-time SPRT, one change, extras
+a full-game fastchess SPRT (`--tc 8+0.08 --sprt 0 5`), one UCI change, extras
 contract. The 2k bootstrap is not that gate.
 
 ## HalfKP / king-bucket path (`NSCEHFKP`)
@@ -144,14 +170,16 @@ curl -L https://database.lichess.org/lichess_db_eval.jsonl.zst \
   --target-mode wdl --search-wdl-scale 400 --minimum-samples 50000 \
   --output nets/kat_base_candidate.bin
 
-python3 tools/sprt.py \
+python3 tools/fastchess_match.py \
   --cfg-a tools/configs/baseline.uci \
   --cfg-b tools/configs/kat.uci \
-  --openings tools/openings_balanced.epd \
-  --max-games 200
+  --st 100 --rounds 300 \
+  --outdir experiments/$(date +%Y%m%d)_kat
 ```
 
-Do not silently replace `EvalFile=internal`. Promote only after a paired SPRT.
+Do not silently replace `EvalFile` in `baseline.uci`. Promote only after a paired
+fastchess SPRT. `python3 tools/sprt.py` truncates at 60 plies; do not use it for
+Elo.
 
 Alternative teacher labels (slower, higher quality):
 
@@ -176,19 +204,19 @@ python3 train/collect_search_telemetry.py --depth 8 --limit 64
 .venv/bin/python train/fit_controller.py \
   --telemetry train/data/lmr_telemetry.csv \
   --output nets/controller_fitted.bin
-python3 tools/sprt.py \
+python3 tools/fastchess_match.py \
   --cfg-a tools/configs/baseline.uci \
   --cfg-b tools/configs/controller_fitted.uci \
-  --openings tools/openings_balanced.epd \
-  --max-games 200
+  --st 100 --rounds 300 \
+  --outdir experiments/$(date +%Y%m%d)_controller
 ```
 
 ## SPRT candidate vs baseline
 
 ```bash
-python3 tools/sprt.py \
+python3 tools/fastchess_match.py \
   --cfg-a tools/configs/baseline.uci \
   --cfg-b tools/configs/trained_nnue.uci \
-  --openings tools/openings_balanced.epd \
-  --max-games 200
+  --tc 8+0.08 --sprt 0 5 --rounds 3000 \
+  --outdir experiments/$(date +%Y%m%d)_eval_sprt
 ```
