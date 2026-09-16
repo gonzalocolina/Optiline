@@ -168,6 +168,7 @@ class Game:
         self.movetime_ms = movetime_ms
         self.nodes = nodes
         self.start_fen = fen
+        self.label = "NSCE 2200"
         self.moves: list[str] = []
         self.sans: list[str] = []
         self.last_score_cp = 0
@@ -290,6 +291,8 @@ class Game:
             "depth": self.last_depth,
             "nps": self.last_nps,
             "movetime_ms": self.movetime_ms,
+            "label": self.label,
+            "engine_to_move": status == "ongoing" and not self._human_ply(len(self.moves)),
             "message": self.message or _status_es(status),
         }
 
@@ -305,7 +308,7 @@ def _status_es(status: str) -> str:
 
 def run_cli(game: Game) -> None:
     use_unicode = sys.stdout.isatty()
-    print("NSCE — escribe e4, Nf3 o e2e4. Comandos: hint, undo, eval, moves, new, resign, help, quit")
+    print(f"{game.label} — escribe e4, Nf3 o e2e4. Comandos: hint, undo, eval, moves, new, resign, help, quit")
     game.maybe_engine_move()
     while True:
         print()
@@ -448,7 +451,7 @@ PLAY_HTML = r"""<!DOCTYPE html>
 <body>
 <main>
   <section>
-    <h1>NSCE</h1>
+    <h1 id="title">NSCE 2200</h1>
     <div id="board" class="board-wrap"></div>
   </section>
   <aside>
@@ -537,7 +540,10 @@ function render() {
     lab.textContent = 'abcdefgh'[file];
     boardEl.appendChild(lab);
   }
-  document.getElementById('msg').textContent = thinking ? 'NSCE piensa…' : (state.message || '');
+  document.getElementById('title').textContent = state.label || 'NSCE 2200';
+  let msg = (state && state.message) || '';
+  if (thinking) msg = msg ? (msg + ' NSCE piensa…') : 'NSCE piensa…';
+  document.getElementById('msg').textContent = msg;
   const evalTxt = state.depth
     ? `eval ${state.last_score_cp > 0 ? '+' : ''}${state.last_score_cp} cp · d${state.depth}`
     : '';
@@ -582,39 +588,76 @@ async function onSquare(sq) {
     uci += 'qrbn'.includes(p) ? p : 'q';
   }
   selected = null;
-  await post('/api/move', {move: uci});
+  await submitMove(uci);
 }
 
 async function post(url, body) {
-  thinking = true; render();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json();
+  state = data;
+  if (!res.ok) document.getElementById('msg').textContent = data.error || 'Error';
+  render();
+  return data;
+}
+
+async function awaitEngine(after) {
+  if (!after || after.error || !after.engine_to_move) return;
+  thinking = true;
+  render();
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body || {})
-    });
-    state = await res.json();
-    if (!res.ok) document.getElementById('msg').textContent = state.error || 'Error';
+    await post('/api/engine', {});
   } finally {
-    thinking = false; render();
+    thinking = false;
+    render();
   }
 }
 
-document.getElementById('new').onclick = () => post('/api/new', {
-  human: document.getElementById('color').value,
-  movetime_ms: +document.getElementById('time').value
-});
-document.getElementById('undo').onclick = () => post('/api/undo', {});
-document.getElementById('hint').onclick = () => post('/api/hint', {});
-document.getElementById('color').onchange = () => post('/api/new', {
-  human: document.getElementById('color').value,
-  movetime_ms: +document.getElementById('time').value
-});
+async function submitMove(uci) {
+  thinking = true;
+  try {
+    const after = await post('/api/move', {move: uci});
+    await awaitEngine(after);
+  } finally {
+    thinking = false;
+    render();
+  }
+}
+
+async function newGame() {
+  thinking = true;
+  try {
+    const after = await post('/api/new', {
+      human: document.getElementById('color').value,
+      movetime_ms: +document.getElementById('time').value
+    });
+    await awaitEngine(after);
+  } finally {
+    thinking = false;
+    render();
+  }
+}
+
+document.getElementById('new').onclick = () => newGame();
+document.getElementById('undo').onclick = async () => { await post('/api/undo', {}); };
+document.getElementById('hint').onclick = async () => {
+  thinking = true; render();
+  try { await post('/api/hint', {}); }
+  finally { thinking = false; render(); }
+};
+document.getElementById('color').onchange = () => newGame();
 document.getElementById('time').onchange = () => post('/api/settings', {
   movetime_ms: +document.getElementById('time').value
 });
 
-fetch('/api/state').then(r => r.json()).then(s => { state = s; render(); });
+fetch('/api/state').then(r => r.json()).then(async s => {
+  state = s;
+  render();
+  await awaitEngine(s);
+});
 </script>
 </body>
 </html>
@@ -668,11 +711,13 @@ class PlayHandler(BaseHTTPRequestHandler):
                 if "movetime_ms" in body:
                     self.game.movetime_ms = int(body["movetime_ms"])
                 self.game.reset(human)
-                self.game.maybe_engine_move()
                 self._json(self.game.snapshot())
                 return
             if path == "/api/move":
                 self.game.play_human(str(body.get("move", "")))
+                self._json(self.game.snapshot())
+                return
+            if path == "/api/engine":
                 self.game.maybe_engine_move()
                 self._json(self.game.snapshot())
                 return
@@ -706,6 +751,17 @@ def find_engine(path: Path) -> Path:
         "  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release\n"
         '  cmake --build build -j"$(nproc)"'
     )
+
+
+def _eval_file(config: Path) -> str:
+    if not config.exists():
+        return ""
+    for line in config.read_text().splitlines():
+        if "EvalFile" in line:
+            parts = line.split()
+            if "value" in parts:
+                return parts[parts.index("value") + 1]
+    return ""
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -742,6 +798,10 @@ def main(argv: list[str] | None = None) -> int:
             nodes=args.nodes,
             fen=args.fen,
         )
+        net = _eval_file(args.config) or "internal"
+        name = engine.identity.get("id_name") or "NSCE"
+        game.label = f"{name} · 2200"
+        print(f"{game.label}  net={net}  {args.movetime} ms/jugada", flush=True)
         if args.cli:
             run_cli(game)
             return 0
