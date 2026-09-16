@@ -2,6 +2,7 @@
 
 #include "nsce/types.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -15,6 +16,8 @@ class Position;
 // King-aware variants:
 //   NSCEHFKP — 16 king buckets × 768 (legacy HalfKA-lite)
 //   NSCEKAT1 — 32 horizontally-mirrored buckets × 768 + 12-dim tactical residual
+// Dual-perspective bullet net:
+//   NSCEPER1 — (768→512)×2 SCReLU, 8 material output buckets, QA=255 QB=64 SCALE=400
 struct NnueNet {
   static constexpr int kFeatures = 12 * 64;
   static constexpr int kHidden = 128;
@@ -24,10 +27,16 @@ struct NnueNet {
   static constexpr int kKatFeatures = kKatBuckets * kFeatures;
   static constexpr int kThreatDim = 12;
   static constexpr int kWeightScale = 64;  // int16 weights; activate / scale
+  static constexpr int kPer1Hidden = 512;
+  static constexpr int kPer1Buckets = 8;
+  static constexpr int kPer1QA = 255;
+  static constexpr int kPer1QB = 64;
+  static constexpr int kPer1Scale = 400;
 
   bool loaded = false;
   bool halfkp = false;
   bool kat = false;
+  bool per1 = false;
   std::array<std::array<int16_t, kHidden>, kFeatures> w0{};
   std::array<int16_t, kHidden> b0{};
   std::array<int16_t, kHidden> w1{};
@@ -35,13 +44,22 @@ struct NnueNet {
   std::array<int16_t, 2 * kHidden> halfkp_w1{};
   std::array<int16_t, kThreatDim> w_threat{};
   int32_t b1 = 0;
+  std::vector<int16_t> per1_w0{};
+  alignas(32) std::array<int16_t, kPer1Hidden> per1_b0{};
+  alignas(32) std::array<std::array<int16_t, 2 * kPer1Hidden>, kPer1Buckets> per1_w1{};
+  std::array<int32_t, kPer1Buckets> per1_b1{};
+  int per1_qa = kPer1QA;
+  int per1_qb = kPer1QB;
+  int per1_scale = kPer1Scale;
 };
 
 struct NnueAccumulator {
   alignas(32) std::array<int16_t, NnueNet::kHidden> v{};
   alignas(32) std::array<std::array<int16_t, NnueNet::kHidden>, 2> half{};
+  alignas(32) std::array<std::array<int16_t, NnueNet::kPer1Hidden>, 2> per1{};
   std::array<uint8_t, 2> king_bucket{};
   std::array<uint8_t, 2> mirror{};
+  uint8_t piece_count = 0;
   mutable std::array<int16_t, NnueNet::kThreatDim> threats{};
   mutable uint8_t threats_stm = WHITE;
   mutable bool threats_valid = false;
@@ -57,6 +75,7 @@ class Nnue {
   bool enabled() const { return net_.loaded; }
   bool uses_king_buckets() const { return net_.loaded && (net_.halfkp || net_.kat); }
   bool uses_kat() const { return net_.loaded && net_.kat; }
+  bool uses_per1() const { return net_.loaded && net_.per1; }
   void set_enabled(bool on) { enabled_ = on && net_.loaded; }
   bool is_enabled() const { return enabled_ && net_.loaded; }
 
@@ -83,6 +102,18 @@ class Nnue {
 
 inline int nnue_feature(Piece pc, Square sq) {
   return static_cast<int>(pc) * 64 + static_cast<int>(sq);
+}
+
+inline int per1_feature(Color perspective, Piece pc, Square sq) {
+  int oriented_sq = perspective == WHITE ? static_cast<int>(sq) : (static_cast<int>(sq) ^ 56);
+  int oriented_pc = static_cast<int>(pc);
+  if (perspective == BLACK) oriented_pc += (pc < 6 ? 6 : -6);
+  return oriented_pc * 64 + oriented_sq;
+}
+
+inline int per1_output_bucket(int piece_count) {
+  const int n = std::clamp(piece_count, 2, 32);
+  return (n - 2) / 4;
 }
 
 int halfkp_king_bucket(Color perspective, Square king);

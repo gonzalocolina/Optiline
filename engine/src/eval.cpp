@@ -214,13 +214,15 @@ int extras(const Position& pos) {
   };
   score += outpost(WHITE, w_pawn_att, b_pawn_att) - outpost(BLACK, b_pawn_att, w_pawn_att);
 
-  score -= 10 * popcount(king_attacks_bb(pos.king_square(WHITE)) & pos.attacks(BLACK));
-  score += 10 * popcount(king_attacks_bb(pos.king_square(BLACK)) & pos.attacks(WHITE));
+  const Bitboard w_att = pos.attacks(WHITE);
+  const Bitboard b_att = pos.attacks(BLACK);
+  score -= 10 * popcount(king_attacks_bb(pos.king_square(WHITE)) & b_att);
+  score += 10 * popcount(king_attacks_bb(pos.king_square(BLACK)) & w_att);
 
   const Bitboard w_hang = pos.pieces(WHITE) & ~pos.pieces(WHITE, KING) & ~pos.pieces(WHITE, PAWN) &
-                          pos.attacks(BLACK) & ~pos.attacks(WHITE);
+                          b_att & ~w_att;
   const Bitboard b_hang = pos.pieces(BLACK) & ~pos.pieces(BLACK, KING) & ~pos.pieces(BLACK, PAWN) &
-                          pos.attacks(WHITE) & ~pos.attacks(BLACK);
+                          w_att & ~b_att;
   score -= 12 * popcount(w_hang);
   score += 12 * popcount(b_hang);
 
