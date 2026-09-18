@@ -7,15 +7,16 @@
 #include "nsce/nnue.hpp"
 #include "nsce/perft.hpp"
 #include "nsce/policy.hpp"
+#include "nsce/tune.hpp"
 #include "nsce/zobrist.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <exception>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
-#include <syncstream>
 
 namespace nsce {
 
@@ -47,6 +48,7 @@ void Uci::stop_search() {
 void Uci::loop() {
   std::string line;
   while (std::getline(std::cin, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
     if (line.empty()) continue;
     handle_command(line);
     if (line == "quit") break;
@@ -79,6 +81,9 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name UseProbCut type check default true\n";
     std::cout << "option name UseExtras type check default true\n";
     std::cout << "option name EvalScale type spin default 1000 min 250 max 4000\n";
+#if defined(NSCE_TUNE)
+    for (const std::string& line : tune_uci_lines(search_.tune())) std::cout << line << '\n';
+#endif
     std::cout << "option name EvalFile type string default nets/nnue_trained.bin\n";
     std::cout << "option name PolicyFile type string default <internal>\n";
     std::cout << "option name ControllerFile type string default <internal>\n";
@@ -227,8 +232,9 @@ void Uci::handle_go(std::istringstream& is) {
   search_.prepare();
   search_thread_ = std::thread([this, limits]() {
     SearchInfo info = search_.go_prepared(limits);
-    std::osyncstream(std::cout) << "bestmove " << (info.best_move ? move_to_uci(info.best_move) : "0000")
-                                << std::endl;
+    static std::mutex io_mu;
+    std::lock_guard<std::mutex> lock(io_mu);
+    std::cout << "bestmove " << (info.best_move ? move_to_uci(info.best_move) : "0000") << std::endl;
   });
 }
 
@@ -315,6 +321,10 @@ void Uci::handle_setoption(std::istringstream& is) {
     search_.set_leaf_telemetry(value == "<empty>" ? "" : value);
   } else if (name == "Clear Hash") {
     search_.clear_hash();
+#if defined(NSCE_TUNE)
+  } else if (search_.set_tune_param(name, std::stoi(value))) {
+    search_.clear_search_state();
+#endif
   } else {
     std::cout << "info string unknown option " << name << std::endl;
   }

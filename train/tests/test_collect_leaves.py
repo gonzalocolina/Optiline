@@ -12,13 +12,16 @@ sys.path.insert(0, str(TRAIN))
 from collect_leaves import (  # noqa: E402
     FenStore,
     apply_honest_result,
+    ingest_records,
     keep_leaf,
+    parse_telemetry_records,
     path_fen_keys,
     path_index_from_games,
     path_records_from_games,
     played_path_fens,
     roots_from_game,
     stamp_leaf,
+    stamp_payload,
     strip_leaf_results,
 )
 
@@ -207,6 +210,78 @@ class KeepLeafTest(unittest.TestCase):
             self.assertTrue(store.has_root(9, "as_written", "start w - -"))
             self.assertFalse(store.add_fen("qs1 w - -"))
             store.close()
+
+
+class ParallelCollectHelpersTest(unittest.TestCase):
+    def test_stamp_payload_drops_move_records(self) -> None:
+        game = {
+            "opening_index": 4,
+            "color": "flipped",
+            "result": "1-0",
+            "termination": "checkmate",
+            "records": [{"fen": "huge"}] * 50,
+            "moves": ["e2e4"],
+        }
+        payload = stamp_payload(game)
+        self.assertEqual(payload["opening_index"], 4)
+        self.assertNotIn("records", payload)
+        self.assertNotIn("moves", payload)
+        self.assertIsNone(stamp_payload(None))
+
+    def test_parse_telemetry_stamps_path_and_search_leaf(self) -> None:
+        game = {"result": "1-0", "opening_index": 1, "color": "as_written"}
+        lines = [
+            json.dumps({"fen": "root w - - 0 1", "site": "static"}),
+            json.dumps({"fen": "qs w - - 0 1", "site": "static"}),
+            "not json",
+        ]
+        rows = parse_telemetry_records(lines, game, "root w - - 0 1")
+        self.assertEqual(rows[0]["label_kind"], "path")
+        self.assertEqual(rows[0]["result"], "1-0")
+        self.assertEqual(rows[1]["label_kind"], "search_leaf")
+        self.assertNotIn("result", rows[1])
+
+    def test_ingest_records_dedups_and_marks_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FenStore(Path(tmp) / "seen.sqlite")
+            out = Path(tmp) / "leaves.jsonl"
+            game = {"opening_index": 2, "color": "as_written", "result": "0-1"}
+            records = [
+                stamp_leaf({"fen": "root w - - 0 1", "site": "static"}, game, "root w - - 0 1"),
+                stamp_leaf({"fen": "leaf w - - 0 1", "site": "static"}, game, "root w - - 0 1"),
+                stamp_leaf({"fen": "root w - - 5 9", "site": "static"}, game, "root w - - 0 1"),
+            ]
+            with out.open("w", encoding="utf-8") as handle:
+                added = ingest_records(handle, store, {"static"}, records, game, "root w - - 0 1")
+            store.close()
+            self.assertEqual(added, 2)
+            rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(len(rows), 2)
+            again = FenStore(Path(tmp) / "seen.sqlite")
+            self.assertTrue(again.has_root(2, "as_written", "root w - -"))
+            self.assertFalse(again.add_fen("leaf w - -"))
+            again.close()
+
+
+class RepairTruncatedJsonlTest(unittest.TestCase):
+    def test_drops_partial_last_line(self):
+        from collect_leaves import repair_truncated_jsonl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "leaves.jsonl"
+            path.write_bytes(b'{"fen":"ok"}\n{"fen":"part')
+            dropped = repair_truncated_jsonl(path)
+            self.assertGreater(dropped, 0)
+            self.assertEqual(path.read_text(encoding="utf-8"), '{"fen":"ok"}\n')
+
+    def test_leaves_complete_file_alone(self):
+        from collect_leaves import repair_truncated_jsonl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "leaves.jsonl"
+            path.write_text('{"fen":"ok"}\n', encoding="utf-8")
+            self.assertEqual(repair_truncated_jsonl(path), 0)
+            self.assertEqual(path.read_text(encoding="utf-8"), '{"fen":"ok"}\n')
 
 
 if __name__ == "__main__":

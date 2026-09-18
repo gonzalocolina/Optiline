@@ -337,7 +337,7 @@ def train(
             if train_metrics is not None:
                 row.update({f"train_{key}": value for key, value in train_metrics.items()})
             history.append(row)
-            print(json.dumps(row, sort_keys=True))
+            print(json.dumps(row, sort_keys=True), flush=True)
 
     val_pred, val_w0, val_b0, val_w1, val_b1 = _dense_val_pred()
     _consider_epoch(0, metrics(val_pred, y[validation_indices]), None)
@@ -428,6 +428,17 @@ def _sparse_forward(
     return prediction, accumulator, activation, fw1
 
 
+def pack_active_rows(x: np.ndarray) -> list[np.ndarray]:
+    """Packed feature indices per sample. Vectorized; the per-row flatnonzero loop is too slow at 1M."""
+    n = int(x.shape[0])
+    if n == 0:
+        return []
+    rows_idx, cols_idx = np.nonzero(x)
+    counts = np.bincount(rows_idx.astype(np.intp, copy=False), minlength=n)
+    cols = cols_idx.astype(np.int32, copy=False)
+    return np.split(cols, np.cumsum(counts[:-1]))
+
+
 def _variant_target(y: np.ndarray, variant: int) -> np.ndarray:
     return -y if variant >= 2 else y
 
@@ -450,7 +461,7 @@ def train_sparse(
         raise ValueError(f"unknown augment mode: {augment}")
     variants = AUGMENT_VARIANTS[augment]
     rng = np.random.default_rng(seed)
-    rows = [np.flatnonzero(row).astype(np.int32) for row in x]
+    rows = pack_active_rows(x)
     if init is None:
         w0 = rng.normal(0.0, 0.05, (FEATURES, HIDDEN)).astype(np.float32)
         b0 = np.full(HIDDEN, 0.25, dtype=np.float32)
@@ -480,7 +491,7 @@ def train_sparse(
             best_epoch = epoch
         if epoch == 0 or epoch == 1 or epoch == epochs or epoch % max(1, epochs // 10) == 0:
             history.append({"epoch": epoch, **{f"validation_{key}": value for key, value in validation_metrics.items()}})
-            print(json.dumps(history[-1], sort_keys=True))
+            print(json.dumps(history[-1], sort_keys=True), flush=True)
 
     _consider_epoch(0, _val_metrics())
 

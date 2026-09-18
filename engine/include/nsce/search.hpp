@@ -3,6 +3,7 @@
 #include "nsce/board.hpp"
 #include "nsce/movegen.hpp"
 #include "nsce/tt.hpp"
+#include "nsce/tune.hpp"
 #include "nsce/types.hpp"
 
 #include <algorithm>
@@ -152,6 +153,8 @@ class Search {
   void clear_search_state();
   void set_leaf_telemetry(const std::string& path);
   void set_eval_scale(int permille) { eval_scale_permille_ = std::clamp(permille, 250, 4000); }
+  bool set_tune_param(const std::string& name, int value);
+  const SearchTune& tune() const { return tune_; }
   void set_use_tt(bool on) { use_tt_ = on; }
   void set_use_see(bool on) { use_see_ = on; }
   void set_use_lmr(bool on) { use_lmr_ = on; }
@@ -191,6 +194,7 @@ class Search {
   int lmr_quiet_[64][64]{};
   int lmr_capture_[64][64]{};
   int pick_next_move(MoveList& list, int* scores, int start) const;
+  void rebuild_lmr_tables();
   int search_root_parallel(int depth, int alpha, int beta);
   void start_helper_pool();
   void stop_helper_pool();
@@ -222,6 +226,7 @@ class Search {
   bool use_probcut_ = true;
   bool silent_ = false;
   int eval_scale_permille_ = 1000;
+  SearchTune tune_{};
   PolicyNet* policy_ = nullptr;
   SearchController* controller_ = nullptr;
   int root_depth_ = 0;

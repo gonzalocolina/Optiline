@@ -259,9 +259,10 @@ class UciEngine:
         self.set_position(fen, moves or [])
         self._send("eval details")
         assert self.proc.stdout is not None
-        parts = self.proc.stdout.readline().strip().split()
+        line = self.proc.stdout.readline().strip()
+        parts = line.split()
         if len(parts) < 2 or parts[0] != "eval" or not parts[1].lstrip("-").isdigit():
-            raise RuntimeError(f"{self.name}: expected eval details response")
+            raise RuntimeError(f"{self.name}: expected eval details response, got {line!r}")
         details = {"eval": int(parts[1])}
         for index in range(2, len(parts) - 1, 2):
             if parts[index + 1].lstrip("-").isdigit():

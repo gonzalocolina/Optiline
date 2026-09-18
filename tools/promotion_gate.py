@@ -2,8 +2,9 @@
 """Validate the immutable evidence required before promoting a candidate.
 
 MAE never promotes. Clone proves the train→export→C++ pipe. Eval promotion
-needs equal-node N≥200 clearly above 0.5, then equal-time SPRT H1, one change,
-and the extras contract of that net.
+needs a full-game fastchess SPRT H1 (or the legacy sprt.py JSON), one change,
+and the extras contract of that net. Equal-node ablation JSON is telemetry
+only unless the SPRT is the old 60-ply runner.
 """
 
 from __future__ import annotations
@@ -41,6 +42,12 @@ def load_json(path: Path | None) -> dict | None:
     if path is None:
         return None
     return json.loads(path.read_text())
+
+
+def is_fastchess(payload: dict | None) -> bool:
+    if not payload:
+        return False
+    return payload.get("harness") == "fastchess" or "fastchess_exit_code" in payload
 
 
 def first_match_result(payload: dict | list | None) -> dict | None:
@@ -102,7 +109,7 @@ def main() -> int:
         choices=("clone", "eval", "search"),
         default="eval",
         help="clone: reproduce arbiter and do not lose nodes; "
-        "eval: win nodes then equal-time SPRT; search: retune after eval H1",
+        "eval: full-game fastchess SPRT H1; search: retune after eval H1",
     )
     parser.add_argument("--min-games", type=int, default=40)
     parser.add_argument("--min-equal-node-games", type=int, default=200)
@@ -163,27 +170,47 @@ def main() -> int:
     if equal_node is not None:
         if args.stage == "clone":
             errors.extend(equal_node_not_losing(equal_node, min_games=args.min_equal_node_games))
-        else:
+        elif not is_fastchess(sprt):
             errors.extend(equal_node_clearly_winning(equal_node, min_games=args.min_equal_node_games))
-    elif args.stage in {"eval", "search"}:
-        errors.append("eval promotion requires an equal-node match JSON (N>=200) before equal-time SPRT")
+    elif args.stage in {"eval", "search"} and not is_fastchess(sprt):
+        errors.append("legacy sprt.py promotion still needs equal-node JSON (N>=200); prefer tools/fastchess_match.py")
 
     if sprt is not None:
-        if sprt.get("decision") != "accept_H1_candidate_stronger":
-            errors.append(f"SPRT decision is not promotion-positive: {sprt.get('decision')}")
+        decision = sprt.get("decision")
+        if is_fastchess(sprt) and decision is None:
+            mapped = sprt.get("sprt_decision")
+            decision = {
+                "H1": "accept_H1_candidate_stronger",
+                "H0": "accept_H0_baseline_not_weaker",
+            }.get(str(mapped or ""), "inconclusive")
+        if decision != "accept_H1_candidate_stronger":
+            errors.append(f"SPRT decision is not promotion-positive: {decision}")
         games = int(sprt.get("W", 0)) + int(sprt.get("D", 0)) + int(sprt.get("L", 0))
         if games < args.min_games or games % 2:
             errors.append(f"SPRT has {games} games; need an even count >= {args.min_games}")
-        if int(sprt.get("movetime_ms", 0)) < 50:
-            errors.append("promotion requires movetime >= 50 ms")
-        if any(int(game.get("overruns", 0)) for game in sprt.get("history", [])):
-            errors.append("at least one game exceeded its time budget")
-        if sprt.get("history") and any("moves" not in game for game in sprt["history"]):
-            errors.append("SPRT history is missing raw move telemetry")
-        if int(sprt.get("nodes_per_move") or 0) > 0:
-            errors.append("equal-time SPRT was run with go-nodes; timed gate is missing")
+        st_ms = int(sprt.get("st_ms") or sprt.get("movetime_ms") or 0)
+        tc = sprt.get("tc")
+        if is_fastchess(sprt):
+            if int(sprt.get("nodes_per_move") or 0) > 0:
+                errors.append("Elo promotion was run with go-nodes; timed full-game gate is missing")
+            elif st_ms and st_ms < 50:
+                errors.append("promotion requires st >= 50 ms or a real tc (e.g. 8+0.08)")
+            elif not st_ms and not tc:
+                errors.append("fastchess promotion JSON is missing st_ms and tc")
+            pgn = sprt.get("pgn")
+            if pgn and not Path(str(pgn)).exists():
+                errors.append(f"fastchess PGN is missing: {pgn}")
+        else:
+            if st_ms < 50:
+                errors.append("promotion requires movetime >= 50 ms")
+            if any(int(game.get("overruns", 0)) for game in sprt.get("history", [])):
+                errors.append("at least one game exceeded its time budget")
+            if sprt.get("history") and any("moves" not in game for game in sprt.get("history", [])):
+                errors.append("SPRT history is missing raw move telemetry")
+            if int(sprt.get("nodes_per_move") or 0) > 0:
+                errors.append("equal-time SPRT was run with go-nodes; timed gate is missing")
     elif args.stage in {"eval", "search"}:
-        errors.append("equal-time SPRT is required after a winning equal-node match")
+        errors.append("full-game fastchess SPRT H1 is required to promote")
 
     if errors:
         print("promotion_gate: FAIL")

@@ -11,12 +11,31 @@ use bullet_lib::{
     },
     value::{ValueTrainerBuilder, loader::DirectSequentialDataLoader},
 };
+use std::path::{Path, PathBuf};
 
 fn env_usize(name: &str, default: usize) -> usize {
     std::env::var(name)
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(default)
+}
+
+fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
+    let mut best: Option<(usize, PathBuf)> = None;
+    let rd = std::fs::read_dir(dir).ok()?;
+    for entry in rd.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else { continue };
+        let Some(num) = name.strip_prefix("nsce-") else { continue };
+        let Ok(n) = num.parse::<usize>() else { continue };
+        if !path.join("optimiser_state").exists() {
+            continue;
+        }
+        if best.as_ref().map(|(m, _)| *m).unwrap_or(0) < n {
+            best = Some((n, path));
+        }
+    }
+    best
 }
 
 fn main() {
@@ -59,13 +78,42 @@ fn main() {
             l1.forward(hidden_layer).select(output_buckets)
         });
 
+    let output_directory = std::env::var("NSCE_CHECKPOINT_DIR").unwrap_or_else(|_| {
+        if smoke {
+            "../../tmp/bullet_smoke".to_string()
+        } else {
+            "../../train/bullet_checkpoints".to_string()
+        }
+    });
+    std::fs::create_dir_all(&output_directory).ok();
+
+    // Resume a 22 h GTX 1650 run from the last optimiser_state. Cosine LR is
+    // indexed by superbatch number, so start_superbatch = n+1 is the same decay.
+    let resume = std::env::var("NSCE_RESUME").ok().as_deref() != Some("0");
+    let mut start_superbatch = env_usize("NSCE_START", 1);
+    if resume && start_superbatch == 1 {
+        if let Some((n, path)) = latest_checkpoint(Path::new(&output_directory)) {
+            println!("resume checkpoint {} (superbatch {})", path.display(), n);
+            trainer.load_from_checkpoint(path.to_str().expect("checkpoint path"));
+            start_superbatch = n + 1;
+        }
+    } else if start_superbatch > 1 {
+        let path = format!("{output_directory}/nsce-{}", start_superbatch - 1);
+        println!("resume checkpoint {path}");
+        trainer.load_from_checkpoint(&path);
+    }
+    if start_superbatch > superbatches {
+        println!("already trained through superbatch {superbatches}; skip");
+        return;
+    }
+
     let schedule = TrainingSchedule {
         net_id: "nsce".to_string(),
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size,
             batches_per_superbatch,
-            start_superbatch: 1,
+            start_superbatch,
             end_superbatch: superbatches,
         },
         wdl_scheduler: wdl::ConstantWDL { value: wdl_proportion },
@@ -77,13 +125,6 @@ fn main() {
         save_rate: if smoke { 1 } else { 10 },
     };
 
-    let output_directory = std::env::var("NSCE_CHECKPOINT_DIR").unwrap_or_else(|_| {
-        if smoke {
-            "../../tmp/bullet_smoke".to_string()
-        } else {
-            "../../train/bullet_checkpoints".to_string()
-        }
-    });
     let settings = LocalSettings {
         threads: loader_threads,
         test_set: None,

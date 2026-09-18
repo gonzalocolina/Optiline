@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
+import multiprocessing
 import os
 import random
 import shutil
 import sys
 import time
 from collections.abc import Iterator
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +24,23 @@ from eval_scale import teacher_family  # noqa: E402
 from uci_common import UciEngine, load_openings  # noqa: E402
 
 DEFAULT_LEAF_SITES = ("q_stand_pat", "static", "in_check_static")
+SOURCE_META = (
+    "result",
+    "outcome",
+    "site",
+    "in_check",
+    "pieces",
+    "ply",
+    "halfmove",
+    "phase",
+    "label_kind",
+    "opening_index",
+    "color",
+    "termination",
+)
+
+_WORKER_ENG: UciEngine | None = None
+_WORKER_SPEC: dict | None = None
 
 
 def _annotate_teacher(lab: dict, teacher: UciEngine, command: str, kind: str) -> dict:
@@ -184,11 +204,29 @@ def iter_source_records(path: Path) -> Iterator[dict]:
             yield {"fen": fen}
 
 
+def fen_key(fen: str) -> str:
+    return " ".join(str(fen).split()[:4])
+
+
+def load_exclude_keys(path: Path) -> set[str]:
+    keys: set[str] = set()
+    for record in iter_source_records(path):
+        key = fen_key(str(record.get("fen") or ""))
+        if key:
+            keys.add(key)
+    return keys
+
+
 def keep_source_record(
     record: dict,
     leaf_sites: set[str] | None,
     label_kinds: set[str] | None = None,
+    exclude_keys: set[str] | None = None,
 ) -> bool:
+    if exclude_keys:
+        key = fen_key(str(record.get("fen") or ""))
+        if key in exclude_keys:
+            return False
     if label_kinds:
         kind = str(record.get("label_kind") or "search_leaf")
         if kind not in label_kinds:
@@ -267,6 +305,79 @@ def write_label(handle, lab: dict, verbose: bool, index: int) -> None:
         print(f"{index + 1}: {lab['bestmove']} cp={lab['score_cp']}", flush=True)
 
 
+def attach_source(
+    lab: dict,
+    source: dict,
+    kept: int,
+    seed: int,
+    sample_uniform: bool,
+) -> dict:
+    lab["sampled_ply"] = None
+    lab["source_index"] = kept
+    lab["source_game"] = source.get("source_game") or f"fen:{seed}:{kept}"
+    lab["sample_uniform"] = bool(sample_uniform)
+    for key in SOURCE_META:
+        if key in source and key not in lab:
+            lab[key] = source[key]
+    return lab
+
+
+def _close_label_worker() -> None:
+    global _WORKER_ENG
+    eng = _WORKER_ENG
+    _WORKER_ENG = None
+    if eng is not None:
+        eng.close()
+
+
+def _init_label_worker(
+    teacher: str,
+    config: str,
+    label: str,
+    depth: int,
+    nodes: int,
+    seed: int,
+    sample_uniform: bool,
+) -> None:
+    global _WORKER_ENG, _WORKER_SPEC
+    _close_label_worker()
+    _WORKER_SPEC = {
+        "teacher": teacher,
+        "label": label,
+        "depth": depth,
+        "nodes": nodes,
+        "seed": seed,
+        "sample_uniform": sample_uniform,
+    }
+    eng = UciEngine([teacher], "teacher")
+    eng.apply_options({"Threads": "1", "Hash": "16"})
+    if "nsce" in teacher.lower():
+        eng.apply_uci_file(Path(config))
+    _WORKER_ENG = eng
+    atexit.register(_close_label_worker)
+
+
+def _label_source_job(item: tuple[int, dict]) -> dict:
+    assert _WORKER_ENG is not None and _WORKER_SPEC is not None
+    kept, source = item
+    spec = _WORKER_SPEC
+    fen = str(source["fen"])
+    if spec["label"] == "static":
+        lab = label_static(_WORKER_ENG, fen)
+    else:
+        lab = label_position(
+            _WORKER_ENG,
+            fen,
+            None if spec["nodes"] else spec["depth"],
+            spec["nodes"] or None,
+        )
+    _annotate_teacher(lab, _WORKER_ENG, spec["teacher"], spec["label"])
+    lab["teacher"] = spec["teacher"]
+    lab["teacher_identity"] = _WORKER_ENG.identity
+    lab["seed"] = spec["seed"]
+    return attach_source(lab, source, kept, spec["seed"], spec["sample_uniform"])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -283,7 +394,14 @@ def main() -> int:
     )
     ap.add_argument("--depth", type=int, default=8)
     ap.add_argument("--nodes", type=int, default=0, help="If >0, label with go nodes N instead of depth")
-    ap.add_argument("--positions", type=int, default=2000)
+    ap.add_argument(
+        "--positions",
+        type=int,
+        default=None,
+        help="cap on labeled FENs. Default 2000 for sampling / random walk. "
+        "With --fens and no --sample-uniform, omit or pass 0 to label every row "
+        "(path WDL protocol). --sample-uniform still needs a positive count.",
+    )
     ap.add_argument(
         "--fens",
         default="",
@@ -305,6 +423,11 @@ def main() -> int:
         default="",
         help="comma-separated label_kind values to keep (path, search_leaf); empty keeps all",
     )
+    ap.add_argument(
+        "--exclude-fens",
+        default="",
+        help="JSONL whose fen keys are skipped (disjoint sample vs a previous mix)",
+    )
     ap.add_argument("--sampler", default=str(ROOT / "build" / "nsce"))
     ap.add_argument("--self-play", action="store_true", help="sample positions from shallow teacher trajectories")
     ap.add_argument("--self-play-depth", type=int, default=4)
@@ -323,21 +446,36 @@ def main() -> int:
         action="store_true",
         help="print every labeled move to stdout",
     )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="parallel teacher processes for --fens labeling (spawn, Threads=1 each)",
+    )
     ap.add_argument("-o", "--output", default=str(ROOT / "train/data/distill.jsonl"))
     args = ap.parse_args()
-    if args.positions <= 0:
-        ap.error("--positions must be positive")
+    fens_path = Path(args.fens) if args.fens else None
+    if args.positions is None:
+        args.positions = 2000 if (fens_path is None or args.sample_uniform) else 0
+    if args.positions < 0:
+        ap.error("--positions must be >= 0")
+    if args.positions == 0 and (fens_path is None or args.sample_uniform):
+        ap.error("--positions 0 (all rows) only applies to --fens without --sample-uniform")
     if args.label == "search" and args.nodes <= 0 and args.depth <= 0:
         ap.error("search labels need --depth or --nodes")
     if args.resume and args.sample_uniform:
         ap.error("--resume cannot be combined with --sample-uniform")
     if args.min_ply < 0 or args.max_ply < args.min_ply:
         ap.error("invalid ply sampling range")
-    fens_path = Path(args.fens) if args.fens else None
+    if args.workers < 1:
+        ap.error("--workers must be >= 1")
     if fens_path is not None and not fens_path.exists():
         raise RuntimeError(f"FEN source not found: {fens_path}")
     leaf_sites = {item.strip() for item in args.leaf_sites.split(",") if item.strip()} or None
     label_kinds = {item.strip() for item in args.label_kinds.split(",") if item.strip()} or None
+    exclude_keys = load_exclude_keys(Path(args.exclude_fens)) if args.exclude_fens else None
+    if exclude_keys:
+        print(f"exclude {len(exclude_keys)} fen keys from {args.exclude_fens}", file=sys.stderr, flush=True)
 
     if args.label == "static":
         teacher_cmd = args.teacher or str(ROOT / "build" / "nsce")
@@ -351,12 +489,13 @@ def main() -> int:
     if args.resume and out.exists():
         start = sum(1 for line in out.open() if line.strip())
         print(f"resuming from {start} existing samples", file=sys.stderr, flush=True)
-    if start >= args.positions:
+    if args.positions > 0 and start >= args.positions:
         print(f"{out} already has {start} samples (>= {args.positions})", file=sys.stderr, flush=True)
         return 0
     progress_every = args.progress_every
     started = time.monotonic()
     labeled = 0
+    target = args.positions
 
     if fens_path is None and not args.self_play:
         print(
@@ -365,16 +504,24 @@ def main() -> int:
             file=sys.stderr,
             flush=True,
         )
-    eng = UciEngine([teacher_cmd], "teacher")
-    sampler = None if fens_path is not None else UciEngine([args.sampler], "sampler")
-    openings = [] if fens_path is not None else load_openings(ROOT / "tools" / "openings_balanced.epd")
-    eng.apply_options({"Threads": "1", "Hash": "16"})
-    if "nsce" in teacher_cmd.lower():
-        eng.apply_uci_file(Path(args.teacher_config))
-    if args.label == "static" and teacher_family(eng.identity, teacher_cmd) != "nsce":
+    eng = None
+    sampler = None
+    openings = []
+    use_pool = args.workers > 1 and fens_path is not None
+    if not use_pool:
+        eng = UciEngine([teacher_cmd], "teacher")
+        sampler = None if fens_path is not None else UciEngine([args.sampler], "sampler")
+        openings = [] if fens_path is not None else load_openings(ROOT / "tools" / "openings_balanced.epd")
+        eng.apply_options({"Threads": "1", "Hash": "16"})
+        if "nsce" in teacher_cmd.lower():
+            eng.apply_uci_file(Path(args.teacher_config))
+        if args.label == "static" and teacher_family(eng.identity, teacher_cmd) != "nsce":
+            raise RuntimeError("static labels require an NSCE teacher with `eval details`")
+    elif args.label == "static" and "nsce" not in teacher_cmd.lower():
         raise RuntimeError("static labels require an NSCE teacher with `eval details`")
 
     def label_fen(fen: str) -> dict:
+        assert eng is not None
         if args.label == "static":
             lab = label_static(eng, fen)
         else:
@@ -392,7 +539,7 @@ def main() -> int:
                 source_iter = (
                     record
                     for record in iter_source_records(fens_path)
-                    if keep_source_record(record, leaf_sites, label_kinds)
+                    if keep_source_record(record, leaf_sites, label_kinds, exclude_keys)
                 )
                 if args.sample_uniform:
                     sources = reservoir_sample(source_iter, args.positions, args.seed)
@@ -403,42 +550,74 @@ def main() -> int:
                     )
                 else:
                     sources = []
+                    cap = args.positions if args.positions > 0 else None
                     for record in source_iter:
-                        if len(sources) >= args.positions:
+                        if cap is not None and len(sources) >= cap:
                             break
                         sources.append(record)
-                for kept, source in enumerate(sources):
-                    if kept < start:
-                        continue
-                    fen = str(source["fen"])
-                    lab = label_fen(fen)
-                    lab["sampled_ply"] = None
-                    lab["source_index"] = kept
-                    lab["source_game"] = source.get("source_game") or f"fen:{args.seed}:{kept}"
-                    lab["sample_uniform"] = bool(args.sample_uniform)
-                    for key in (
-                        "result",
-                        "outcome",
-                        "site",
-                        "in_check",
-                        "pieces",
-                        "ply",
-                        "halfmove",
-                        "phase",
-                        "label_kind",
-                        "opening_index",
-                        "color",
-                        "termination",
-                    ):
-                        if key in source and key not in lab:
-                            lab[key] = source[key]
-                    write_label(f, lab, args.verbose, kept)
-                    labeled += 1
-                    done = kept + 1
-                    if labeled == 1 or (progress_every and done % progress_every == 0):
-                        emit_progress(
-                            done, args.positions, started, start, lab["bestmove"], lab["score_cp"]
+                target = len(sources)
+                workers = min(args.workers, max(1, len(sources)))
+                if workers > 1:
+                    print(
+                        f"distill spawning {workers} teacher processes "
+                        f"(spawn, Threads=1 each)",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    ctx = multiprocessing.get_context("spawn")
+                    jobs = [
+                        (kept, source)
+                        for kept, source in enumerate(sources)
+                        if kept >= start
+                    ]
+                    with ProcessPoolExecutor(
+                        max_workers=workers,
+                        mp_context=ctx,
+                        initializer=_init_label_worker,
+                        initargs=(
+                            teacher_cmd,
+                            str(args.teacher_config),
+                            args.label,
+                            args.depth,
+                            args.nodes,
+                            args.seed,
+                            bool(args.sample_uniform),
+                        ),
+                    ) as pool:
+                        pending = {pool.submit(_label_source_job, job): job[0] for job in jobs}
+                        done = start
+                        for future in as_completed(pending):
+                            lab = future.result()
+                            write_label(f, lab, args.verbose, int(lab["source_index"]))
+                            labeled += 1
+                            done += 1
+                            if labeled == 1 or (progress_every and done % progress_every == 0):
+                                emit_progress(
+                                    done,
+                                    target,
+                                    started,
+                                    start,
+                                    lab["bestmove"],
+                                    lab.get("score_cp"),
+                                )
+                else:
+                    for kept, source in enumerate(sources):
+                        if kept < start:
+                            continue
+                        lab = attach_source(
+                            label_fen(str(source["fen"])),
+                            source,
+                            kept,
+                            args.seed,
+                            bool(args.sample_uniform),
                         )
+                        write_label(f, lab, args.verbose, kept)
+                        labeled += 1
+                        done = kept + 1
+                        if labeled == 1 or (progress_every and done % progress_every == 0):
+                            emit_progress(
+                                done, target, started, start, lab["bestmove"], lab["score_cp"]
+                            )
             else:
                 for i in range(start, args.positions):
                     rng = random.Random(args.seed + i)
@@ -465,10 +644,11 @@ def main() -> int:
                             done, args.positions, started, start, lab["bestmove"], lab["score_cp"]
                         )
     finally:
-        eng.close()
+        if eng is not None:
+            eng.close()
         if sampler is not None:
             sampler.close()
-    emit_progress(min(start + labeled, args.positions), args.positions, started, start, "-", None)
+    emit_progress(min(start + labeled, target), target, started, start, "-", None)
     print(f"wrote {out}", file=sys.stderr, flush=True)
     return 0
 

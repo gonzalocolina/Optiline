@@ -7,10 +7,12 @@ Reward: result_from_white - lambda * (mean_nodes / scale), under fixed movetime.
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import sys
 import time
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -176,6 +178,70 @@ def load_games(path: Path) -> list[dict]:
     return games
 
 
+def completed_schedule_indices(games: list[dict]) -> set[int]:
+    """Schedule slots already on disk.
+
+    Serial dumps before `--workers` have no `schedule_index`; those occupy
+    0..n-1 in file order. Parallel dumps stamp the index so resume can skip
+    holes if games finish out of order.
+    """
+    completed: set[int] = set()
+    legacy = 0
+    for game in games:
+        if "schedule_index" in game:
+            completed.add(int(game["schedule_index"]))
+        else:
+            completed.add(legacy)
+            legacy += 1
+    return completed
+
+
+_WORKER_ENGINE: UciEngine | None = None
+
+
+def _close_worker() -> None:
+    global _WORKER_ENGINE
+    if _WORKER_ENGINE is not None:
+        _WORKER_ENGINE.close()
+        _WORKER_ENGINE = None
+
+
+def _init_worker(engine: str, config: str) -> None:
+    global _WORKER_ENGINE
+    _close_worker()
+    _WORKER_ENGINE = UciEngine([engine], "NSCE")
+    _WORKER_ENGINE.apply_uci_file(Path(config))
+    atexit.register(_close_worker)
+
+
+def _play_job(job: dict) -> dict:
+    assert _WORKER_ENGINE is not None
+    game_no = int(job["done"])
+    games = int(job["games"])
+    max_plies = int(job["max_plies"])
+    progress_plies = int(job["progress_plies"])
+
+    def on_ply(ply_done: int, max_plies: int, move: str) -> None:
+        if progress_plies <= 0 or ply_done % progress_plies:
+            return
+        log(f"selfplay {game_no}/{games}  ply {ply_done}/{max_plies}  last {move}")
+
+    game_started = time.monotonic()
+    game = play_game(
+        _WORKER_ENGINE,
+        str(job["fen"]),
+        int(job["movetime"]),
+        max_plies,
+        float(job["lam"]),
+        on_ply=on_ply,
+    )
+    game["opening_index"] = job["opening_index"]
+    game["color"] = job["color"]
+    game["schedule_index"] = int(job["schedule_index"])
+    game["play_seconds"] = time.monotonic() - game_started
+    return game
+
+
 def positions_from_game(game: dict) -> list[dict]:
     opening_index = int(game.get("opening_index") or 0)
     source_game = f"selfplay:{opening_index}"
@@ -223,7 +289,16 @@ def main() -> int:
         action="store_true",
         help="append from existing -o games instead of starting over",
     )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="parallel 1-thread engine processes (idle cores). Not Lazy SMP; "
+        "each game still uses Threads=1 / Hash 16 from the UCI config",
+    )
     args = ap.parse_args()
+    if args.workers < 1:
+        ap.error("--workers must be >= 1")
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -233,9 +308,9 @@ def main() -> int:
     except ValueError as error:
         ap.error(str(error))
     existing = load_games(out) if args.resume else []
-    start = len(existing)
-    if start >= args.games:
-        log(f"{out} already has {start} games (>= {args.games})")
+    completed = completed_schedule_indices(existing) if args.resume else set()
+    if len(completed) >= args.games:
+        log(f"{out} already has {len(existing)} games (>= {args.games})")
         return 0
     if args.resume:
         out.write_text("".join(json.dumps(game) + "\n" for game in existing), encoding="utf-8")
@@ -246,74 +321,130 @@ def main() -> int:
             for game in existing:
                 for row in positions_from_game(game):
                     handle.write(json.dumps(row) + "\n")
+    jobs: list[dict] = []
+    for index, (opening_index, fen, color_tag) in enumerate(schedule):
+        if index in completed:
+            continue
+        jobs.append(
+            {
+                "schedule_index": index,
+                "done": index + 1,
+                "games": args.games,
+                "opening_index": opening_index,
+                "fen": fen,
+                "color": color_tag,
+                "movetime": args.movetime,
+                "max_plies": args.max_plies,
+                "lam": args.lam,
+                "progress_plies": args.progress_plies,
+            }
+        )
+    workers = min(args.workers, max(1, len(jobs)))
     log(
         f"selfplay {args.games} games  movetime={args.movetime}ms  "
         f"max_plies={args.max_plies}  both_colors={args.both_colors}  "
-        f"openings={len(openings)}"
-        + (f"  resume {start}" if start else "")
+        f"openings={len(openings)}  workers={workers}  remaining={len(jobs)}"
+        + (f"  resume {len(existing)}" if existing else "")
     )
-    eng = UciEngine([args.engine], "NSCE")
-    eng.apply_uci_file(Path(args.config))
     positions_handle = positions_path.open("a", encoding="utf-8") if positions_path is not None else None
     started = time.monotonic()
     results = Counter(game.get("result") or "*" for game in existing)
     terminations = Counter(str(game.get("termination") or "unknown") for game in existing)
     positions_written = sum(len(positions_from_game(game)) for game in existing)
+    have = len(existing)
+    newly = 0
+
+    def record_game(handle, game: dict, game_started: float) -> None:
+        nonlocal have, newly, positions_written
+        handle.write(json.dumps(game) + "\n")
+        handle.flush()
+        results[game["result"] or "*"] += 1
+        terminations[game["termination"]] += 1
+        have += 1
+        newly += 1
+        elapsed = max(time.monotonic() - started, 1e-6)
+        remaining = max(len(jobs) - newly, 0)
+        eta = remaining * (elapsed / newly)
+        pct = 100.0 * have / args.games
+        game_s = float(game.get("play_seconds") or (time.monotonic() - game_started))
+        done = int(game.get("schedule_index") or 0) + 1
+        log(
+            f"selfplay {done}/{args.games} ({pct:.1f}%)  "
+            f"opening={game.get('opening_index')} {game.get('color')}  "
+            f"result={game['result'] or '*'} {game['termination']}  "
+            f"{len(game['moves'])} plies in {format_duration(game_s)}  "
+            f"elapsed {format_duration(elapsed)}  eta {format_duration(eta)}  "
+            f"on disk {have}/{args.games}"
+        )
+        log(
+            f"  running 1-0:{results['1-0']}  0-1:{results['0-1']}  "
+            f"draw:{results['1/2-1/2']}  unfinished:{results['*']}  "
+            f"mates:{terminations['checkmate']}  "
+            f"max_plies:{terminations['max_plies']}"
+        )
+        if positions_handle is not None:
+            for row in positions_from_game(game):
+                positions_handle.write(json.dumps(row) + "\n")
+                positions_written += 1
+            positions_handle.flush()
+
     try:
-        with out.open("a" if args.resume else "w") as f:
-            for i, (opening_index, fen, color_tag) in enumerate(schedule):
-                if i < start:
-                    continue
-                done = i + 1
-                log(
-                    f"selfplay {done}/{args.games} starting  "
-                    f"opening={opening_index} color={color_tag}"
-                )
+        with out.open("a" if args.resume else "w") as handle:
+            if workers <= 1:
+                eng = UciEngine([args.engine], "NSCE")
+                eng.apply_uci_file(Path(args.config))
+                try:
+                    for job in jobs:
+                        done = int(job["done"])
+                        log(
+                            f"selfplay {done}/{args.games} starting  "
+                            f"opening={job['opening_index']} color={job['color']}"
+                        )
 
-                def on_ply(ply_done: int, max_plies: int, move: str, game_no: int = done) -> None:
-                    if args.progress_plies <= 0 or ply_done % args.progress_plies:
-                        return
-                    log(f"selfplay {game_no}/{args.games}  ply {ply_done}/{max_plies}  last {move}")
+                        def on_ply(
+                            ply_done: int,
+                            max_plies: int,
+                            move: str,
+                            game_no: int = done,
+                        ) -> None:
+                            if args.progress_plies <= 0 or ply_done % args.progress_plies:
+                                return
+                            log(f"selfplay {game_no}/{args.games}  ply {ply_done}/{max_plies}  last {move}")
 
-                game_started = time.monotonic()
-                g = play_game(eng, fen, args.movetime, args.max_plies, args.lam, on_ply=on_ply)
-                g["opening_index"] = opening_index
-                g["color"] = color_tag
-                f.write(json.dumps(g) + "\n")
-                f.flush()
-                results[g["result"] or "*"] += 1
-                terminations[g["termination"]] += 1
-                elapsed = max(time.monotonic() - started, 1e-6)
-                newly = max(done - start, 1)
-                eta = (args.games - done) * (elapsed / newly)
-                pct = 100.0 * done / args.games
-                game_s = time.monotonic() - game_started
-                log(
-                    f"selfplay {done}/{args.games} ({pct:.1f}%)  "
-                    f"opening={opening_index} {color_tag}  "
-                    f"result={g['result'] or '*'} {g['termination']}  "
-                    f"{len(g['moves'])} plies in {format_duration(game_s)}  "
-                    f"elapsed {format_duration(elapsed)}  eta {format_duration(eta)}"
-                )
-                log(
-                    f"  running 1-0:{results['1-0']}  0-1:{results['0-1']}  "
-                    f"draw:{results['1/2-1/2']}  unfinished:{results['*']}  "
-                    f"mates:{terminations['checkmate']}  "
-                    f"max_plies:{terminations['max_plies']}"
-                )
-                if positions_handle is not None:
-                    for row in positions_from_game(g):
-                        positions_handle.write(json.dumps(row) + "\n")
-                        positions_written += 1
-                    positions_handle.flush()
+                        game_started = time.monotonic()
+                        game = play_game(
+                            eng,
+                            str(job["fen"]),
+                            args.movetime,
+                            args.max_plies,
+                            args.lam,
+                            on_ply=on_ply,
+                        )
+                        game["opening_index"] = job["opening_index"]
+                        game["color"] = job["color"]
+                        game["schedule_index"] = int(job["schedule_index"])
+                        game["play_seconds"] = time.monotonic() - game_started
+                        record_game(handle, game, game_started)
+                finally:
+                    eng.close()
+            else:
+                log(f"selfplay spawning {workers} engine processes (Threads=1 each)")
+                with ProcessPoolExecutor(
+                    max_workers=workers,
+                    initializer=_init_worker,
+                    initargs=(str(args.engine), str(args.config)),
+                ) as pool:
+                    pending = {pool.submit(_play_job, job): job for job in jobs}
+                    for future in as_completed(pending):
+                        game = future.result()
+                        record_game(handle, game, time.monotonic())
     finally:
-        eng.close()
         if positions_handle is not None:
             positions_handle.close()
     log(
         f"selfplay done  {args.games} games in {format_duration(time.monotonic() - started)}  "
         f"1-0:{results['1-0']}  0-1:{results['0-1']}  draw:{results['1/2-1/2']}  "
-        f"unfinished:{results['*']}  wrote {out}"
+        f"unfinished:{results['*']}  workers={workers}  wrote {out}"
     )
     if positions_path is not None:
         log(f"wrote {positions_written} positions to {positions_path}")

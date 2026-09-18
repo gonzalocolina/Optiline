@@ -269,4 +269,17 @@ TEST(SearchTest, SetPositionCopiesExtrasFlagOntoRoot) {
   EXPECT_TRUE(search.root_position().use_extras());
 }
 
+TEST(SearchTune, SetFieldClampsAndRejectsUnknown) {
+  SearchTune tune;
+  EXPECT_TRUE(set_tune_field(tune, "RazorMargin", 400));
+  EXPECT_EQ(tune.razor_margin, 400);
+  EXPECT_TRUE(set_tune_field(tune, "RazorMargin", 9999));
+  EXPECT_EQ(tune.razor_margin, 800);
+  EXPECT_FALSE(set_tune_field(tune, "NotAParam", 1));
+  Search search;
+  EXPECT_TRUE(search.set_tune_param("LmrQuietDivX100", 200));
+  EXPECT_EQ(search.tune().lmr_quiet_div_x100, 200);
+}
+
+
 

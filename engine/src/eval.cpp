@@ -166,25 +166,29 @@ int extras(const Position& pos) {
   score += 12 * (shield(WHITE) - shield(BLACK));
 
   int mobility[COLOR_NB]{};
+  Bitboard att[COLOR_NB]{w_pawn_att, b_pawn_att};
   for (int c = 0; c < COLOR_NB; ++c) {
     const Color us = static_cast<Color>(c);
     const Bitboard enemy_pawn_att = (us == WHITE) ? b_pawn_att : w_pawn_att;
     const Bitboard usable = ~pos.pieces(us) & ~enemy_pawn_att;
     Bitboard kn = pos.pieces(us, KNIGHT);
     while (kn) {
-      const Bitboard att = knight_attacks_bb(pop_lsb(kn));
-      mobility[us] += 4 * popcount(att & usable);
+      const Bitboard a = knight_attacks_bb(pop_lsb(kn));
+      att[us] |= a;
+      mobility[us] += 4 * popcount(a & usable);
     }
     Bitboard bi = pos.pieces(us, BISHOP);
     while (bi) {
-      const Bitboard att = bishop_attacks_bb(pop_lsb(bi), occ);
-      mobility[us] += 3 * popcount(att & usable);
+      const Bitboard a = bishop_attacks_bb(pop_lsb(bi), occ);
+      att[us] |= a;
+      mobility[us] += 3 * popcount(a & usable);
     }
     Bitboard ro = pos.pieces(us, ROOK);
     while (ro) {
       const Square s = pop_lsb(ro);
-      const Bitboard att = rook_attacks_bb(s, occ);
-      mobility[us] += 2 * popcount(att & ~pos.pieces(us));
+      const Bitboard a = rook_attacks_bb(s, occ);
+      att[us] |= a;
+      mobility[us] += 2 * popcount(a & ~pos.pieces(us));
       const Bitboard file = FileBB[file_of(s)];
       const bool own_pawn = pos.pieces(us, PAWN) & file;
       const bool their_pawn = pos.pieces(~us, PAWN) & file;
@@ -194,9 +198,11 @@ int extras(const Position& pos) {
     }
     Bitboard q = pos.pieces(us, QUEEN);
     while (q) {
-      const Bitboard att = queen_attacks_bb(pop_lsb(q), occ);
-      mobility[us] += popcount(att & ~pos.pieces(us));
+      const Bitboard a = queen_attacks_bb(pop_lsb(q), occ);
+      att[us] |= a;
+      mobility[us] += popcount(a & ~pos.pieces(us));
     }
+    att[us] |= king_attacks_bb(pos.king_square(us));
   }
   score += mobility[WHITE] - mobility[BLACK];
 
@@ -214,8 +220,8 @@ int extras(const Position& pos) {
   };
   score += outpost(WHITE, w_pawn_att, b_pawn_att) - outpost(BLACK, b_pawn_att, w_pawn_att);
 
-  const Bitboard w_att = pos.attacks(WHITE);
-  const Bitboard b_att = pos.attacks(BLACK);
+  const Bitboard w_att = att[WHITE];
+  const Bitboard b_att = att[BLACK];
   score -= 10 * popcount(king_attacks_bb(pos.king_square(WHITE)) & b_att);
   score += 10 * popcount(king_attacks_bb(pos.king_square(BLACK)) & w_att);
 

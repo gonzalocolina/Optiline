@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -8,8 +10,45 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
 from experiment_common import paired_schedule  # noqa: E402
+from generate_uho_book import epd_line, normalized_key  # noqa: E402
 from sprt import llr, pentanomial_llr  # noqa: E402
 from uci_common import elo_from_wdl  # noqa: E402
+
+
+class TuneSpsaMapTest(unittest.TestCase):
+    def test_spsa_json_names_match_tune_header(self) -> None:
+        header = (TOOLS.parent / "engine/include/nsce/tune.hpp").read_text()
+        names = re.findall(r'\{\"([A-Za-z0-9]+)\", &SearchTune::', header)
+        spsa = json.loads((TOOLS / "configs/spsa.json").read_text())
+        self.assertEqual(sorted(names), sorted(spsa))
+        self.assertGreaterEqual(len(names), 40)
+
+
+class UhoBookFormatTest(unittest.TestCase):
+    def test_normalized_key_drops_clocks(self) -> None:
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        self.assertEqual(
+            normalized_key(fen),
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3",
+        )
+
+    def test_epd_line_is_four_fields(self) -> None:
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        self.assertEqual(
+            epd_line(fen),
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3",
+        )
+        self.assertNotIn(";", epd_line(fen))
+
+    def test_openings_uho_is_four_field_epd(self) -> None:
+        path = TOOLS / "openings_uho.epd"
+        lines = [ln.strip() for ln in path.read_text().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 4096)
+        for line in lines:
+            parts = line.split()
+            self.assertEqual(len(parts), 4, line)
+            self.assertNotIn(";", line)
+            self.assertIn(parts[1], ("w", "b"))
 
 
 class PairedScheduleTest(unittest.TestCase):

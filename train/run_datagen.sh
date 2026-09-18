@@ -22,6 +22,10 @@ MOVETIME="${MOVETIME:-100}"
 MAX_PLIES="${MAX_PLIES:-200}"
 NODES="${NODES:-25000}"
 POSITIONS_PER_GAME="${POSITIONS_PER_GAME:-3}"
+if [[ -z "${WORKERS:-}" ]]; then
+  cpus="$(nproc)"
+  WORKERS=$(( cpus > 1 ? cpus - 1 : 1 ))
+fi
 
 if [[ ! -x "$ENGINE" ]]; then
   echo "missing engine: $ENGINE" >&2
@@ -36,6 +40,7 @@ fi
   --max-plies "$MAX_PLIES" \
   --both-colors \
   --resume \
+  --workers "$WORKERS" \
   -o "$GAMES_FILE"
 
 "$PYTHON" train/collect_leaves.py \
@@ -46,4 +51,5 @@ fi
   --positions-per-game "$POSITIONS_PER_GAME" \
   --nodes "$NODES" \
   --append \
+  --workers "$WORKERS" \
   --output "$LEAVES_FILE"

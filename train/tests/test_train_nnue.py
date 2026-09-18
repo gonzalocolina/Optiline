@@ -15,6 +15,7 @@ from train_nnue import (  # noqa: E402
     augment_training,
     encode_fen,
     hce_internal_weights,
+    pack_active_rows,
     train_sparse,
 )
 
@@ -86,6 +87,22 @@ class AugmentContractTest(unittest.TestCase):
         identity, *_ = _sparse_forward([indices], *init, True)
         mirrored, *_ = _sparse_forward([_sparse_variant(indices, 1)], *init, True)
         self.assertLess(float(np.abs(mirrored[0] - identity[0])), 5.0)
+
+
+class PackActiveRowsTest(unittest.TestCase):
+    def test_matches_per_row_flatnonzero_including_empty(self) -> None:
+        x = np.zeros((5, 8), dtype=np.float32)
+        x[0, [1, 4]] = 1.0
+        x[2, 0] = 1.0
+        x[4, [2, 3, 7]] = 1.0
+        packed = pack_active_rows(x)
+        expected = [np.flatnonzero(row).astype(np.int32) for row in x]
+        self.assertEqual(len(packed), 5)
+        for got, want in zip(packed, expected):
+            np.testing.assert_array_equal(got, want)
+
+    def test_empty_matrix(self) -> None:
+        self.assertEqual(pack_active_rows(np.zeros((0, 8), dtype=np.float32)), [])
 
 
 class StayOnTeacherTest(unittest.TestCase):

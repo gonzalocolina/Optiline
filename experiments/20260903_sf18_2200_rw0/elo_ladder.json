@@ -1,0 +1,17 @@
+[
+  {
+    "rung": "stockfish_elo_2200",
+    "W": 17,
+    "D": 14,
+    "L": 9,
+    "score": 0.6,
+    "elo": 70.43650362227247,
+    "elo_err": 89.80351984253276,
+    "skipped": false,
+    "stockfish": "third_party/stockfish/stockfish-18",
+    "openings": "tools/openings_balanced.epd",
+    "max_plies": 120,
+    "nsce_config": "tools/configs/baseline.uci",
+    "oracle": "nsce_status"
+  }
+]

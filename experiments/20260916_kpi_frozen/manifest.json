@@ -1,0 +1,152 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915",
+    "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+    "engine_sha256": "6bfe02eb068f1fe80743971a3d6316bba9a974dcc60f80a992afd584f6dbd300",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_uho.epd",
+    "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
+    "referenced_files": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_search_leaves40k_rw0.bin": "06e342b8ddf128ce7c8b5b9c9c2ce4b45f555871d1dab7e853a6b09bc6bd1b54"
+    }
+  },
+  "command": [
+    "tools/fastchess_match.py",
+    "--engine",
+    "build/nsce",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--name-a",
+    "current",
+    "--engine-b",
+    "build/nsce-frozen-20260915",
+    "--cfg-b",
+    "tools/configs/baseline.uci",
+    "--name-b",
+    "frozen",
+    "--tc",
+    "8+0.08",
+    "--rounds",
+    "150",
+    "--concurrency",
+    "14",
+    "--openings",
+    "tools/openings_uho.epd",
+    "--seed",
+    "20260915",
+    "--outdir",
+    "experiments/20260916_kpi_frozen"
+  ],
+  "created_utc": "2026-09-16T11:03:02.268042+00:00",
+  "environment": {},
+  "git": {
+    "branch": "master",
+    "commit": "d48c483e2970a6f35bccabd9f5a324cb3e62deae",
+    "dirty": true,
+    "status_porcelain": "M .gitignore\n M CMakeLists.txt\n M docs/eval_pipeline.md\n M docs/experiments.md\n M docs/handoff.md\n M docs/knowledge.md\n M docs/measurement.md\n M engine/include/nsce/nnue.hpp\n M engine/include/nsce/search.hpp\n M engine/src/nnue.cpp\n M engine/src/search.cpp\n M engine/src/uci.cpp\n M engine/tests/test_nnue.cpp\n M engine/tests/test_search.cpp\n M nets/nnue_validation.json\n M tools/ablation_match.py\n M tools/eval_contract.py\n M tools/fastchess_match.py\n M tools/play.py\n M tools/play.sh\n M tools/promotion_gate.py\n M tools/tests/test_eval_pipeline.py\n M tools/tests/test_experiment.py\n M train/README.md\n M train/collect_leaves.py\n M train/collect_search_telemetry.py\n M train/distill.py\n M train/run_datagen.sh\n M train/selfplay.py\n M train/tests/test_collect_leaves.py\n M train/tests/test_selfplay.py\n M train/tests/test_train_nnue.py\n M train/train_kat.py\n M train/train_nnue.py\n?? config.json\n?? engine/include/nsce/tune.hpp\n?? experiments/20260827_datagen1024/\n?? experiments/20260827_datagen2048/\n?? experiments/20260827_wdl_leaves160k/\n?? experiments/20260829_datagen4096/\n?? experiments/20260829_datagen8192/\n?? experiments/20260829_nps_movepicker/\n?? experiments/20260829_wdl_leaves320k/\n?? experiments/20260829_wdl_leaves640k/\n?? experiments/20260902_search_leaves40k/\n?? experiments/20260902_search_leaves40k_sprt/\n?? experiments/20260903_search_leaves40k_n25k/\n?? experiments/20260903_search_leaves40k_rw0/\n?? experiments/20260903_search_leaves40k_rw0_sprt/\n?? experiments/20260903_search_leaves80k/\n?? experiments/20260903_sf18_2000_rw0/\n?? experiments/20260903_sf18_2200_rw0/\n?? experiments/20260904_search_leaves80k_rw0/\n?? experiments/20260904_sf18_2200_rw0_n80/\n?? experiments/20260909_controller_rw0/\n?? experiments/20260909_datagen8192/\n?? experiments/20260909_evalscale926/\n?? experiments/20260909_kat_search40k_rw0/\n?? experiments/20260909_policy_rw0/\n?? experiments/20260909_search_leaves40k_8192/\n?? experiments/20260909_search_leaves40k_newleaves/\n?? experiments/20260909_search_leaves40k_newleaves_ft/\n?? experiments/20260909_sf18_2200_rw0_n200/\n?? experiments/20260915_controller_rw0_full/\n?? experiments/20260915_evalscale926_full/\n?? experiments/20260915_hash32_rw0_full/\n?? experiments/20260915_search_leaves40k_full/\n?? experiments/20260915_search_leaves80k_rw0_full/\n?? experiments/20260915_wdl_leaves640k_full/\n?? experiments/20260916_kpi_frozen/\n?? experiments/20260916_kpi_frozen_epd_abort/\n?? tools/configs/controller_rw0.uci\n?? tools/configs/evalscale_926.uci\n?? tools/configs/kat_search_leaves40k_rw0.uci\n?? tools/configs/nnue_search_leaves40k.uci\n?? tools/configs/nnue_search_leaves40k_8192.uci\n?? tools/configs/nnue_search_leaves40k_n25k.uci\n?? tools/configs/nnue_search_leaves40k_newleaves.uci\n?? tools/configs/nnue_search_leaves40k_newleaves_ft.uci\n?? tools/configs/nnue_search_leaves40k_rw0.uci\n?? tools/configs/nnue_search_leaves80k.uci\n?? tools/configs/nnue_search_leaves80k_rw0.uci\n?? tools/configs/nnue_wdl_leaves160k.uci\n?? tools/configs/nnue_wdl_leaves320k.uci\n?? tools/configs/nnue_wdl_leaves640k.uci\n?? tools/configs/policy_rw0.uci\n?? tools/configs/spsa.json\n?? tools/generate_uho_book.py\n?? tools/openings_uho.epd\n?? tools/pack_nsceper1.py\n?? tools/setup_bullet.sh\n?? train/bullet_nsce.rs\n?? train/tests/test_distill.py"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "concurrency": 14,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915",
+    "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+    "frozen_targets": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/frozen-targets/manifest.json",
+    "full_length_games": true,
+    "harness": "fastchess",
+    "harness_sha256": "4e8eff8b855229b96dd5a366846ce42a5ac10ff35563691e286d702a799e9f0d",
+    "kind": "fastchess_match",
+    "nodes_per_move": 0,
+    "rounds": 150,
+    "sprt": null,
+    "st_ms": 0,
+    "state_isolation": "normal_game_warm",
+    "tc": "8+0.08"
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nnue_search_leaves40k_rw0.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "true",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260915,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "f5ab6ac557e02919a74268fb8129873a48e333b3b90dd0c35e31d37df09247bf",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

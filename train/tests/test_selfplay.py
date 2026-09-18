@@ -9,6 +9,7 @@ sys.path.insert(0, str(TRAIN))
 
 from selfplay import (  # noqa: E402
     color_flip_fen,
+    completed_schedule_indices,
     format_duration,
     game_schedule,
     load_games,
@@ -84,6 +85,20 @@ class LoadGamesTest(unittest.TestCase):
             games = load_games(path)
             self.assertEqual(len(games), 1)
             self.assertEqual(games[0]["fen"], "a")
+
+
+class ResumeIndexTest(unittest.TestCase):
+    def test_legacy_file_order_is_0_through_n_minus_1(self) -> None:
+        games = [{"result": "1-0"}, {"result": "0-1"}]
+        self.assertEqual(completed_schedule_indices(games), {0, 1})
+
+    def test_stamped_indices_can_have_holes(self) -> None:
+        games = [
+            {"result": "1-0"},
+            {"result": "0-1"},
+            {"schedule_index": 5, "result": "*"},
+        ]
+        self.assertEqual(completed_schedule_indices(games), {0, 1, 5})
 
 
 class FormatDurationTest(unittest.TestCase):

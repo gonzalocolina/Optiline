@@ -166,7 +166,19 @@ def match(
                     **meta,
                 }
             )
-            print(f"  game {i+1}/{games}: A_score so far {w}+{d}/2 / {i+1}", flush=True)
+            if result_from_a == "1-0":
+                outcome = f"{name_a} wins"
+            elif result_from_a == "0-1":
+                outcome = f"{name_b} wins"
+            else:
+                outcome = "draw"
+            side = "white" if a_is_white else "black"
+            print(
+                f"  game {i + 1}/{games}: {outcome}  "
+                f"({name_a} {side})  W-D-L {w}-{d}-{l}  "
+                f"{w + 0.5 * d:.1f}/{i + 1}",
+                flush=True,
+            )
 
         score = (w + 0.5 * d) / games
         elo, err = elo_from_wdl(w, d, l)

@@ -1,17 +1,140 @@
 {
-  "baseline": {
-    "mae_cp": 430.0979381443299,
-    "rmse_cp": 520.4593678744263,
-    "samples": 194
+  "affine": {
+    "baseline_from_trained": {
+      "eval_scale_permille": 1047,
+      "intercept": -0.08720270528490826,
+      "origin_scale": 1.047141560643339,
+      "samples": 84762,
+      "slope": 1.047125193701706,
+      "std_ratio_y_over_x": 1.0483063983971688,
+      "std_x": 175.06427612266907,
+      "std_y": 183.5210007901627
+    },
+    "labels_from_baseline": {
+      "eval_scale_permille": 1000,
+      "intercept": 0.0,
+      "origin_scale": 1.0,
+      "samples": 84762,
+      "slope": 1.0,
+      "std_ratio_y_over_x": 1.0,
+      "std_x": 183.5210007901627,
+      "std_y": 183.5210007901627
+    },
+    "labels_from_trained": {
+      "eval_scale_permille": 1047,
+      "intercept": -0.08720270528490826,
+      "origin_scale": 1.047141560643339,
+      "samples": 84762,
+      "slope": 1.047125193701706,
+      "std_ratio_y_over_x": 1.0483063983971688,
+      "std_x": 175.06427612266907,
+      "std_y": 183.5210007901627
+    }
   },
-  "dataset_sha256": "e8ffbe05d955b1ef7fd03ec72eeb5a78e84dc19470412350b1df56133da6bb51",
-  "mae_improvement_cp": 104.97938144329896,
-  "mae_improvement_percent": 24.40825033857069,
-  "network_sha256": "bff4ebb9075790f2d13cd9a1c7ce1e9aa74934f8a7f0d6750f62a1664537be5d",
-  "split": "sha256(fen) modulo 10 == 0",
+  "baseline": {
+    "mae_cp": 0.0,
+    "rmse_cp": 0.0,
+    "samples": 84762,
+    "sign_accuracy": 1.0,
+    "wdl_mae": 0.0
+  },
+  "baseline_options": {
+    "EvalFile": "internal",
+    "UseExtras": true
+  },
+  "clone": {
+    "deployed": {
+      "mae_cp": 5.1655104881904625,
+      "rmse_cp": 12.001945977669235,
+      "samples": 84762,
+      "sign_accuracy": 0.9878247327811991,
+      "wdl_mae": 0.0026545046420475464
+    },
+    "max_clone_mae_cp": 15.0,
+    "nnue": {
+      "mae_cp": 5.1655104881904625,
+      "rmse_cp": 12.001945977669235,
+      "samples": 84762,
+      "sign_accuracy": 0.6241122200986291,
+      "wdl_mae": 0.0027375953732993084
+    },
+    "pass": true
+  },
+  "dataset_sha256": "c1e456bb61294c50a7cef3b504e5f7d9eed31da92d01661439260070a6824818",
+  "engine_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+  "mae_improvement_cp": -5.1655104881904625,
+  "mae_improvement_percent": 0.0,
+  "mae_is_not_promotion": true,
+  "network_sha256": "eb38bd074d8278fb67f61e7c96bb909510f7ea52347ac5523230b059f7d4d4a7",
+  "phase_metrics": {
+    "endgame": {
+      "baseline": {
+        "mae_cp": 0.0,
+        "rmse_cp": 0.0,
+        "samples": 37346,
+        "sign_accuracy": 1.0,
+        "wdl_mae": 0.0
+      },
+      "trained": {
+        "mae_cp": 4.374765704493118,
+        "rmse_cp": 11.488871254165918,
+        "samples": 37346,
+        "sign_accuracy": 0.9900390938788626,
+        "wdl_mae": 0.0021099343905413804
+      }
+    },
+    "middlegame": {
+      "baseline": {
+        "mae_cp": 0.0,
+        "rmse_cp": 0.0,
+        "samples": 27612,
+        "sign_accuracy": 1.0,
+        "wdl_mae": 0.0
+      },
+      "trained": {
+        "mae_cp": 4.36451542807475,
+        "rmse_cp": 11.204289691430569,
+        "samples": 27612,
+        "sign_accuracy": 0.9908735332464146,
+        "wdl_mae": 0.002091590473849802
+      }
+    },
+    "opening": {
+      "baseline": {
+        "mae_cp": 0.0,
+        "rmse_cp": 0.0,
+        "samples": 19804,
+        "sign_accuracy": 1.0,
+        "wdl_mae": 0.0
+      },
+      "trained": {
+        "mae_cp": 7.773480105029287,
+        "rmse_cp": 13.877457312137986,
+        "samples": 19804,
+        "sign_accuracy": 0.9793981013936578,
+        "wdl_mae": 0.004466295523941376
+      }
+    }
+  },
+  "runtime_composite": {
+    "max_abs_delta_cp": 0,
+    "samples": 84762
+  },
+  "split": "sha256(source-game/opening group) modulo 10 == 0",
+  "static_label_samples": 84762,
+  "target_contract": {
+    "mode": "cp",
+    "wdl_scale": 400.0
+  },
   "trained": {
-    "mae_cp": 325.1185567010309,
-    "rmse_cp": 411.7101184686679,
-    "samples": 194
+    "mae_cp": 5.1655104881904625,
+    "rmse_cp": 12.001945977669235,
+    "samples": 84762,
+    "sign_accuracy": 0.9878247327811991,
+    "wdl_mae": 0.0026545046420475464
+  },
+  "trained_options": {
+    "EvalFile": "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_wdl_leaves640k.bin",
+    "UseExtras": true
   }
 }

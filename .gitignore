@@ -14,6 +14,9 @@ nets/*
 !nets/nnue_validation.json
 train/data/
 train/checkpoints/
+train/bullet_checkpoints/
+train/bullet_checkpoints_gen*/
+train/candidates/
 .venv/
 __pycache__/
 .idea/
@@ -23,6 +26,12 @@ __pycache__/
 third_party/stockfish/*
 !third_party/stockfish/README.md
 third_party/fastchess/
+third_party/bullet/
+third_party/weather-factory/
+tmp/
+dist/
+third_party/cuda-12.2/
+third_party/llvm-mingw/
 experiments/**/*.json
 experiments/**/*.txt
 experiments/**/*.log

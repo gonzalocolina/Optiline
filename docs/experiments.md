@@ -15,7 +15,7 @@ Update that file after every SPRT, ladder, or diagnostic — do not only write `
 | Threads | 1 |
 | Hash | 16 |
 | Time control | `movetime=100` (ablations) / `tc=10+0.1` (ladder when cutechess available) |
-| Openings | Prefer `tools/openings_balanced.epd` for exploratory lab; regenerate with `tools/generate_openings.py` |
+| Openings | Default Elo book: `tools/openings_uho.epd` (`tools/generate_uho_book.py`). 128-line telemetry book: `tools/openings_balanced.epd` |
 
 Apply via UCI before every match:
 

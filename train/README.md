@@ -20,8 +20,10 @@ Evaluator export still has to clone. Canonical protocol:
   --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
 ```
 
-Shuffle with bullet-utils before training. Do not start the Python self-play
-path for a new generation.
+Shuffle with bullet-utils before training. Example: `train/bullet_nsce.rs`
+(`bash tools/setup_bullet.sh`). Runtime loads `NSCEPER1`; pack a quantised
+checkpoint with `python3 tools/pack_nsceper1.py`. Do not start the Python
+self-play path for a new generation.
 
 ## 1. Clone the frozen arbiter (export check)
 
@@ -37,7 +39,11 @@ mandatory on the 768 path because runtime adds extras(). Teacher cp is converted
 with `--teacher-wdl-scale` (that teacher) into `--search-wdl-scale` (NSCE search
 coin). Clone uses `--target-mode cp` because the teacher already is NSCE.
 
-## Self-play with real outcomes
+## Legacy Python self-play / leaves (do not scale)
+
+`selfplay.py`, `collect_leaves.py`, `distill.py --label static`, and
+`train/run_datagen.sh` built the promoted 40k mix. They are **not** the Elo
+path. Do not collect more JSONL leaves. New data: `nsce_datagen` (above).
 
 ```bash
 python3 train/selfplay.py --games 8 --movetime 80 --both-colors \

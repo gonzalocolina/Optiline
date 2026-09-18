@@ -622,6 +622,8 @@ def train(
         w1 = rng.normal(0.0, 0.04, 2 * HIDDEN).astype(np.float32)
         b1 = 0.0
         w_threat = rng.normal(0.0, 0.15, THREAT_DIM).astype(np.float32)
+    if not use_threats:
+        w_threat = np.zeros(THREAT_DIM, dtype=np.float32)
     mw0 = np.zeros_like(w0)
     mps = np.zeros_like(w_ps)
     mb0 = np.zeros_like(b0)

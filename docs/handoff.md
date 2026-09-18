@@ -1,4 +1,4 @@
-# Handoff — 2026-09-15
+# Handoff — 2026-09-16
 
 Read this, then [knowledge.md](knowledge.md). Knowledge is a log; this file is
 what to do next. The north star is **equal-compute Stockfish 18** (same threads,
@@ -63,46 +63,69 @@ H1. One change per SPRT. 768 extras on, or king-bucket extras off.
 Keep the extension. Promoted vs internal, vs unrestricted SF18, and staged
 MovePicker are measured (see State).
 
-**P0.2 — start here.** Re-measure leftover nets/flags whose old verdict was a
-±15 coin flip and whose file still exists. `fastchess_match.py --st 100
---rounds 300`. One change per match. Update the Rejected table with the new
-numbers; do not delete old 60-ply rows, annotate them.
+**P0.2 done.** Re-measured leftover nets/flags whose old verdict was a
+±15 coin flip. `fastchess_match.py --st 100 --rounds 300`, N=600, seed
+20260915, `openings_balanced.epd`. One change per match. Old 60-ply rows
+kept and annotated in [knowledge.md](knowledge.md). No `baseline.uci` change.
 
-| Candidate | Config | Old 60-ply verdict |
+| Candidate | Config | Status |
 | --- | --- | --- |
-| `EvalScale=926` | `tools/configs/evalscale_926.uci` | 10-176-14, −7 ± 17 |
-| Hash 32 on this 768 | `tools/configs/hash32_rw0.uci` | Hash 32 vs *internal* was inconclusive |
-| LMR controller | `tools/configs/controller_rw0.uci` | 9-182-9, +0 ± 15 |
-| 40k mix λ=0.20 | `tools/configs/nnue_search_leaves40k.uci` | won nodes, failed SPRT |
-| 80k@8000 rw0 | `tools/configs/nnue_search_leaves80k_rw0.uci` | 9-180-11, −3 ± 16 |
-| 640k static | `tools/configs/nnue_wdl_leaves640k.uci` | 12-181-7, +9 ± 15 |
+| `EvalScale=926` | `tools/configs/evalscale_926.uci` | **done** 225-149-226, −0.6 ± 21, N=600. Keep 1000. |
+| Hash 32 on this 768 | `tools/configs/hash32_rw0.uci` | **done** 255-141-204, +29.6 ± 23, N=600. Hash 32 loses. Keep 16. |
+| LMR controller | `tools/configs/controller_rw0.uci` | **done** 239-138-223, +9.3 ± 23.1, N=600. Coin flip. Keep controller off. |
+| 40k mix λ=0.20 | `tools/configs/nnue_search_leaves40k.uci` | **done** 335-124-141, +116.5 ± 25.0, N=600. Candidate loses. Keep promoted rw0. |
+| 80k@8000 rw0 | `tools/configs/nnue_search_leaves80k_rw0.uci` | **done** 235-133-232, +1.7 ± 24.1, N=600. Coin flip. Keep promoted 40k. |
+| 640k static | `tools/configs/nnue_wdl_leaves640k.uci` | **done** 400-111-89, +199.4 ± 28.6, N=600. Static loses. Do not scale `--label static`. |
 
 Skip: KAT 111-87-2, SF-teacher 768 N=400, extras-off H0, staged-picker
 **−48 ± 31** full games. Those signs were decisive. Do not expect any of
 these leftover nets to close >900 Elo vs unrestricted SF.
 
-**P0.3** after P0.2: drop the `UCI_Elo` ladder as a strength claim. Weekly
-KPI = Elo vs `build/nsce-frozen-20260915` at `--tc 8+0.08`. 100 ms is a
-screen. SF18 unlimited at 8+0.08 once draws appear.
+**P0.3 done (weekly KPI).** current `build/nsce` (sha256 `6bfe02eb…`, NSCEPER1
+loader in tree) vs `build/nsce-frozen-20260915` (`503cff56…`), same
+`baseline.uci`, `--tc 8+0.08`, `openings_uho.epd`, seed 20260915, N=300:
+**129-45-126**, **+3.5 ± 20.7**. Coin flip. Binary change did not wreck the
+768 path. ([report](../experiments/20260916_kpi_frozen/report.md)). 100 ms is
+a screen. SF18 unlimited at 8+0.08 once draws appear.
 
-**P0.4** larger UHO-style 8-move EPD book in `tools/`; `openings_balanced.epd`
-is 128 lines (repeats on long SPRTs). Point `fastchess_match.py` at it.
+**P0.4 done (book).** `tools/openings_uho.epd` (4096 unique 8-move / 16-ply
+lines, NSCE `|eval|` 60–250 cp, seed 20260915). Default of
+`tools/fastchess_match.py` (`--openings`). Four-field EPD without a glued
+`;` on the EP square (fastchess rejects `f6;`). Leftover P0.2 screens stayed on
+`openings_balanced.epd` so they match EvalScale/Hash 32. KPI and later
+matches use the UHO book. Regenerate:
+`python3 tools/generate_uho_book.py`.
 
 ### P1 — Bullet + 100 M datagen + (768→512)×2 SCReLU
 
-`df -h .` first. 100 M bullet records ≈ 3.2 GB. `train/data/` holds ~37 GB of
-JSONL leaves with no remaining consumer. Keep the 40k promoted mix; archive
-or delete the rest of `leaves*.jsonl`.
+`df -h .` first. 100 M bullet records ≈ 3.2 GB. Freed ~32 G by deleting
+`leaves_with_results.jsonl` + sqlite (kept `train/data/nsce_search_mix_40k.jsonl`).
+~42 G free as of 2026-09-16 (`df -h .`).
+**P1 datagen resumed 2026-09-18 10:22.** `bash tools/resume_gen0.sh` append seed 4
+(544 286 games) on `build-per1/nsce_datagen` from **49.7 M** records. ~3410 pos/s,
+~4.1 h to 100 M. Watcher starts shuffle+bullet when the **file** is ≥100 M and 32-aligned.
+Shuffle before bullet; do not fake a net. SPSA stays blocked until a P1 net exists.
 
 ```bash
-./build/nsce_datagen --out train/data/gen0.bin --games 1200000 --nodes 5000 \
-  --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
+./build-per1/nsce_datagen --out train/data/gen0.bin --games 689341 --nodes 5000 \
+  --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 3
 ```
 
 ~12–14 h, ~100–120 M positions. Do not start the Python `selfplay.py` /
 `collect_leaves.py` path for this generation.
 
 Machine: GTX 1650 4 GB, CUDA. NumPy cannot ingest this scale.
+Driver is 595 / CUDA 13.2 capable. nvcc 12.2 is unpacked without sudo:
+
+```bash
+bash tools/setup_cuda_local.sh            # third_party/cuda-12.2 from local debs
+bash tools/watch_datagen_then_train.sh    # after gen0 done and ≥100 M positions
+bash train/run_bullet.sh                  # shuffle + CUDA train + pack + float-ref + 100 ms screen
+```
+
+`bash tools/setup_bullet.sh` is done. CUDA `nsce` example and `bullet-utils` are in
+`third_party/bullet/target/release/`. Train uses batch 8192 (GTX 1650 4 GB).
+Shuffle/train wait for `gen0.bin` to finish.
 
 ```bash
 # rustup + CUDA toolkit if missing
@@ -119,23 +142,48 @@ Shuffle `gen0.bin` before training. Docs: bullet `progression/2-output-buckets.m
 **Inference (`NSCEPER1`):** two 512-int16 accumulators (white / black
 perspective). Feature `perspective_piece * 64 + oriented_sq` (768,
 king-agnostic). Output = Σ SCReLU(acc_stm)·w_stm + Σ SCReLU(acc_nstm)·w_nstm
-per bucket. Quantise as bullet documents. Float-ref vs C++ on 10k FENs, max
-abs error ≤ 1 cp, before any match.
+per bucket `(popcount-2)/4`. AVX2 SCReLU (int32 square, int64 add; aligned
+`w1`). Loaded in `engine/src/nnue.cpp`; pack with
+`python3 tools/pack_nsceper1.py --from-quantised train/bullet_checkpoints/nsce-320/quantised.bin`.
+Then `python3 tools/per1_float_ref.py --net nets/nsceper1.bin --n 10000` (UseExtras
+off; quantized Python == C++; |float−C++| ≤ 2 cp) before any match on a packed net. Rebuild Release
+when no timed match is using `build/nsce`. Do not fake a trained net;
+extras-off is after a winning net; gen1 after H1. Train: 8 loader threads,
+batch queue 64, shuffle 4 GiB (`NSCE_THREADS` / `NSCE_QUEUE` / `SHUFFLE_MB`).
+GTX 1650 measured **~448 k pos/s** on an 8192×2 smoke (2 loader threads);
+320 × 100 M superbatches ≈ **22 h** after gen0 finishes. Training resumes from
+the last `nsce-*` optimiser_state (`NSCE_RESUME=0` to start over). Shuffle is
+skipped when `gen0.shuffled.bin` already matches gen0.bin size. `run_bullet.sh`
+retries the CUDA example up to 40 times so a driver drop does not abandon a
+22 h run.
 
 Expected: several hundred Elo over the promoted 768. Then measure
 `UseExtras=false` — do not assume extras can drop.
 
-Gate: `--st 100 --rounds 500`, then `--tc 8+0.08 --sprt 0 5`. If H1, promote
-`EvalFile`. Then gen1: regenerate with the new net, retrain, repeat (~3
-generations). King buckets / hidden 1024 / threats only after gen1 wins.
+Gate: `run_bullet.sh` runs `--st 100 --rounds 500` after float-ref (same
+`build-per1/nsce` that passed the export check). If extras-on is a clear loss
+(Elo A−B CI entirely ≥ +20), it measures `UseExtras=false` next — do not
+assume extras can drop, and do not skip that measurement. Then `--tc 8+0.08 --sprt 0 5`
+If H1, `python3 tools/promote_eval.py --sprt <match.json> --manifest <manifest.json>`
+updates `baseline.uci` (EvalFile, and UseExtras only if that was the winning candidate).
+Each generation packs to `nets/nsceper1_genN.bin` and screens a UCI that points at that
+file — it must not overwrite a promoted EvalFile. `run_gen1.sh` reads the promoted
+path from `baseline.uci`. `run_bullet.sh` runs that SPRT itself after a non-loss 100 ms screen, then extras-off
+after an extras-on H1, then `run_gen1.sh` unless `NSCE_SKIP_SPRT` / `NSCE_SKIP_GEN1`.
+Then gen1:
+regenerate with the new net, retrain, repeat (~3 generations). King buckets /
+hidden 1024 / threats only after gen1 wins.
 KAT on 1 M Lichess roots is not evidence against king-relative inputs.
 
 ### P2 — SPSA, not hand-tuned constants
 
-Expose ~40 search constants as UCI `spin` behind `NSCE_TUNE` (OpenBench
-`name, int, default, min, max, step, lr`). Tune with
-[weather-factory](https://github.com/jnlt3/weather-factory) over fastchess at
-8+0.08, ~30k games/pass. Re-run after every net generation.
+**In tree (not run yet):** 44 search constants in `engine/include/nsce/tune.hpp`,
+UCI spins behind CMake `-DNSCE_TUNE=ON` (`build-tune/nsce` copied to
+`build/nsce-tune`, `RazorMargin` advertised). weather-factory map
+`tools/configs/spsa.json`. Defaults match the 2026-09-15 source. Do not SPSA until P1 gen0 net exists; then
+`bash tools/run_spsa.sh` (~30k games/pass at 8+0.08). Re-run after every net
+generation. weather-factory `cutechess.py` takes `extra_uci` so both engines
+load the promoted PER1 `EvalFile` / `UseExtras` from baseline, not the engine default.
 
 Then one feature per SPRT [0, 5] at 8+0.08:
 
@@ -150,12 +198,13 @@ Then one feature per SPRT [0, 5] at 8+0.08:
 Lazy SMP (shared TT, staggered helper depths) only when the target is
 equal-compute SF at Threads > 1.
 
-### P3 — Lab (does not block P0.2)
+### P3 — Lab
 
-- Rewrite [eval_pipeline.md](eval_pipeline.md) step 3 to “fixed-node self-play
-  ≥ 100 M”; keep clone-export and deployed-integer gates; drop static-label
-  scale-up. Mark `selfplay.py` / `collect_leaves.py` / `distill.py --label static`
-  as legacy in `train/README.md`.
+- [eval_pipeline.md](eval_pipeline.md) step 3 is fixed-node self-play ≥100 M +
+  bullet + `NSCEPER1` (**verified 2026-09-16** against this handoff).
+  Clone-export and deployed-integer gates stay. `selfplay.py` /
+  `collect_leaves.py` / `distill.py --label static` marked legacy in
+  `train/README.md`. `promotion_gate.py` accepts fastchess H1 JSON.
 - Commit the dirty tree (dirty since 2026-08-27) before a long datagen so
   `manifest.json` `git.commit` is meaningful. Do not commit unless asked.
 
@@ -169,10 +218,10 @@ equal-compute SF at Threads > 1.
 - Drop the blanket check extension (SPRT [0, 10] N=3000 inconclusive,
   +3.8 ± 10.2). N=600 LOS 97 % did not hold.
 - Promote / replay `build-nps/nsce`, KAT bins, SF-teacher 768, extras-off on
-  this 768, Hash 32, `EvalScale≠1000`, policy, or the LMR controller **until
-  P0.2 gives a new sign**.
+  this 768, Hash 32, `EvalScale≠1000`, policy, the LMR controller, 40k λ=0.20,
+  80k rw0, or 640k static. P0.2 did not produce a new sign to promote.
 - Port GPL Stockfish search or load Stockfish `.nnue` weights. Labels are
   allowed; weights and search clones are not.
 - Lazy SMP, king buckets, hidden 1024, or threat inputs before P1 gen1 wins.
-- Skip P0.2 to start P1. The leftover coin-flips still need a working
-  instrument; then datagen.
+- Skip the weekly frozen KPI. Datagen is next after P0.3 is running (leftover
+  cores) or finished; do not oversubscribe a timed match.

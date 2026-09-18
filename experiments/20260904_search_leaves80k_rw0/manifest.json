@@ -1,0 +1,144 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/nnue_search_leaves80k_rw0.uci": "fd69cde56ac4343a116efb5d63473ba9f782de34538821a607a080270f70f2a6"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+    "engine_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e",
+    "referenced_files": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_search_leaves80k_rw0.bin": "b16d71415c753f31f1e366e860a7e1eab4e87f3ee568b4a18412acc3a8eaf376"
+    }
+  },
+  "command": [
+    "tools/ablation_match.py",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/nnue_search_leaves80k_rw0.uci",
+    "--name-a",
+    "baseline",
+    "--name-b",
+    "search80k_rw0",
+    "--games",
+    "200",
+    "--nodes",
+    "25000",
+    "--seed",
+    "20260814",
+    "--openings",
+    "tools/openings_balanced.epd",
+    "--outdir",
+    "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260904_search_leaves80k_rw0"
+  ],
+  "created_utc": "2026-09-03T23:25:18.114730+00:00",
+  "environment": {},
+  "git": {
+    "branch": "master",
+    "commit": "a1c826c07eefa142944bed3fc06a1b79e27b5380",
+    "dirty": true,
+    "status_porcelain": "M docs/eval_pipeline.md\n M docs/handoff.md\n M docs/knowledge.md\n M nets/nnue_validation.json\n M tools/ablation_match.py\n M tools/configs/baseline.uci\n M train/README.md\n M train/collect_leaves.py\n M train/distill.py\n M train/run_datagen.sh\n M train/selfplay.py\n M train/tests/test_collect_leaves.py\n M train/tests/test_selfplay.py\n M train/tests/test_train_nnue.py\n M train/train_nnue.py\n?? experiments/20260814_wdl_leaves/validate.err\n?? experiments/20260827_datagen1024/\n?? experiments/20260827_datagen2048/\n?? experiments/20260827_wdl_leaves160k/\n?? experiments/20260829_datagen4096/\n?? experiments/20260829_datagen8192/\n?? experiments/20260829_nps_movepicker/\n?? experiments/20260829_wdl_leaves320k/\n?? experiments/20260829_wdl_leaves640k/\n?? experiments/20260902_search_leaves40k/\n?? experiments/20260902_search_leaves40k_sprt/\n?? experiments/20260903_search_leaves40k_n25k/\n?? experiments/20260903_search_leaves40k_rw0/\n?? experiments/20260903_search_leaves40k_rw0_sprt/\n?? experiments/20260903_search_leaves80k/\n?? experiments/20260903_sf18_2000_rw0/\n?? experiments/20260903_sf18_2200_rw0/\n?? experiments/20260904_search_leaves80k_rw0/\n?? experiments/20260904_sf18_2200_rw0_n80/\n?? tools/configs/baseline_internal.uci\n?? tools/configs/nnue_search_leaves40k.uci\n?? tools/configs/nnue_search_leaves40k_n25k.uci\n?? tools/configs/nnue_search_leaves40k_rw0.uci\n?? tools/configs/nnue_search_leaves80k.uci\n?? tools/configs/nnue_search_leaves80k_rw0.uci\n?? tools/configs/nnue_wdl_leaves160k.uci\n?? tools/configs/nnue_wdl_leaves320k.uci\n?? tools/configs/nnue_wdl_leaves640k.uci"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "adjudication_cp": 800,
+    "adjudication_plies": 6,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+    "exploratory_short_tc": false,
+    "frozen_targets": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/frozen-targets/manifest.json",
+    "games": 200,
+    "kind": "ablation_match",
+    "max_plies": 60,
+    "movetime_ms": 100,
+    "nodes_per_move": 25000
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nnue_search_leaves80k_rw0.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "true",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260814,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "729ba385e5e2840a9c3410d69001ccf5c1b9e4d1036a4c42e20112f62179408f",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

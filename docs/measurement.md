@@ -127,8 +127,10 @@ The default minimum (50k) intentionally rejects the current 2k bootstrap. A smok
 
 ## Lab protocol upgrades
 
-- `tools/generate_openings.py` creates teacher-balanced diverse FENs.
-- `tools/openings_balanced.epd` (128 positions) is the preferred exploratory book.
+- `tools/generate_openings.py` creates teacher-balanced diverse FENs (128-line lab book).
+- `tools/generate_uho_book.py` builds a UHO-style 8-move (16-ply) EPD with NSCE.
+- `tools/openings_uho.epd` is the default book for `tools/fastchess_match.py`.
+- `tools/openings_balanced.epd` (128 positions) stays for telemetry / old reports.
 - `tools/sprt.py` now uses a **pair-level pentanomial** LLR and refuses resume from the older trinomial model.
 
 Promotion still requires a fresh pre-registered SPRT at a non-exploratory time control.

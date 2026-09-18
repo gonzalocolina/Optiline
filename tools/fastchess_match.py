@@ -112,6 +112,10 @@ def parse_summary(text: str) -> dict:
     if "sprt_hypothesis" in out:
         h = out["sprt_hypothesis"]
         out["sprt_decision"] = "H1" if "H1" in h else "H0" if "H0" in h else "inconclusive"
+        out["decision"] = {
+            "H1": "accept_H1_candidate_stronger",
+            "H0": "accept_H0_baseline_not_weaker",
+        }.get(out["sprt_decision"], "inconclusive")
     return out
 
 
@@ -131,7 +135,7 @@ def main() -> int:
     ap.add_argument("--concurrency", type=int, default=14)
     ap.add_argument("--sprt", nargs=2, type=float, metavar=("ELO0", "ELO1"), default=None)
     ap.add_argument("--sprt-model", choices=("normalized", "logistic"), default="normalized")
-    ap.add_argument("--openings", default=str(ROOT / "tools/openings_balanced.epd"))
+    ap.add_argument("--openings", default=str(ROOT / "tools/openings_uho.epd"))
     ap.add_argument("--seed", type=int, default=20260915)
     ap.add_argument("--maxmoves", type=int, default=300)
     ap.add_argument("--resign-score", type=int, default=1000)
@@ -213,8 +217,10 @@ def main() -> int:
             "engine_b": str(engine_b.resolve()),
             "cfg_a": str(cfg_a),
             "cfg_b": str(cfg_b),
+            "harness": "fastchess",
             "tc": args.tc if not args.st and not args.nodes else None,
             "st_ms": args.st or None,
+            "movetime_ms": args.st or 0,
             "nodes_per_move": args.nodes or None,
             "rounds": args.rounds,
             "concurrency": args.concurrency,

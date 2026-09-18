@@ -12,11 +12,18 @@ provenance (`source_game`, `opening_index`) and stay unlabeled.
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
+import multiprocessing
+import os
+import shutil
 import sqlite3
 import sys
 import tempfile
 import time
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +33,7 @@ from uci_common import UciEngine, load_openings  # noqa: E402
 
 DEFAULT_SITES = ("q_stand_pat", "static", "in_check_static")
 FINISHED_RESULTS = frozenset({"1-0", "0-1", "1/2-1/2"})
+MIN_FREE_BYTES = 512 * 1024 * 1024
 
 
 def log(message: str) -> None:
@@ -232,7 +240,7 @@ class FenStore:
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._db = sqlite3.connect(path)
+        self._db = sqlite3.connect(path, timeout=60.0)
         self._db.execute("CREATE TABLE IF NOT EXISTS fen_keys (k TEXT PRIMARY KEY)")
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS collected_roots ("
@@ -264,14 +272,17 @@ class FenStore:
         )
         self._maybe_commit()
 
+    def commit(self) -> None:
+        self._db.commit()
+        self._pending = 0
+
     def _maybe_commit(self) -> None:
         self._pending += 1
         if self._pending >= 4096:
-            self._db.commit()
-            self._pending = 0
+            self.commit()
 
     def close(self) -> None:
-        self._db.commit()
+        self.commit()
         self._db.close()
 
 
@@ -313,6 +324,220 @@ def consume_new_lines(path: Path, offset: int) -> tuple[list[str], int]:
     text = raw.decode("utf-8", errors="replace")
     lines = [line for line in text.splitlines() if line.strip()]
     return lines, offset
+
+
+def rewind_leaf_telemetry(engine: UciEngine, path: Path) -> None:
+    """Close the engine stream, drop the raw dump, reopen. Keeps one search of telemetry on disk."""
+    engine.apply_options({"LeafTelemetryFile": "<empty>"})
+    path.write_bytes(b"")
+    engine.apply_options({"LeafTelemetryFile": str(path)})
+
+
+def stamp_payload(game: dict | None) -> dict | None:
+    """Fields stamp_leaf needs. Do not pickle the full self-play game into workers."""
+    if game is None:
+        return None
+    return {
+        "opening_index": game.get("opening_index"),
+        "color": game.get("color") or "as_written",
+        "result": game.get("result"),
+        "termination": game.get("termination"),
+    }
+
+
+def parse_telemetry_records(lines: list[str], game: dict | None, root_fen: str) -> list[dict]:
+    records: list[dict] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if game is not None:
+            record = stamp_leaf(record, game, root_fen)
+        else:
+            record = dict(record)
+            record["source"] = "leaf"
+            record["label_kind"] = "search_leaf"
+        records.append(record)
+    return records
+
+
+def search_root_leaves(
+    engine: UciEngine,
+    telemetry: Path,
+    game: dict | None,
+    fen: str,
+    depth: int,
+    nodes: int,
+) -> list[dict]:
+    engine.new_game()
+    if depth > 0:
+        engine.go_depth(fen, [], depth)
+    else:
+        engine.go_nodes(fen, [], nodes)
+    lines, _ = consume_new_lines(telemetry, 0)
+    rewind_leaf_telemetry(engine, telemetry)
+    return parse_telemetry_records(lines, game, fen)
+
+
+def ingest_records(
+    handle,
+    store: FenStore,
+    sites: set[str],
+    records: list[dict],
+    game: dict | None,
+    fen: str,
+) -> int:
+    added = 0
+    for record in records:
+        if not keep_leaf(record, sites, store):
+            continue
+        handle.write(json.dumps(record) + "\n")
+        added += 1
+    opening_index, color = game_token(game)
+    store.add_root(opening_index, color, fen_key(fen))
+    store.commit()
+    handle.flush()
+    return added
+
+
+def repair_truncated_jsonl(path: Path) -> int:
+    """Drop a partial last line left by a killed append. Returns bytes removed."""
+    if not path.exists():
+        return 0
+    size = path.stat().st_size
+    if size == 0:
+        return 0
+    with path.open("rb") as handle:
+        handle.seek(-1, os.SEEK_END)
+        if handle.read(1) == b"\n":
+            return 0
+        found = -1
+        pos = size
+        chunk = 1024 * 1024
+        while pos > 0:
+            start = max(0, pos - chunk)
+            handle.seek(start)
+            data = handle.read(pos - start)
+            idx = data.rfind(b"\n")
+            if idx >= 0:
+                found = start + idx + 1
+                break
+            pos = start
+    keep = found if found >= 0 else 0
+    dropped = size - keep
+    os.truncate(path, keep)
+    return dropped
+
+
+def disk_too_full(path: Path, minimum: int = MIN_FREE_BYTES) -> bool:
+    return shutil.disk_usage(path).free < minimum
+
+
+_WORKER_ENGINE: UciEngine | None = None
+_WORKER_TELEMETRY: Path | None = None
+
+
+def _close_leaf_worker() -> None:
+    global _WORKER_ENGINE, _WORKER_TELEMETRY
+    engine, telemetry = _WORKER_ENGINE, _WORKER_TELEMETRY
+    _WORKER_ENGINE = None
+    _WORKER_TELEMETRY = None
+    if engine is not None:
+        try:
+            engine.apply_options({"LeafTelemetryFile": "<empty>"})
+        except OSError:
+            pass
+        engine.close()
+    if telemetry is not None:
+        telemetry.unlink(missing_ok=True)
+
+
+def _init_leaf_worker(engine: str, config: str, telemetry_dir: str) -> None:
+    global _WORKER_ENGINE, _WORKER_TELEMETRY
+    _close_leaf_worker()
+    telemetry = Path(telemetry_dir) / f"leaves.w{os.getpid()}.raw.jsonl"
+    telemetry.unlink(missing_ok=True)
+    _WORKER_TELEMETRY = telemetry
+    _WORKER_ENGINE = UciEngine([engine], "NSCE")
+    _WORKER_ENGINE.apply_uci_file(Path(config))
+    _WORKER_ENGINE.apply_options({"LeafTelemetryFile": str(telemetry), "Threads": "1", "Hash": "16"})
+    atexit.register(_close_leaf_worker)
+
+
+def _search_job(job: dict) -> dict:
+    assert _WORKER_ENGINE is not None and _WORKER_TELEMETRY is not None
+    records = search_root_leaves(
+        _WORKER_ENGINE,
+        _WORKER_TELEMETRY,
+        job["game"],
+        str(job["fen"]),
+        int(job["depth"]),
+        int(job["nodes"]),
+    )
+    return {"seq": int(job["seq"]), "records": records}
+
+
+def run_parallel_searches(
+    jobs: list[dict],
+    workers: int,
+    engine: str,
+    config: str,
+    telemetry_dir: str,
+    on_payload,
+    should_stop,
+) -> None:
+    """Spawn workers (not fork) so the parent's sqlite handle is not inherited."""
+    remaining: deque[dict] = deque(jobs)
+    window = max(workers * 2, workers)
+    retries: dict[int, int] = {}
+    pool_deaths = 0
+    ctx = multiprocessing.get_context("spawn")
+    while remaining:
+        if should_stop():
+            return
+        in_flight: dict = {}
+        try:
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                mp_context=ctx,
+                initializer=_init_leaf_worker,
+                initargs=(engine, config, telemetry_dir),
+            ) as pool:
+
+                def submit_more() -> None:
+                    while remaining and len(in_flight) < window and not should_stop():
+                        job = remaining.popleft()
+                        in_flight[pool.submit(_search_job, job)] = job
+
+                submit_more()
+                while in_flight:
+                    if should_stop():
+                        return
+                    done, _ = wait(list(in_flight), timeout=1.0, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        job = in_flight.pop(future)
+                        try:
+                            payload = future.result()
+                        except Exception as exc:
+                            seq = int(job["seq"])
+                            retries[seq] = retries.get(seq, 0) + 1
+                            log(f"leaf worker failed seq={seq}: {exc}")
+                            if retries[seq] < 3:
+                                remaining.append(job)
+                            else:
+                                log(f"skipping seq={seq} after {retries[seq]} failures")
+                        else:
+                            on_payload(payload)
+                        submit_more()
+        except BrokenProcessPool as exc:
+            pool_deaths += 1
+            log(f"leaf worker pool died ({exc}); respawning ({pool_deaths}/8)")
+            remaining.extendleft(reversed(list(in_flight.values())))
+            if pool_deaths >= 8:
+                raise
 
 
 def main() -> int:
@@ -375,7 +600,16 @@ def main() -> int:
         action="store_true",
         help="fill --seen-sqlite from --output/--leaves and mark --games roots collected",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="parallel 1-thread engine processes for root searches (idle cores). "
+        "Not Lazy SMP; uniqueness stays in this process via the sqlite index",
+    )
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers must be >= 1")
 
     if args.strip_results:
         if not args.games:
@@ -449,60 +683,119 @@ def main() -> int:
         log(f"skip {skipped} already-collected roots  remaining {len(pending)}")
     roots = pending
 
-    engine = UciEngine([str(args.engine)], "NSCE")
+    if disk_too_full(output.parent):
+        free = shutil.disk_usage(output.parent).free
+        log(f"refusing: only {free} bytes free under {output.parent} (need ≥512MB)")
+        store.close()
+        return 1
+
+    workers = min(args.workers, max(1, len(roots)))
     kept = 0
-    offset = 0
     started = time.monotonic()
+    aborted = False
+    mode = "a" if args.append else "w"
+    if args.append:
+        dropped = repair_truncated_jsonl(output)
+        if dropped:
+            log(f"dropped {dropped} truncated trailing bytes in {output}")
+
+    def log_progress(done: int, game: dict | None, fen: str, added: int) -> None:
+        elapsed = max(time.monotonic() - started, 1e-6)
+        remaining = max(len(roots) - done, 0)
+        eta = remaining * (elapsed / done) if done else 0.0
+        label = (
+            f"opening={game.get('opening_index')} {game.get('color')} result={game.get('result')}"
+            if game
+            else f"book {done} {fen_key(fen)}"
+        )
+        log(
+            f"leaves {done}/{len(roots)} ({100.0 * done / max(len(roots), 1):.1f}%)  "
+            f"{label}  +{added} unique  total {kept}  workers={workers}  "
+            f"elapsed {format_duration(elapsed)}  eta {format_duration(eta)}"
+        )
+
     try:
-        engine.apply_uci_file(Path(args.config))
-        if telemetry.exists():
-            telemetry.unlink()
-        engine.apply_options({"LeafTelemetryFile": str(telemetry), "Threads": "1", "Hash": "16"})
-        mode = "a" if args.append else "w"
         with output.open(mode, encoding="utf-8") as handle:
-            for index, (game, fen) in enumerate(roots, start=1):
-                engine.new_game()
-                if args.depth > 0:
-                    engine.go_depth(fen, [], args.depth)
-                else:
-                    engine.go_nodes(fen, [], args.nodes)
-                lines, offset = consume_new_lines(telemetry, offset)
-                added = 0
-                for line in lines:
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if game is not None:
-                        record = stamp_leaf(record, game, fen)
-                    else:
-                        record["source"] = "leaf"
-                        record["label_kind"] = "search_leaf"
-                    if not keep_leaf(record, sites, store):
-                        continue
-                    handle.write(json.dumps(record) + "\n")
-                    kept += 1
-                    added += 1
-                opening_index, color = game_token(game)
-                store.add_root(opening_index, color, fen_key(fen))
-                handle.flush()
-                elapsed = max(time.monotonic() - started, 1e-6)
-                eta = (len(roots) - index) * (elapsed / index) if index else 0.0
-                label = (
-                    f"opening={game.get('opening_index')} {game.get('color')} result={game.get('result')}"
-                    if game
-                    else f"book {index}"
-                )
+            if workers <= 1:
+                engine = UciEngine([str(args.engine)], "NSCE")
+                try:
+                    engine.apply_uci_file(Path(args.config))
+                    if telemetry.exists():
+                        telemetry.unlink()
+                    engine.apply_options(
+                        {"LeafTelemetryFile": str(telemetry), "Threads": "1", "Hash": "16"}
+                    )
+                    for index, (game, fen) in enumerate(roots, start=1):
+                        if disk_too_full(output.parent):
+                            free = shutil.disk_usage(output.parent).free
+                            log(
+                                f"stopping: only {free} bytes free under {output.parent} "
+                                f"(need ≥512MB); rerun --append"
+                            )
+                            aborted = True
+                            break
+                        records = search_root_leaves(
+                            engine, telemetry, game, fen, args.depth, args.nodes
+                        )
+                        added = ingest_records(handle, store, sites, records, game, fen)
+                        kept += added
+                        log_progress(index, game, fen, added)
+                finally:
+                    engine.close()
+                    telemetry.unlink(missing_ok=True)
+            else:
                 log(
-                    f"leaves {index}/{len(roots)} ({100.0 * index / max(len(roots), 1):.1f}%)  "
-                    f"{label}  +{added} unique  total {kept}  "
-                    f"elapsed {format_duration(elapsed)}  eta {format_duration(eta)}"
+                    f"collect_leaves spawning {workers} engine processes "
+                    f"(spawn, Threads=1 each, unique telemetry per worker)"
+                )
+                telemetry_dir = str(output.parent)
+                jobs = [
+                    {
+                        "seq": seq,
+                        "game": stamp_payload(game),
+                        "fen": fen,
+                        "depth": args.depth,
+                        "nodes": args.nodes,
+                    }
+                    for seq, (game, fen) in enumerate(roots)
+                ]
+                done = 0
+
+                def on_payload(payload: dict) -> None:
+                    nonlocal kept, done, aborted
+                    if aborted:
+                        return
+                    seq = int(payload["seq"])
+                    game, fen = roots[seq]
+                    added = ingest_records(
+                        handle, store, sites, payload["records"], game, fen
+                    )
+                    kept += added
+                    done += 1
+                    log_progress(done, game, fen, added)
+                    if disk_too_full(output.parent):
+                        free = shutil.disk_usage(output.parent).free
+                        log(
+                            f"stopping: only {free} bytes free under {output.parent} "
+                            f"(need ≥512MB); rerun --append"
+                        )
+                        aborted = True
+
+                run_parallel_searches(
+                    jobs,
+                    workers,
+                    str(args.engine),
+                    str(args.config),
+                    telemetry_dir,
+                    on_payload,
+                    lambda: aborted,
                 )
     finally:
-        engine.close()
         store.close()
 
-    log(f"wrote {kept} unique leaf FENs to {output}")
+    log(f"wrote {kept} unique leaf FENs to {output}" + ("  aborted" if aborted else ""))
+    if aborted:
+        return 1
     return 0 if kept or args.append else 1
 
 

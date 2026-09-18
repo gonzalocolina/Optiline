@@ -101,15 +101,28 @@ void fill_bitboards(const Position& pos, uint64_t bbs[8]) {
 
 enum class GameEnd { None, WhiteWins, BlackWins, Draw, Discard };
 
+constexpr std::size_t kWriteBufBytes = 1 << 20;
+
 struct Shared {
   std::mutex out_mutex;
   std::ofstream out;
+  std::vector<char> file_buf;
   std::atomic<uint64_t> games{0};
   std::atomic<uint64_t> positions{0};
   std::atomic<uint64_t> discarded{0};
   std::atomic<uint64_t> wins{0}, draws{0}, losses{0};
   std::atomic<bool> stop{false};
 };
+
+void flush_locked(Shared& shared) { shared.out.flush(); }
+
+void write_records(Shared& shared, std::vector<char>& buf, bool force) {
+  if (buf.empty() || (!force && buf.size() < kWriteBufBytes)) return;
+  std::lock_guard<std::mutex> lock(shared.out_mutex);
+  shared.out.write(buf.data(), static_cast<std::streamsize>(buf.size()));
+  shared.out.flush();
+  buf.clear();
+}
 
 void worker(int index, const DatagenOptions& opt, Shared& shared) {
   std::mt19937_64 rng(opt.seed * 0x9E3779B97F4A7C15ULL + static_cast<uint64_t>(index) * 0xD1B54A32D192ED03ULL + 1);
@@ -122,6 +135,10 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
   std::vector<PendingRecord> pending;
   pending.reserve(512);
   std::vector<char> bytes;
+  bytes.reserve(1 << 16);
+  std::vector<char> write_buf;
+  write_buf.reserve(kWriteBufBytes);
+  auto last_force = std::chrono::steady_clock::now();
 
   while (!shared.stop.load(std::memory_order_relaxed)) {
     const uint64_t game_index = shared.games.fetch_add(1, std::memory_order_relaxed);
@@ -130,8 +147,9 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
     Position pos;
     pos.set_startpos();
     pos.set_use_extras(opt.use_extras);
-    search.clear_search_state();
     pending.clear();
+    // Keep TT and history across games. Clearing 16 MB every game was measurable
+    // and empty history made the next 5k-node search colder. go() still ages.
 
     // Random opening.
     bool aborted = false;
@@ -242,12 +260,14 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
         std::memcpy(bytes.data() + i * sizeof(BulletChessBoard), &board, sizeof(board));
       }
     }
-    {
-      std::lock_guard<std::mutex> lock(shared.out_mutex);
-      shared.out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    }
+    write_buf.insert(write_buf.end(), bytes.begin(), bytes.end());
+    const auto now = std::chrono::steady_clock::now();
+    const bool aged = now - last_force >= std::chrono::seconds(5);
+    write_records(shared, write_buf, aged);
+    if (aged) last_force = now;
     shared.positions.fetch_add(pending.size(), std::memory_order_relaxed);
   }
+  write_records(shared, write_buf, true);
 }
 
 }  // namespace
@@ -265,6 +285,8 @@ uint64_t run_datagen(const DatagenOptions& opt) {
   nnue.set_enabled(true);
 
   Shared shared;
+  shared.file_buf.resize(kWriteBufBytes);
+  shared.out.rdbuf()->pubsetbuf(shared.file_buf.data(), static_cast<std::streamsize>(shared.file_buf.size()));
   shared.out.open(opt.output, std::ios::binary | std::ios::app);
   if (!shared.out) {
     std::cerr << "datagen: cannot open " << opt.output << '\n';
@@ -290,10 +312,17 @@ uint64_t run_datagen(const DatagenOptions& opt) {
   };
   while (shared.games.load() < static_cast<uint64_t>(opt.games)) {
     std::this_thread::sleep_for(std::chrono::seconds(5));
+    {
+      std::lock_guard<std::mutex> lock(shared.out_mutex);
+      flush_locked(shared);
+    }
     report(false);
   }
   for (auto& t : pool) t.join();
-  shared.out.flush();
+  {
+    std::lock_guard<std::mutex> lock(shared.out_mutex);
+    flush_locked(shared);
+  }
   report(true);
   return shared.positions.load();
 }

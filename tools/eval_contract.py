@@ -39,6 +39,7 @@ GROUP_NAMES = {
 
 KING_BUCKET_MAGICS = {b"NSCEHFKP", b"NSCEKAT1"}
 NNUE768_MAGICS = {b"NSCENNUE"}
+PER1_MAGICS = {b"NSCEPER1"}
 
 
 def parse_uci_options(path: Path) -> dict[str, str]:
@@ -83,6 +84,8 @@ def net_kind(eval_file: str, root: Path | None = None) -> str:
         return "nnue768"
     if magic in KING_BUCKET_MAGICS:
         return "king_bucket"
+    if magic in PER1_MAGICS:
+        return "per1"
     return "unknown"
 
 
@@ -91,6 +94,8 @@ def extras_required(kind: str) -> bool | None:
         return True
     if kind == "king_bucket":
         return False
+    if kind == "per1":
+        return None
     return None
 
 
@@ -99,12 +104,31 @@ def extras_contract_errors(eval_file: str, use_extras: str | bool, root: Path | 
     required = extras_required(kind)
     extras_on = truthy(str(use_extras)) if not isinstance(use_extras, bool) else use_extras
     if required is None:
+        if kind == "per1":
+            return []
         return [f"cannot determine extras contract for EvalFile={eval_file!r}"]
     if required and not extras_on:
         return ["768 nets must keep UseExtras=true (load-bearing on the frozen arbiter)"]
     if not required and extras_on:
         return ["king-bucket nets must keep UseExtras=false (extras fight the net)"]
     return []
+
+
+def screen_is_clear_loss(summary: dict, margin: float = 20.0) -> bool:
+    """True if baseline (A) is ahead of candidate (B) by more than the 95% CI plus margin.
+
+    Used by run_bullet.sh: extras-on 100 ms screen must not bury a PER1 net that
+    only works with UseExtras=false. Do not treat a coin flip as a clear loss.
+    """
+    elo = float(summary.get("elo_a_minus_b") or 0.0)
+    err = float(summary.get("elo_err_95") or 0.0)
+    return elo - err > margin
+
+
+def sprt_is_h1(summary: dict) -> bool:
+    if summary.get("sprt_decision") == "H1":
+        return True
+    return summary.get("decision") == "accept_H1_candidate_stronger"
 
 
 def changed_options(baseline: dict[str, str], candidate: dict[str, str]) -> dict[str, tuple[str, str]]:

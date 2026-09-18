@@ -16,6 +16,7 @@ option(NSCE_AVX2 "Enable AVX2 NNUE kernels" ON)
 option(NSCE_SANITIZE "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(NSCE_TSAN "Enable ThreadSanitizer" OFF)
 option(NSCE_STATS "Enable low-overhead search telemetry" OFF)
+option(NSCE_TUNE "Expose search constants as UCI spins for SPSA" OFF)
 
 if(NSCE_SANITIZE AND NSCE_TSAN)
   message(FATAL_ERROR "NSCE_SANITIZE and NSCE_TSAN are mutually exclusive")
@@ -63,13 +64,23 @@ target_compile_options(nsce_engine PRIVATE
 if(NSCE_STATS)
   target_compile_definitions(nsce_engine PUBLIC NSCE_STATS=1)
 endif()
+if(NSCE_TUNE)
+  target_compile_definitions(nsce_engine PUBLIC NSCE_TUNE=1)
+endif()
 
-if(NSCE_NATIVE)
+if(NSCE_NATIVE AND NOT CMAKE_CROSSCOMPILING)
   target_compile_options(nsce_engine PRIVATE -march=native)
+elseif(MINGW)
+  # Portable Windows binary: AVX2 + BMI2 (Haswell / x86-64-v3).
+  target_compile_options(nsce_engine PRIVATE -march=x86-64-v3)
 endif()
 if(NSCE_AVX2)
-  include(CheckCXXCompilerFlag)
-  check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+  if(CMAKE_CROSSCOMPILING OR MINGW)
+    set(COMPILER_SUPPORTS_AVX2 TRUE)
+  else()
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+  endif()
   if(COMPILER_SUPPORTS_AVX2)
     target_compile_options(nsce_engine PRIVATE -mavx2 -mfma)
     target_compile_definitions(nsce_engine PRIVATE NSCE_HAS_AVX2=1)
@@ -88,45 +99,50 @@ target_link_libraries(nsce PRIVATE nsce_engine)
 if(NSCE_LTO AND ipo_ok)
   set_property(TARGET nsce PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 endif()
+if(MINGW)
+  target_link_options(nsce PRIVATE -static)
+endif()
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+if(NOT CMAKE_CROSSCOMPILING)
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
 
-enable_testing()
-add_executable(nsce_tests
-  engine/tests/test_perft.cpp
-  engine/tests/test_board.cpp
-  engine/tests/test_nnue.cpp
-  engine/tests/test_search.cpp
-  engine/tests/test_see.cpp
-  engine/tests/test_tt.cpp
-)
-target_link_libraries(nsce_tests PRIVATE nsce_engine GTest::gtest_main)
-include(GoogleTest)
-gtest_discover_tests(nsce_tests)
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_test(
-  NAME PythonExperimentTests
-  COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/tests -p "test_*.py"
-)
-set_tests_properties(PythonExperimentTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-add_test(
-  NAME PythonTrainTests
-  COMMAND ${Python3_EXECUTABLE} -m unittest discover -s train/tests -p "test_*.py"
-)
-set_tests_properties(PythonTrainTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-add_test(
-  NAME UciSmoke
-  COMMAND ${Python3_EXECUTABLE} tools/smoke_match.py --engine $<TARGET_FILE:nsce>
-          --games 1 --depth-a 3 --depth-b 2 --max-plies 10
-)
-set_tests_properties(UciSmoke PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 30)
+  enable_testing()
+  add_executable(nsce_tests
+    engine/tests/test_perft.cpp
+    engine/tests/test_board.cpp
+    engine/tests/test_nnue.cpp
+    engine/tests/test_search.cpp
+    engine/tests/test_see.cpp
+    engine/tests/test_tt.cpp
+  )
+  target_link_libraries(nsce_tests PRIVATE nsce_engine GTest::gtest_main)
+  include(GoogleTest)
+  gtest_discover_tests(nsce_tests)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(
+    NAME PythonExperimentTests
+    COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/tests -p "test_*.py"
+  )
+  set_tests_properties(PythonExperimentTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  add_test(
+    NAME PythonTrainTests
+    COMMAND ${Python3_EXECUTABLE} -m unittest discover -s train/tests -p "test_*.py"
+  )
+  set_tests_properties(PythonTrainTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  add_test(
+    NAME UciSmoke
+    COMMAND ${Python3_EXECUTABLE} tools/smoke_match.py --engine $<TARGET_FILE:nsce>
+            --games 1 --depth-a 3 --depth-b 2 --max-plies 10
+  )
+  set_tests_properties(UciSmoke PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 30)
+endif()
 
 add_executable(nsce_bench engine/benches/bench_search.cpp)
 target_link_libraries(nsce_bench PRIVATE nsce_engine)
@@ -139,19 +155,27 @@ target_link_libraries(nsce_bench_components PRIVATE nsce_engine)
 
 add_executable(nsce_datagen engine/benches/datagen_main.cpp)
 target_link_libraries(nsce_datagen PRIVATE nsce_engine)
+if(NSCE_LTO AND ipo_ok)
+  set_property(TARGET nsce_datagen PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+endif()
+if(MINGW)
+  target_link_options(nsce_datagen PRIVATE -static)
+endif()
 
-add_test(
-  NAME SearchBenchSmoke
-  COMMAND $<TARGET_FILE:nsce_bench> 5 1 1 internal
-)
-add_test(
-  NAME NnueBenchSmoke
-  COMMAND $<TARGET_FILE:nsce_bench_nnue> 1000 internal
-)
-add_test(
-  NAME ComponentsBenchSmoke
-  COMMAND $<TARGET_FILE:nsce_bench_components> 1000 internal
-)
+if(NOT CMAKE_CROSSCOMPILING)
+  add_test(
+    NAME SearchBenchSmoke
+    COMMAND $<TARGET_FILE:nsce_bench> 5 1 1 internal
+  )
+  add_test(
+    NAME NnueBenchSmoke
+    COMMAND $<TARGET_FILE:nsce_bench_nnue> 1000 internal
+  )
+  add_test(
+    NAME ComponentsBenchSmoke
+    COMMAND $<TARGET_FILE:nsce_bench_components> 1000 internal
+  )
+endif()
 
 # Optional PGO helpers (manual two-pass):
 #   cmake -DNSCE_PGO_GENERATE=ON ... && build && ./nsce bench 8

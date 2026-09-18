@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+from eval_contract import parse_uci_options  # noqa: E402
 from uci_common import UciEngine, load_openings  # noqa: E402
 
 
@@ -17,6 +18,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", default=str(ROOT / "build" / "nsce"))
     parser.add_argument("--openings", default=str(ROOT / "tools" / "openings_balanced.epd"))
+    parser.add_argument("--config", default=str(ROOT / "tools/configs/baseline.uci"))
     parser.add_argument("--telemetry", default=str(ROOT / "train" / "data" / "lmr_telemetry.csv"))
     parser.add_argument("--depth", type=int, default=8)
     parser.add_argument("--limit", type=int, default=64)
@@ -30,17 +32,11 @@ def main() -> int:
     openings = load_openings(Path(args.openings))[: max(1, args.limit)]
     engine = UciEngine([str(args.engine)], "NSCE")
     try:
-        engine.apply_options(
-            {
-                "Hash": "16",
-                "Threads": "1",
-                "UseNNUE": "true",
-                "EvalFile": "internal",
-                "UsePolicy": "false",
-                "UseSearchController": "false",
-                "TelemetryFile": str(telemetry),
-            }
-        )
+        options = parse_uci_options(Path(args.config))
+        options["UsePolicy"] = "false"
+        options["UseSearchController"] = "false"
+        options["TelemetryFile"] = str(telemetry)
+        engine.apply_options(options)
         for index, fen in enumerate(openings):
             engine.new_game()
             engine.go_depth(fen, [], args.depth)
