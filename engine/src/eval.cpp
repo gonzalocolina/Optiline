@@ -140,14 +140,11 @@ int cached_pawn_structure(const Position& pos, Bitboard wp, Bitboard bp) {
   return entry.score;
 }
 
-int extras(const Position& pos) {
+int extras_structure(const Position& pos) {
   int score = 10;  // tempo for the side that will move, applied in white-POV then flipped
 
   const Bitboard wp = pos.pieces(WHITE, PAWN);
   const Bitboard bp = pos.pieces(BLACK, PAWN);
-  const Bitboard occ = pos.occupied();
-  const Bitboard w_pawn_att = shift_ne(wp) | shift_nw(wp);
-  const Bitboard b_pawn_att = shift_se(bp) | shift_sw(bp);
 
   if (popcount(pos.pieces(WHITE, BISHOP)) >= 2) score += 35;
   if (popcount(pos.pieces(BLACK, BISHOP)) >= 2) score -= 35;
@@ -164,6 +161,16 @@ int extras(const Position& pos) {
     return popcount(pos.pieces(c, PAWN) & files & rank);
   };
   score += 12 * (shield(WHITE) - shield(BLACK));
+  return score;
+}
+
+int extras_tactical(const Position& pos) {
+  int score = 0;
+  const Bitboard wp = pos.pieces(WHITE, PAWN);
+  const Bitboard bp = pos.pieces(BLACK, PAWN);
+  const Bitboard occ = pos.occupied();
+  const Bitboard w_pawn_att = shift_ne(wp) | shift_nw(wp);
+  const Bitboard b_pawn_att = shift_se(bp) | shift_sw(bp);
 
   int mobility[COLOR_NB]{};
   Bitboard att[COLOR_NB]{w_pawn_att, b_pawn_att};
@@ -235,6 +242,33 @@ int extras(const Position& pos) {
   return score;
 }
 
+int extras(const Position& pos) { return extras_structure(pos) + extras_tactical(pos); }
+
+int stm_sign(const Position& pos, int white_score) {
+  return pos.side_to_move() == WHITE ? white_score : -white_score;
+}
+
+// Chess768 already sees piece lists. Slider mobility is ~20 % of every 768 node
+// and fights a dual-perspective net trained on the full search coin. Keep a
+// cheap faded structure nudge in close games; skip it once material is decided.
+int per1_extras_white(const Position& pos) {
+  const int n = popcount(pos.occupied());
+  const int fade = std::max(0, n - 8);
+  if (fade == 0) return 0;
+  return extras_structure(pos) * fade / 96;
+}
+
+int finish_per1(const Position& pos, int nnue) {
+  const int simple = simple_eval(pos);
+  int v = nnue;
+  if (std::abs(simple) >= kPer1SimpleSkip) {
+    v = (3 * nnue + simple) / 4;
+  } else if (pos.use_extras()) {
+    v += stm_sign(pos, per1_extras_white(pos));
+  }
+  return clamp_eval(v);
+}
+
 }  // namespace
 
 thread_local bool legacy_use_extras = true;
@@ -245,11 +279,10 @@ bool use_extras() { return legacy_use_extras; }
 int evaluate(const Position& pos) {
   if (pos.nnue().is_enabled()) {
     const int nnue = pos.nnue().evaluate(pos);
+    if (pos.nnue().uses_per1()) return finish_per1(pos, nnue);
     // Trained king-bucket nets already see structure/threats; HCE extras fight the net.
     if (pos.nnue().uses_king_buckets() || !pos.use_extras()) return nnue;
-    const int extras_white = extras(pos);
-    const int extras_stm = (pos.side_to_move() == WHITE) ? extras_white : -extras_white;
-    return extras_stm + nnue;
+    return nnue + stm_sign(pos, extras(pos));
   }
   int score = extras(pos);
   for (int sq = 0; sq < SQUARE_NB; ++sq) {
@@ -269,9 +302,23 @@ int evaluate_nnue(const Position& pos) {
   return pos.nnue().is_enabled() ? pos.nnue().evaluate(pos) : 0;
 }
 
-int classical_extras(const Position& pos) {
-  const int white_score = extras(pos);
-  return pos.side_to_move() == WHITE ? white_score : -white_score;
+int classical_extras(const Position& pos) { return stm_sign(pos, extras(pos)); }
+
+int applied_extras(const Position& pos) {
+  if (pos.nnue().is_enabled() && pos.nnue().uses_per1()) {
+    if (std::abs(simple_eval(pos)) >= kPer1SimpleSkip || !pos.use_extras()) return 0;
+    return stm_sign(pos, per1_extras_white(pos));
+  }
+  if (pos.nnue().is_enabled() && (pos.nnue().uses_king_buckets() || !pos.use_extras())) return 0;
+  return stm_sign(pos, extras(pos));
+}
+
+int simple_eval(const Position& pos) {
+  int score = 0;
+  for (PieceType pt : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN}) {
+    score += piece_value(pt) * (pos.piece_count(WHITE, pt) - pos.piece_count(BLACK, pt));
+  }
+  return stm_sign(pos, score);
 }
 
 int piece_value(PieceType pt) {

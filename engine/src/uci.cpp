@@ -152,7 +152,8 @@ void Uci::handle_command(const std::string& line) {
     is >> mode;
     if (mode == "details") {
       std::cout << "eval " << evaluate(pos_) << " nnue " << evaluate_nnue(pos_) << " extras "
-                << classical_extras(pos_) << " use_extras " << (pos_.use_extras() ? 1 : 0) << std::endl;
+                << applied_extras(pos_) << " simple " << simple_eval(pos_) << " use_extras "
+                << (pos_.use_extras() ? 1 : 0) << std::endl;
     } else {
       std::cout << "eval " << evaluate(pos_) << std::endl;
     }

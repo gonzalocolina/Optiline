@@ -1,8 +1,9 @@
 """One-change and extras contract for evaluator candidates.
 
-768 nets carry extras(); king-bucket nets do not. Mixing those with policy,
-controller, or EvalScale in one SPRT is how the lab lost the ability to tell
-what failed.
+768 nets carry the full classical extras(). King-bucket nets do not. PER1 may
+use either flag: extras-on is a faded structure residual plus material minmax,
+not the 768 HCE. Mixing eval with policy, controller, or EvalScale in one SPRT
+is how the lab lost the ability to tell what failed.
 """
 
 from __future__ import annotations
