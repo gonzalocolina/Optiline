@@ -59,8 +59,9 @@ if (( file_pos >= MIN_POS )); then
 fi
 
 need=$(( MIN_POS - file_pos ))
-# ~96 positions / game in the seed-1 run; 20k extra games as margin.
-games=$(( need / 96 + 20000 ))
+# ~96 positions / game in the seed-1 run; 50k extra games (~4.8 M) so a short
+# game-length dip cannot land the file at 99 M and skip train.
+games=$(( need / 96 + 50000 ))
 if (( games < 1000 )); then games=1000; fi
 seed=2
 if [[ -f "$SEED_FILE" ]]; then

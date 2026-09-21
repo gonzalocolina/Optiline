@@ -101,6 +101,7 @@ class EvalScaleTest(unittest.TestCase):
     def test_teacher_family(self) -> None:
         self.assertEqual(teacher_family({"id_name": "NSCE 0.10"}, "build/nsce"), "nsce")
         self.assertEqual(teacher_family({"id_name": "Stockfish 18"}, "stockfish"), "stockfish")
+        self.assertEqual(teacher_family({"id_name": "Stockfish 19"}, "stockfish"), "stockfish")
         self.assertTrue(math.isfinite(NSCE_SEARCH_WDL_SCALE))
 
 

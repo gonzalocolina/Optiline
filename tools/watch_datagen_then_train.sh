@@ -32,8 +32,11 @@ if (( bytes % 32 != 0 )); then
 fi
 file_pos=$(( bytes / 32 ))
 if [[ "$file_pos" -lt "$MIN_POS" ]]; then
-  echo "file positions=$file_pos < $MIN_POS; not training" >&2
-  exit 1
+  echo "$(date -Is) file positions=$file_pos < $MIN_POS; appending another seed" >&2
+  # Drop watch.pid so resume_gen0 starts a new waiter after this process execs.
+  rm -f "$ROOT/experiments/20260916_datagen_gen0/watch.pid"
+  flock -u 9
+  exec bash "$ROOT/tools/resume_gen0.sh"
 fi
 if [[ ! -f "$LOG" ]] || ! grep -q '^datagen done:' "$LOG"; then
   echo "datagen done: watcher-complete, $file_pos positions, 0 pos/s, 0 s" >>"$LOG"

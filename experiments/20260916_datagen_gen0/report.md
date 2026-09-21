@@ -21,4 +21,8 @@ Stdout: `experiments/20260916_datagen_gen0/stdout.log`
 **Paused 2026-09-16 21:57 (user).** SIGTERM writer then watcher. File **49 668 542** records (1 589 393 344 bytes, 32-aligned). No `datagen done`. Do not train.
 
 **Resumed 2026-09-18 10:22.** `bash tools/resume_gen0.sh` append seed 4, 544 286 games, `build-per1/nsce_datagen` PID 90052, 14 threads, ~3410 pos/s. Watcher PID 90055. ~4.1 h to 100 M.
-- GTX 1650 smoke (8192×2, 2 loader threads, isolated 1 MiB slice): **~448 k pos/s** after warmup. 320 superbatches × 100 M ≈ **22 h** GPU after shuffle. Do not fake a net. Do not start bullet until `datagen done` and file ≥100 M.
+- **Paused 2026-09-18 11:47 (user).** SIGTERM watcher 90055 then writer 90052. File **67 076 005** records (2 146 432 160 bytes, 32-aligned). No `datagen done`.
+- **Resumed 2026-09-18 13:48.** `bash tools/resume_gen0.sh` append seed 5, 362 958 games, `build-per1/nsce_datagen` PID 7032, 14 threads. Watcher restarted 14:08 as PID **12125**. From **67 076 005**. Warmed to ~3260 pos/s.
+- **Done 2026-09-18 18:01.** `datagen done:` 359 836 games this seed (W 115 502 D 60 394 L 183 940, discarded 3122), 34 565 728 positions, 3261 pos/s, 10598 s. File **101 641 733** records (3 252 535 456 bytes, 32-aligned). Watcher 12125 exec'd `train/run_bullet.sh`. Shuffle validated. CUDA train ~3.3 M pos/s, 320 superbatches, checkpoints every 10.
+- **Train paused 2026-09-18 20:16 (user).** SIGTERM `run_bullet.sh` 12125 then CUDA `examples/nsce` 28654. Checkpoint **`train/bullet_checkpoints/nsce-250`** has optimiser_state.
+- **Train resumed 2026-09-18 21:04.** `bash train/run_bullet.sh` PID 5449, CUDA 5476. Shuffle re-validated (101 641 733, no invalid). Resume checkpoint 250, start superbatch 251/320.

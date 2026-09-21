@@ -1,13 +1,8 @@
-//! Dual-perspective net. Layer widths started as Stockfish 18 *small*
-//! (phones / WASM): L1=128, L2=16, L3=32, 8 material buckets.
-//! Stockfish 19 retired that secondary net (SFNNv16 is a single L1=1024,
-//! L2=32, L3=32). Keep this 128-wide graph so gen0.bin / NSCEPER1 stay valid;
-//! do not grow to SF19's big net until a 128-wide net wins.
-//! SF18 small was (22528, 128, 15, 32, 1); we use 16 not 15 so L2 is SIMD.
-//! Copy to third_party/bullet/examples/nsce.rs via tools/setup_bullet.sh.
+//! Original P1 graph: (768 → 512)×2 SCReLU → 1. Chess768 so gen0.bin stays valid.
+//! Copy to third_party/bullet/examples/nsce.rs with NSCE_GRAPH=simple.
 
 use bullet_lib::{
-    game::{inputs::Chess768, outputs::MaterialCount},
+    game::inputs::Chess768,
     nn::optimiser::AdamW,
     trainer::{
         save::SavedFormat,
@@ -51,10 +46,7 @@ fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
 }
 
 fn main() {
-    // Historical SF18-small widths (128, 15, 32, 1). SF19 no longer ships this.
-    let l1 = 128;
-    let l2 = 16;
-    let l3 = 32;
+    const HIDDEN: usize = 512;
     let dataset_path = std::env::var("NSCE_DATASET")
         .unwrap_or_else(|_| "../../train/data/gen0.bin".to_string());
     let smoke = std::env::var("NSCE_SMOKE").is_ok();
@@ -65,49 +57,34 @@ fn main() {
     let superbatches = env_usize("NSCE_SUPERBATCHES", if smoke { 1 } else { 320 });
     let loader_threads = env_usize("NSCE_THREADS", if smoke { 2 } else { 8 });
     let batch_queue_size = env_usize("NSCE_QUEUE", if smoke { 2 } else { 64 });
-    // Result-weight 0: the 768 mix that won used rw0. λ=0.75 on this 5000-node
-    // self-play file collapsed to per-bucket constants (gen0 −475 Elo).
     let wdl_proportion = env_f32("NSCE_WDL", 0.0);
     println!("wdl_proportion={wdl_proportion}");
-    const NUM_OUTPUT_BUCKETS: usize = 8;
+    println!("graph=simple hidden={HIDDEN}");
 
     let mut trainer = ValueTrainerBuilder::default()
         .dual_perspective()
         .optimiser(AdamW)
         .inputs(Chess768)
-        .output_buckets(MaterialCount::<NUM_OUTPUT_BUCKETS>)
         .save_format(&[
             SavedFormat::id("l0w").round().quantise::<i16>(255),
             SavedFormat::id("l0b").round().quantise::<i16>(255),
-            SavedFormat::id("l1w").round().quantise::<i16>(64).transpose(),
+            SavedFormat::id("l1w").round().quantise::<i16>(64),
             SavedFormat::id("l1b").round().quantise::<i16>(255 * 64),
-            SavedFormat::id("l2w").round().quantise::<i16>(64).transpose(),
-            SavedFormat::id("l2b").round().quantise::<i16>(255 * 64),
-            SavedFormat::id("l3w").round().quantise::<i16>(64).transpose(),
-            SavedFormat::id("l3b").round().quantise::<i16>(255 * 64),
         ])
         .loss_fn(|output, target| output.sigmoid().squared_error(target))
-        .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
-            // Graph from bullet progression/4_multi_layer.rs, Chess768, no king buckets.
-            // Pairwise CReLU compresses each 128-d acc to 64, concat → 128 into L2.
-            let l0 = builder.new_affine("l0", 768, l1);
-            let aff1 = builder.new_affine("l1", l1, NUM_OUTPUT_BUCKETS * l2);
-            let aff2 = builder.new_affine("l2", l2, NUM_OUTPUT_BUCKETS * l3);
-            let aff3 = builder.new_affine("l3", l3, NUM_OUTPUT_BUCKETS);
-            let ft = |input, start, end| l0.slice(start, end).forward(input).crelu();
-            let stm_hidden = ft(stm_inputs, 0, l1 / 2) * ft(stm_inputs, l1 / 2, l1);
-            let ntm_hidden = ft(ntm_inputs, 0, l1 / 2) * ft(ntm_inputs, l1 / 2, l1);
-            let hl1 = stm_hidden.concat(ntm_hidden);
-            let hl2 = aff1.forward(hl1).select(output_buckets).screlu();
-            let hl3 = aff2.forward(hl2).select(output_buckets).screlu();
-            aff3.forward(hl3).select(output_buckets)
+        .build(|builder, stm_inputs, ntm_inputs| {
+            let l0 = builder.new_affine("l0", 768, HIDDEN);
+            let l1 = builder.new_affine("l1", 2 * HIDDEN, 1);
+            let stm_hidden = l0.forward(stm_inputs).screlu();
+            let ntm_hidden = l0.forward(ntm_inputs).screlu();
+            l1.forward(stm_hidden.concat(ntm_hidden))
         });
 
     let output_directory = std::env::var("NSCE_CHECKPOINT_DIR").unwrap_or_else(|_| {
         if smoke {
-            "../../tmp/bullet_smoke".to_string()
+            "../../tmp/bullet_smoke_simple".to_string()
         } else {
-            "../../train/bullet_checkpoints".to_string()
+            "../../train/bullet_checkpoints_simple".to_string()
         }
     });
     std::fs::create_dir_all(&output_directory).ok();

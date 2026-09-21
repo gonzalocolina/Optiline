@@ -318,5 +318,34 @@ class PromotionGateStageTest(unittest.TestCase):
             self.assertNotIn("equal-node", proc.stdout)
 
 
+class TrainScriptContractTest(unittest.TestCase):
+    def test_run_bullet_rebuilds_per1_datagen_after_writer_dies(self) -> None:
+        text = (ROOT / "train/run_bullet.sh").read_text()
+        self.assertIn("cmake -S", text)
+        self.assertIn("FETCHCONTENT_FULLY_DISCONNECTED", text)
+        self.assertIn("nvidia-smi", text)
+        self.assertIn("failed validate; reshuffling", text)
+        self.assertIn("32-aligned", text)
+        self.assertIn('MIN_POS:-100000000', text)
+        self.assertIn("--target nsce --target nsce_datagen", text)
+        self.assertIn("build-per1", text)
+
+    def test_run_gen1_rebuilds_datagen_before_loading_per1(self) -> None:
+        text = (ROOT / "tools/run_gen1.sh").read_text()
+        self.assertIn("cmake -S", text)
+        self.assertIn("FETCHCONTENT_FULLY_DISCONNECTED", text)
+        self.assertIn("--target nsce_datagen", text)
+        self.assertIn("pgrep -x nsce_datagen", text)
+        self.assertIn('MIN_POS:-100000000', text)
+        self.assertIn("appending seed=", text)
+        self.assertIn("unaligned", text)
+
+    def test_watcher_appends_another_seed_if_gen0_is_short(self) -> None:
+        text = (ROOT / "tools/watch_datagen_then_train.sh").read_text()
+        self.assertIn("resume_gen0.sh", text)
+        self.assertIn("flock -u 9", text)
+
+
 if __name__ == "__main__":
     unittest.main()
+

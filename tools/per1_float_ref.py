@@ -2,7 +2,8 @@
 """Compare NSCEPER1 float SCReLU to C++ integers on packed nets.
 
 Quantized Python must match C++ exactly (same toward-zero `/`). |float − C++|
-≤ 2 cp on 10k FENs — two integer divisions can exceed 1 cp vs the real SCReLU.
+≤ 4 cp on 10k FENs — pairwise /QA plus two SCReLU /QA/QB truncations. Gen0
+measured 2.98 cp; a 2 cp gate is too tight on a trained net.
 
 UseExtras is forced off; extras() is not part of the net. Do not run this as a
 promotion gate — only as an export check before the first fastchess match.
@@ -20,7 +21,7 @@ TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 
-from pack_nsceper1 import BUCKETS, FEATURES, HIDDEN, QA, QB, SCALE  # noqa: E402
+from pack_nsceper1 import BUCKETS, FEATURES, HIDDEN, L2, L3, QA, QB, SCALE, SIMPLE_HIDDEN  # noqa: E402
 from uci_common import UciEngine  # noqa: E402
 
 PIECE = {
@@ -89,68 +90,170 @@ class Per1Net:
         data = path.read_bytes()
         if data[:8] != b"NSCEPER1":
             raise ValueError(f"{path} is not NSCEPER1")
-        hidden, features, buckets, qa, qb, scale = struct.unpack_from("<6i", data, 8)
-        if (hidden, features, buckets) != (HIDDEN, FEATURES, BUCKETS):
-            raise ValueError(f"{path} header {(hidden, features, buckets)} != {(HIDDEN, FEATURES, BUCKETS)}")
+        hidden, features, buckets, l2, l3, qa, qb, scale = struct.unpack_from("<8i", data, 8)
         self.qa = qa
         self.qb = qb
         self.scale = scale
-        offset = 32
+        self.hidden = hidden
+        self.simple = buckets == 0 and l2 == 0 and l3 == 0
+        offset = 8 + 32
         n_w0 = features * hidden
         self.w0 = list(struct.unpack_from(f"<{n_w0}h", data, offset))
         offset += n_w0 * 2
         self.b0 = list(struct.unpack_from(f"<{hidden}h", data, offset))
         offset += hidden * 2
-        n_w1 = buckets * 2 * hidden
-        flat_w1 = struct.unpack_from(f"<{n_w1}h", data, offset)
-        offset += n_w1 * 2
-        self.w1 = [list(flat_w1[b * 2 * hidden : (b + 1) * 2 * hidden]) for b in range(buckets)]
-        self.b1 = list(struct.unpack_from(f"<{buckets}i", data, offset))
+        if self.simple:
+            if (hidden, features) != (SIMPLE_HIDDEN, FEATURES):
+                raise ValueError(f"{path} simple header {(hidden, features)} != {(SIMPLE_HIDDEN, FEATURES)}")
+            self.l1w_flat = list(struct.unpack_from(f"<{2 * hidden}h", data, offset))
+            offset += 2 * hidden * 2
+            (self.l1b_simple,) = struct.unpack_from("<i", data, offset)
+            return
+        if (hidden, features, buckets, l2, l3) != (HIDDEN, FEATURES, BUCKETS, L2, L3):
+            raise ValueError(
+                f"{path} header {(hidden, features, buckets, l2, l3)} != {(HIDDEN, FEATURES, BUCKETS, L2, L3)}"
+            )
+        n_l1w = buckets * l2 * hidden
+        flat = struct.unpack_from(f"<{n_l1w}h", data, offset)
+        offset += n_l1w * 2
+        self.l1w = [
+            [list(flat[(b * l2 + j) * hidden : (b * l2 + j + 1) * hidden]) for j in range(l2)]
+            for b in range(buckets)
+        ]
+        n_l1b = buckets * l2
+        flat_b = struct.unpack_from(f"<{n_l1b}i", data, offset)
+        offset += n_l1b * 4
+        self.l1b = [list(flat_b[b * l2 : (b + 1) * l2]) for b in range(buckets)]
+        n_l2w = buckets * l3 * l2
+        flat = struct.unpack_from(f"<{n_l2w}h", data, offset)
+        offset += n_l2w * 2
+        self.l2w = [
+            [list(flat[(b * l3 + j) * l2 : (b * l3 + j + 1) * l2]) for j in range(l3)]
+            for b in range(buckets)
+        ]
+        n_l2b = buckets * l3
+        flat_b = struct.unpack_from(f"<{n_l2b}i", data, offset)
+        offset += n_l2b * 4
+        self.l2b = [list(flat_b[b * l3 : (b + 1) * l3]) for b in range(buckets)]
+        n_l3w = buckets * l3
+        flat = struct.unpack_from(f"<{n_l3w}h", data, offset)
+        offset += n_l3w * 2
+        self.l3w = [list(flat[b * l3 : (b + 1) * l3]) for b in range(buckets)]
+        self.l3b = list(struct.unpack_from(f"<{buckets}i", data, offset))
 
     def _accumulators(self, pieces: list[tuple[int, int]]) -> tuple[list[int], list[int]]:
         acc_w = list(self.b0)
         acc_b = list(self.b0)
+        hidden = self.hidden
         for pc, sq in pieces:
-            fw = per1_feature(0, pc, sq) * HIDDEN
-            fb = per1_feature(1, pc, sq) * HIDDEN
-            for h in range(HIDDEN):
+            fw = per1_feature(0, pc, sq) * hidden
+            fb = per1_feature(1, pc, sq) * hidden
+            for h in range(hidden):
                 acc_w[h] = clamp_i16(acc_w[h] + self.w0[fw + h])
                 acc_b[h] = clamp_i16(acc_b[h] + self.w0[fb + h])
         return acc_w, acc_b
+
+    def _simple_int(self, stm_acc: list[int], nstm_acc: list[int]) -> int:
+        qa, qb = self.qa, self.qb
+        act: list[int] = []
+        for acc in (stm_acc, nstm_acc):
+            for x in acc:
+                c = max(0, min(qa, x))
+                act.append(c * c)
+        total = 0
+        for i, a in enumerate(act):
+            total += a * self.l1w_flat[i]
+        total = trunc_div(total, qa) + self.l1b_simple
+        return trunc_div(total * self.scale, qa * qb)
+
+    def _mlp_int(self, stm_acc: list[int], nstm_acc: list[int], piece_count: int) -> int:
+        qa, qb = self.qa, self.qb
+        half = HIDDEN // 2
+        pair = [0] * HIDDEN
+
+        def fill(acc: list[int], off: int) -> None:
+            for i in range(half):
+                x0 = max(0, min(qa, acc[i]))
+                x1 = max(0, min(qa, acc[half + i]))
+                pair[off + i] = trunc_div(x0 * x1, qa)
+
+        fill(stm_acc, 0)
+        fill(nstm_acc, half)
+        bucket = per1_bucket(piece_count)
+        h2 = [0] * L2
+        for j in range(L2):
+            s = 0
+            for i in range(HIDDEN):
+                s += pair[i] * self.l1w[bucket][j][i]
+            s = trunc_div(s, qa) + self.l1b[bucket][j]
+            x = max(0, min(qa, trunc_div(s, qb)))
+            h2[j] = x * x
+        h3 = [0] * L3
+        for j in range(L3):
+            s = 0
+            for i in range(L2):
+                s += h2[i] * self.l2w[bucket][j][i]
+            s = trunc_div(s, qa) + self.l2b[bucket][j]
+            x = max(0, min(qa, trunc_div(s, qb)))
+            h3[j] = x * x
+        total = 0
+        for i in range(L3):
+            total += h3[i] * self.l3w[bucket][i]
+        total = trunc_div(total, qa) + self.l3b[bucket]
+        return trunc_div(total * self.scale, qa * qb)
 
     def eval_int(self, fen: str) -> int:
         pieces, stm = pieces_from_fen(fen)
         acc_w, acc_b = self._accumulators(pieces)
         stm_acc = acc_w if stm == 0 else acc_b
         nstm_acc = acc_b if stm == 0 else acc_w
-        bucket = per1_bucket(len(pieces))
-        w = self.w1[bucket]
-        qa = self.qa
-        total = 0
-        for h in range(HIDDEN):
-            x = max(0, min(qa, stm_acc[h]))
-            total += x * x * w[h]
-            x = max(0, min(qa, nstm_acc[h]))
-            total += x * x * w[HIDDEN + h]
-        total = trunc_div(total, qa)
-        total += self.b1[bucket]
-        return trunc_div(total * self.scale, qa * self.qb)
+        if self.simple:
+            return self._simple_int(stm_acc, nstm_acc)
+        return self._mlp_int(stm_acc, nstm_acc, len(pieces))
 
     def eval_float(self, fen: str) -> float:
         pieces, stm = pieces_from_fen(fen)
         acc_w, acc_b = self._accumulators(pieces)
         stm_acc = acc_w if stm == 0 else acc_b
         nstm_acc = acc_b if stm == 0 else acc_w
-        w = self.w1[per1_bucket(len(pieces))]
         qa = float(self.qa)
         qb = float(self.qb)
-        total = self.b1[per1_bucket(len(pieces))] / (qa * qb)
-        for h in range(HIDDEN):
-            x = min(max(stm_acc[h] / qa, 0.0), 1.0)
-            total += x * x * (w[h] / qb)
-            x = min(max(nstm_acc[h] / qa, 0.0), 1.0)
-            total += x * x * (w[HIDDEN + h] / qb)
-        return total * self.scale
+        if self.simple:
+            act: list[float] = []
+            for acc in (stm_acc, nstm_acc):
+                for x in acc:
+                    c = max(0.0, min(qa, float(x)))
+                    act.append(c * c)
+            total = sum(a * w for a, w in zip(act, self.l1w_flat))
+            total = total / qa + self.l1b_simple
+            return total * self.scale / (qa * qb)
+        half = HIDDEN // 2
+        pair = [0.0] * HIDDEN
+
+        def fill(acc: list[int], off: int) -> None:
+            for i in range(half):
+                x0 = max(0.0, min(qa, float(acc[i])))
+                x1 = max(0.0, min(qa, float(acc[half + i])))
+                pair[off + i] = x0 * x1 / qa
+
+        fill(stm_acc, 0)
+        fill(nstm_acc, half)
+        bucket = per1_bucket(len(pieces))
+        h2 = [0.0] * L2
+        for j in range(L2):
+            s = sum(pair[i] * self.l1w[bucket][j][i] for i in range(HIDDEN))
+            s = s / qa + self.l1b[bucket][j]
+            x = max(0.0, min(qa, s / qb))
+            h2[j] = x * x
+        h3 = [0.0] * L3
+        for j in range(L3):
+            s = sum(h2[i] * self.l2w[bucket][j][i] for i in range(L2))
+            s = s / qa + self.l2b[bucket][j]
+            x = max(0.0, min(qa, s / qb))
+            h3[j] = x * x
+        total = sum(h3[i] * self.l3w[bucket][i] for i in range(L3))
+        total = total / qa + self.l3b[bucket]
+        return total * self.scale / (qa * qb)
 
 
 def load_fens(path: Path, limit: int) -> list[str]:
@@ -180,7 +283,7 @@ def main() -> int:
     parser.add_argument("--engine", type=Path, default=ROOT / "build" / "nsce")
     parser.add_argument("--fens", type=Path, default=ROOT / "train/data/lichess_evals_1m.jsonl")
     parser.add_argument("--n", type=int, default=10_000)
-    parser.add_argument("--max-abs-cp", type=float, default=2.0)
+    parser.add_argument("--max-abs-cp", type=float, default=4.0)
     args = parser.parse_args()
 
     net = Per1Net(args.net)

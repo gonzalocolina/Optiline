@@ -10,6 +10,17 @@ if [[ ! -s "$BIN" ]]; then
   echo "missing $BIN" >&2
   exit 1
 fi
+bytes=$(stat -c%s "$BIN")
+if (( bytes % 32 != 0 )); then
+  echo "$BIN size $bytes is not 32-aligned; not training" >&2
+  exit 1
+fi
+file_pos=$(( bytes / 32 ))
+MIN_POS="${MIN_POS:-100000000}"
+if (( file_pos < MIN_POS )); then
+  echo "$BIN has $file_pos positions; need ≥$MIN_POS" >&2
+  exit 1
+fi
 if [[ ! -d "$BULLET" ]]; then
   echo "run bash tools/setup_bullet.sh first" >&2
   exit 1
@@ -18,6 +29,10 @@ fi
 source "$ROOT/tools/cuda_env.sh"
 if [[ ! -x "${CUDA_PATH}/bin/nvcc" ]]; then
   echo "nvcc missing. Run bash tools/setup_cuda_local.sh" >&2
+  exit 1
+fi
+if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
+  echo "GPU not usable (nvidia-smi failed). Do not train without the GTX 1650." >&2
   exit 1
 fi
 need_bytes=$(( $(stat -c%s "$BIN") * 2 + 2 * 1024 * 1024 * 1024 ))
@@ -33,22 +48,42 @@ if [[ ! -x "$UTILS" ]]; then
   (cd "$BULLET" && CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" cargo b -r --package bullet-utils)
 fi
 echo "shuffle $BIN -> $SHUF"
+shuf_ok=0
 if [[ -s "$SHUF" && $(stat -c%s "$SHUF") -eq $(stat -c%s "$BIN") ]]; then
-  echo "reuse existing shuffled file ($(stat -c%s "$SHUF") bytes)"
-else
+  echo "checking existing shuffled file ($(stat -c%s "$SHUF") bytes)"
+  if "$UTILS" validate --input "$SHUF"; then
+    shuf_ok=1
+  else
+    echo "existing shuffled file failed validate; reshuffling" >&2
+    rm -f "$SHUF"
+  fi
+fi
+if [[ "$shuf_ok" != 1 ]]; then
   # 100 M records ≈ 3.2 GB. 4 GiB buffer is one or two passes on 16 GB RAM.
   "$UTILS" shuffle --input "$BIN" --output "$SHUF" --mem-used-mb "${SHUFFLE_MB:-4096}"
-  "$UTILS" validate --input "$SHUF"
+  if ! "$UTILS" validate --input "$SHUF"; then
+    echo "shuffle produced an invalid file; deleted $SHUF" >&2
+    rm -f "$SHUF"
+    exit 1
+  fi
 fi
 export NSCE_DATASET="$SHUF"
-CKPT_DIR="${NSCE_CHECKPOINT_DIR:-$ROOT/train/bullet_checkpoints}"
+GRAPH="${NSCE_GRAPH:-mlp}"
+if [[ "$GRAPH" == simple ]]; then
+  DEFAULT_CKPT="$ROOT/train/bullet_checkpoints_simple"
+  TRAIN_SRC="$ROOT/train/bullet_nsce_simple.rs"
+else
+  DEFAULT_CKPT="$ROOT/train/bullet_checkpoints"
+  TRAIN_SRC="$ROOT/train/bullet_nsce.rs"
+fi
+CKPT_DIR="${NSCE_CHECKPOINT_DIR:-$DEFAULT_CKPT}"
 mkdir -p "$CKPT_DIR"
 export NSCE_CHECKPOINT_DIR="$CKPT_DIR"
-cp -f "$ROOT/train/bullet_nsce.rs" "$BULLET/examples/nsce.rs"
+cp -f "$TRAIN_SRC" "$BULLET/examples/nsce.rs"
 NSCE_EX="$BULLET/target/release/examples/nsce"
 # Checkpoint path in nsce.rs is relative to third_party/bullet cwd.
-if [[ ! -x "$NSCE_EX" || "$ROOT/train/bullet_nsce.rs" -nt "$NSCE_EX" ]]; then
-  echo "rebuild CUDA nsce example"
+if [[ ! -x "$NSCE_EX" || "$TRAIN_SRC" -nt "$NSCE_EX" ]]; then
+  echo "rebuild CUDA nsce example ($GRAPH)"
   (cd "$BULLET" && CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}" cargo b -r --example nsce --features cuda)
 fi
 echo "train $NSCE_EX"
@@ -71,9 +106,16 @@ done
 
 ENGINE="${NSCE_ENGINE:-$ROOT/build-per1/nsce}"
 # Datagen is finished when the watcher reaches here. Rebuild the PER1 loader
-# used for float-ref and the 100 ms screen.
+# used for float-ref, the 100 ms screen, and gen1 self-play. build-per1/nsce_datagen
+# is still the 2026-09-16 512-era 1-layer binary while gen0 is writing; a 128/16/32
+# packed net will not load in that inode. Reconfigure first: CMakeLists changed
+# after that cache was generated (NSCE_TUNE / FetchContent wrap).
 if [[ -d "$ROOT/build-per1" ]]; then
-  cmake --build "$ROOT/build-per1" -j2 --target nsce
+  cmake -S "$ROOT" -B "$ROOT/build-per1" -DCMAKE_BUILD_TYPE=Release \
+    -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+    -DFETCHCONTENT_UPDATES_DISCONNECTED=ON \
+    || echo "warn: cmake reconfigure failed; trying existing makefiles" >&2
+  cmake --build "$ROOT/build-per1" -j2 --target nsce --target nsce_datagen
   ENGINE="$ROOT/build-per1/nsce"
 elif [[ ! -x "$ENGINE" ]]; then
   echo "missing $ENGINE" >&2
@@ -102,7 +144,19 @@ if [[ "$BASE_EVAL" == "$CAND_REL" ]]; then
   exit 1
 fi
 echo "pack $ckpt/quantised.bin -> $CAND_NET"
-python3 "$ROOT/tools/pack_nsceper1.py" --from-quantised "$ckpt/quantised.bin" -o "$CAND_NET"
+PACK_FLAGS=()
+SIZE_FN=expected_size
+if [[ "${NSCE_GRAPH:-mlp}" == simple ]]; then
+  PACK_FLAGS+=(--simple)
+  SIZE_FN=expected_size_simple
+fi
+python3 "$ROOT/tools/pack_nsceper1.py" --from-quantised "$ckpt/quantised.bin" "${PACK_FLAGS[@]}" -o "$CAND_NET"
+got=$(stat -c%s "$CAND_NET")
+exp=$(python3 -c "import sys; sys.path.insert(0, '$ROOT/tools'); from pack_nsceper1 import ${SIZE_FN}; print(${SIZE_FN}())")
+if [[ "$got" -ne "$exp" ]]; then
+  echo "packed $CAND_NET is $got bytes, expected $exp (NSCEPER1 ${NSCE_GRAPH:-mlp})" >&2
+  exit 1
+fi
 # Alias for gen0 / manuals. Never overwrite a promoted baseline path.
 if [[ "$BASE_EVAL" != "nets/nsceper1.bin" ]]; then
   cp -f "$CAND_NET" "$ROOT/nets/nsceper1.bin"

@@ -2,16 +2,15 @@
 
 **Elo path (2026-09-15):** `build/nsce_datagen` (bulletformat, ≥100 M positions)
 then a bullet trainer, not this NumPy loop. Gate with
-`python3 tools/fastchess_match.py` (full games). See
-[docs/handoff.md](../docs/handoff.md) P1.
+`python3 tools/fastchess_match.py` (full games).
 
 `selfplay.py`, `collect_leaves.py`, `distill.py --label static`, and
 `train/run_datagen.sh` are **legacy**. They built the promoted 40k mix; do not
 scale `--label static` further. `ablation_match.py` / `sprt.py` with
 `--max-plies 60` are telemetry only.
 
-Evaluator export still has to clone. Canonical protocol:
-[docs/eval_pipeline.md](../docs/eval_pipeline.md).
+Evaluator export still has to clone: quantized C++ must match the frozen
+768×128 notes before any Elo gate.
 
 ## 0. Engine datagen (current)
 
@@ -145,8 +144,8 @@ Do not promote smoke nets. Prefer a fresh distill of ≥50k positions before any
 
 ## KAT — king-relative base first (`--no-threats`), then threats
 
-Illegal until the 768 clone (and then a winning 768) has passed
-[docs/eval_pipeline.md](../docs/eval_pipeline.md) steps 1–7. The first richer net
+Illegal until the 768 clone (and then a winning 768) has passed the export
+and Elo gates. The first richer net
 is HalfKA-hm **without** the 12-dim threat residual. Threats, hidden 256, policy
 and hardware come after that base wins SPRT.
 
@@ -193,7 +192,7 @@ Alternative teacher labels (slower, higher quality):
 .venv/bin/python train/distill.py \
   --teacher /path/to/stockfish --sampler build/nsce \
   --nodes 4000 --positions 50000 --resume \
-  -o train/data/sf18_nodes4k.jsonl
+  -o train/data/sf19_nodes4k.jsonl
 ```
 
 Millions-scale next step: keep streaming the Lichess dump (≈395M positions) or

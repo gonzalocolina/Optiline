@@ -16,8 +16,10 @@ class Position;
 // King-aware variants:
 //   NSCEHFKP — 16 king buckets × 768 (legacy HalfKA-lite)
 //   NSCEKAT1 — 32 horizontally-mirrored buckets × 768 + 12-dim tactical residual
-// Dual-perspective bullet net:
-//   NSCEPER1 — (768→512)×2 SCReLU, 8 material output buckets, QA=255 QB=64 SCALE=400
+// Dual-perspective bullet net (NSCEPER1):
+//   MLP: Chess768 FT L1=128, pairwise CReLU, L2=16 SCReLU, L3=32 SCReLU, 8 buckets.
+//   Simple: (768→512)×2 SCReLU → 1 (original P1 graph; header l2=l3=buckets=0).
+//   HalfKA / threats / pawn-pairs stay a later generation.
 struct NnueNet {
   static constexpr int kFeatures = 12 * 64;
   static constexpr int kHidden = 128;
@@ -27,7 +29,14 @@ struct NnueNet {
   static constexpr int kKatFeatures = kKatBuckets * kFeatures;
   static constexpr int kThreatDim = 12;
   static constexpr int kWeightScale = 64;  // int16 weights; activate / scale
-  static constexpr int kPer1Hidden = 512;
+  static constexpr int kPer1Hidden = 128;
+  static constexpr int kPer1SimpleHidden = 512;
+  static constexpr int kPer1Acc = 512;
+  static constexpr int kPer1L2 = 16;
+  static constexpr int kPer1L3 = 32;
+  static_assert(kPer1Acc % 16 == 0, "PER1 accumulator AVX2 kernels step by 16");
+  static_assert(kPer1Hidden <= kPer1Acc && kPer1SimpleHidden <= kPer1Acc);
+  static_assert(kPer1L2 % 8 == 0 && kPer1L3 % 8 == 0, "PER1 GEMM AVX2 kernels step by 8");
   static constexpr int kPer1Buckets = 8;
   static constexpr int kPer1QA = 255;
   static constexpr int kPer1QB = 64;
@@ -37,6 +46,8 @@ struct NnueNet {
   bool halfkp = false;
   bool kat = false;
   bool per1 = false;
+  bool per1_simple = false;
+  int per1_ft = kPer1Hidden;
   std::array<std::array<int16_t, kHidden>, kFeatures> w0{};
   std::array<int16_t, kHidden> b0{};
   std::array<int16_t, kHidden> w1{};
@@ -45,9 +56,15 @@ struct NnueNet {
   std::array<int16_t, kThreatDim> w_threat{};
   int32_t b1 = 0;
   std::vector<int16_t> per1_w0{};
-  alignas(32) std::array<int16_t, kPer1Hidden> per1_b0{};
-  alignas(32) std::array<std::array<int16_t, 2 * kPer1Hidden>, kPer1Buckets> per1_w1{};
-  std::array<int32_t, kPer1Buckets> per1_b1{};
+  alignas(32) std::array<int16_t, kPer1Acc> per1_b0{};
+  alignas(32) std::array<int16_t, 2 * kPer1SimpleHidden> per1_simple_w1{};
+  int32_t per1_simple_b1 = 0;
+  alignas(32) std::array<std::array<std::array<int16_t, kPer1Hidden>, kPer1L2>, kPer1Buckets> per1_l1w{};
+  std::array<std::array<int32_t, kPer1L2>, kPer1Buckets> per1_l1b{};
+  alignas(32) std::array<std::array<std::array<int16_t, kPer1L2>, kPer1L3>, kPer1Buckets> per1_l2w{};
+  std::array<std::array<int32_t, kPer1L3>, kPer1Buckets> per1_l2b{};
+  alignas(32) std::array<std::array<int16_t, kPer1L3>, kPer1Buckets> per1_l3w{};
+  std::array<int32_t, kPer1Buckets> per1_l3b{};
   int per1_qa = kPer1QA;
   int per1_qb = kPer1QB;
   int per1_scale = kPer1Scale;
@@ -56,7 +73,7 @@ struct NnueNet {
 struct NnueAccumulator {
   alignas(32) std::array<int16_t, NnueNet::kHidden> v{};
   alignas(32) std::array<std::array<int16_t, NnueNet::kHidden>, 2> half{};
-  alignas(32) std::array<std::array<int16_t, NnueNet::kPer1Hidden>, 2> per1{};
+  alignas(32) std::array<std::array<int16_t, NnueNet::kPer1Acc>, 2> per1{};
   std::array<uint8_t, 2> king_bucket{};
   std::array<uint8_t, 2> mirror{};
   uint8_t piece_count = 0;

@@ -17,26 +17,41 @@ from per1_float_ref import Per1Net, trunc_div  # noqa: E402
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 
+def _zero_blobs() -> tuple[bytes, ...]:
+    return (
+        b"\x00\x00" * (pack.FEATURES * pack.HIDDEN),
+        b"\x00\x00" * pack.HIDDEN,
+        b"\x00\x00" * (pack.BUCKETS * pack.L2 * pack.HIDDEN),
+        b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L2),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2),
+        b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L3),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3),
+        b"\x00\x00\x00\x00" * pack.BUCKETS,
+    )
+
+
 def _ones_net(path: Path) -> None:
-    hidden = pack.HIDDEN
-    l0w = b"\x01\x00" * (pack.FEATURES * hidden)
-    l0b = b"\x00\x00" * hidden
-    l1w = b"\x01\x00" * (pack.BUCKETS * 2 * hidden)
-    l1b = b"\x00\x00\x00\x00" * pack.BUCKETS
-    pack.write_per1(path, l0w, l0b, l1w, l1b)
+    # Pairwise then /QA /QB kills a pure-ones MLP (startpos acc is only 32).
+    # QA*QB L1/L2 bias saturates SCReLU so the test actually exercises the stack.
+    blobs = list(_zero_blobs())
+    blobs[0] = b"\x01\x00" * (pack.FEATURES * pack.HIDDEN)
+    blobs[2] = b"\x01\x00" * (pack.BUCKETS * pack.L2 * pack.HIDDEN)
+    blobs[3] = struct.pack(
+        f"<{pack.BUCKETS * pack.L2}i", *([pack.QA * pack.QB] * (pack.BUCKETS * pack.L2))
+    )
+    blobs[4] = b"\x01\x00" * (pack.BUCKETS * pack.L3 * pack.L2)
+    blobs[5] = struct.pack(
+        f"<{pack.BUCKETS * pack.L3}i", *([pack.QA * pack.QB] * (pack.BUCKETS * pack.L3))
+    )
+    blobs[6] = b"\x01\x00" * (pack.BUCKETS * pack.L3)
+    pack.write_per1(path, *blobs)
 
 
 class Per1FloatRefTest(unittest.TestCase):
     def test_zero_net_is_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "z.bin"
-            pack.write_per1(
-                path,
-                b"\x00\x00" * (pack.FEATURES * pack.HIDDEN),
-                b"\x00\x00" * pack.HIDDEN,
-                b"\x00\x00" * (pack.BUCKETS * 2 * pack.HIDDEN),
-                b"\x00\x00\x00\x00" * pack.BUCKETS,
-            )
+            pack.write_per1(path, *_zero_blobs())
             net = Per1Net(path)
             self.assertEqual(net.eval_int(STARTPOS), 0)
             self.assertEqual(net.eval_float(STARTPOS), 0.0)
@@ -55,16 +70,25 @@ class Per1FloatRefTest(unittest.TestCase):
         # startpos has 32 pieces → bucket (32-2)/4 = 7. Bullet stores bias at QA*QB.
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "bias.bin"
-            b1 = [0] * pack.BUCKETS
-            b1[7] = pack.QA * pack.QB
-            pack.write_per1(
-                path,
-                b"\x00\x00" * (pack.FEATURES * pack.HIDDEN),
-                b"\x00\x00" * pack.HIDDEN,
-                b"\x00\x00" * (pack.BUCKETS * 2 * pack.HIDDEN),
-                struct.pack("<8i", *b1),
-            )
+            blobs = list(_zero_blobs())
+            l3b = [0] * pack.BUCKETS
+            l3b[7] = pack.QA * pack.QB
+            blobs[7] = struct.pack("<8i", *l3b)
+            pack.write_per1(path, *blobs)
             net = Per1Net(path)
+            self.assertEqual(net.eval_int(STARTPOS), pack.SCALE)
+            self.assertAlmostEqual(net.eval_float(STARTPOS), float(pack.SCALE), places=5)
+
+    def test_simple_bias_is_scale_cp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "simple.bin"
+            l0w = b"\x00\x00" * (pack.FEATURES * pack.SIMPLE_HIDDEN)
+            l0b = b"\x00\x00" * pack.SIMPLE_HIDDEN
+            l1w = b"\x00\x00" * (2 * pack.SIMPLE_HIDDEN)
+            l1b = struct.pack("<i", pack.QA * pack.QB)
+            pack.write_per1_simple(path, l0w, l0b, l1w, l1b)
+            net = Per1Net(path)
+            self.assertTrue(net.simple)
             self.assertEqual(net.eval_int(STARTPOS), pack.SCALE)
             self.assertAlmostEqual(net.eval_float(STARTPOS), float(pack.SCALE), places=5)
 

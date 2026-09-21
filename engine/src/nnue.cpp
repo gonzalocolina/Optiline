@@ -91,8 +91,9 @@ inline int32_t affine_dual_avx(const int16_t* own, const int16_t* opp, const int
   return bias + hsum_epi32(sum32);
 }
 
-inline void per1_acc_add2(int16_t* acc_w, int16_t* acc_b, const int16_t* col_w, const int16_t* col_b) {
-  for (int h = 0; h < NnueNet::kPer1Hidden; h += 16) {
+inline void per1_acc_add2(int16_t* acc_w, int16_t* acc_b, const int16_t* col_w, const int16_t* col_b,
+                         int n) {
+  for (int h = 0; h < n; h += 16) {
     __m256i aw = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc_w + h));
     __m256i ab = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc_b + h));
     __m256i cw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(col_w + h));
@@ -102,8 +103,9 @@ inline void per1_acc_add2(int16_t* acc_w, int16_t* acc_b, const int16_t* col_w, 
   }
 }
 
-inline void per1_acc_sub2(int16_t* acc_w, int16_t* acc_b, const int16_t* col_w, const int16_t* col_b) {
-  for (int h = 0; h < NnueNet::kPer1Hidden; h += 16) {
+inline void per1_acc_sub2(int16_t* acc_w, int16_t* acc_b, const int16_t* col_w, const int16_t* col_b,
+                         int n) {
+  for (int h = 0; h < n; h += 16) {
     __m256i aw = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc_w + h));
     __m256i ab = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc_b + h));
     __m256i cw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(col_w + h));
@@ -120,50 +122,20 @@ inline int64_t hsum_epi64(__m256i sum64) {
   return _mm_cvtsi128_si64(_mm_add_epi64(s, _mm_unpackhi_epi64(s, s)));
 }
 
-// SCReLU: clamp to [0, qa], square, multiply by int16 weight.
-// 255^2 * 32767 fits in int32; 16 of those do not, so widen to int64 per vector.
-inline void screlu_fma16(const __m256i x_clamped, const __m256i w16, __m256i& sum64) {
-  const __m256i x0 = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(x_clamped));
-  const __m256i x1 = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(x_clamped, 1));
-  const __m256i w0 = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(w16));
-  const __m256i w1 = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w16, 1));
-  const __m256i p0 = _mm256_mullo_epi32(_mm256_mullo_epi32(x0, x0), w0);
-  const __m256i p1 = _mm256_mullo_epi32(_mm256_mullo_epi32(x1, x1), w1);
-  sum64 = _mm256_add_epi64(sum64, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(p0)));
-  sum64 = _mm256_add_epi64(sum64, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(p0, 1)));
-  sum64 = _mm256_add_epi64(sum64, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(p1)));
-  sum64 = _mm256_add_epi64(sum64, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(p1, 1)));
-}
-
-inline int64_t per1_screlu_dual_avx(const int16_t* stm, const int16_t* nstm, const int16_t* w,
-                                   int qa) {
-  __m256i sum64 = _mm256_setzero_si256();
-  const __m256i zero = _mm256_setzero_si256();
-  const __m256i vqa = _mm256_set1_epi16(static_cast<int16_t>(qa));
-  const int16_t* w_nstm = w + NnueNet::kPer1Hidden;
-  for (int h = 0; h < NnueNet::kPer1Hidden; h += 16) {
-    __m256i xs = _mm256_load_si256(reinterpret_cast<const __m256i*>(stm + h));
-    xs = _mm256_min_epi16(_mm256_max_epi16(xs, zero), vqa);
-    __m256i xn = _mm256_load_si256(reinterpret_cast<const __m256i*>(nstm + h));
-    xn = _mm256_min_epi16(_mm256_max_epi16(xn, zero), vqa);
-    screlu_fma16(xs, _mm256_load_si256(reinterpret_cast<const __m256i*>(w + h)), sum64);
-    screlu_fma16(xn, _mm256_load_si256(reinterpret_cast<const __m256i*>(w_nstm + h)), sum64);
+// a[i] is a CReLU/SCReLU activation; int16 weights. 8-wide mullo, widen to i64
+// (even 16 * 255^2 * 32767 overflows i32).
+inline int64_t per1_dot_i16(const int32_t* a, const int16_t* w, int n) {
+  __m256i acc = _mm256_setzero_si256();
+  for (int i = 0; i < n; i += 8) {
+    const __m256i av = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(a + i));
+    const __m256i wv = _mm256_cvtepi16_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + i)));
+    const __m256i p = _mm256_mullo_epi32(av, wv);
+    acc = _mm256_add_epi64(acc, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(p)));
+    acc = _mm256_add_epi64(acc, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(p, 1)));
   }
-  return hsum_epi64(sum64);
+  return hsum_epi64(acc);
 }
 #endif
-
-inline int64_t per1_screlu_dual_scalar(const int16_t* stm, const int16_t* nstm, const int16_t* w,
-                                      int qa) {
-  int64_t sum = 0;
-  for (int h = 0; h < NnueNet::kPer1Hidden; ++h) {
-    int x = std::clamp(static_cast<int>(stm[h]), 0, qa);
-    sum += static_cast<int64_t>(x) * x * w[h];
-    x = std::clamp(static_cast<int>(nstm[h]), 0, qa);
-    sum += static_cast<int64_t>(x) * x * w[NnueNet::kPer1Hidden + h];
-  }
-  return sum;
-}
 
 }  // namespace
 
@@ -245,35 +217,64 @@ bool Nnue::load(const std::string& path) {
   char magic[8]{};
   in.read(magic, 8);
   if (std::strncmp(magic, "NSCEPER1", 8) == 0) {
-    int32_t hidden = 0, features = 0, buckets = 0, qa = 0, qb = 0, scale = 0;
+    int32_t hidden = 0, features = 0, buckets = 0, l2 = 0, l3 = 0, qa = 0, qb = 0, scale = 0;
     in.read(reinterpret_cast<char*>(&hidden), 4);
     in.read(reinterpret_cast<char*>(&features), 4);
     in.read(reinterpret_cast<char*>(&buckets), 4);
+    in.read(reinterpret_cast<char*>(&l2), 4);
+    in.read(reinterpret_cast<char*>(&l3), 4);
     in.read(reinterpret_cast<char*>(&qa), 4);
     in.read(reinterpret_cast<char*>(&qb), 4);
     in.read(reinterpret_cast<char*>(&scale), 4);
-    if (!in || hidden != NnueNet::kPer1Hidden || features != NnueNet::kFeatures ||
-        buckets != NnueNet::kPer1Buckets || qa <= 0 || qb <= 0 || scale <= 0)
-      return false;
+    if (!in || features != NnueNet::kFeatures || qa <= 0 || qb <= 0 || scale <= 0) return false;
+    const bool simple = (hidden == NnueNet::kPer1SimpleHidden && buckets == 0 && l2 == 0 && l3 == 0);
+    const bool mlp = (hidden == NnueNet::kPer1Hidden && buckets == NnueNet::kPer1Buckets &&
+                      l2 == NnueNet::kPer1L2 && l3 == NnueNet::kPer1L3);
+    if (!simple && !mlp) return false;
     std::error_code size_error;
     const uintmax_t file_size = std::filesystem::file_size(path, size_error);
     if (size_error) return false;
     const uintmax_t expected_size =
-        8 + 6 * 4 + static_cast<uintmax_t>(features) * hidden * 2 + static_cast<uintmax_t>(hidden) * 2 +
-        static_cast<uintmax_t>(buckets) * 2 * hidden * 2 + static_cast<uintmax_t>(buckets) * 4;
+        simple
+            ? (8 + 8 * 4 + static_cast<uintmax_t>(features) * hidden * 2 +
+               static_cast<uintmax_t>(hidden) * 2 + static_cast<uintmax_t>(2 * hidden) * 2 + 4)
+            : (8 + 8 * 4 + static_cast<uintmax_t>(features) * hidden * 2 +
+               static_cast<uintmax_t>(hidden) * 2 +
+               static_cast<uintmax_t>(buckets) * l2 * hidden * 2 +
+               static_cast<uintmax_t>(buckets) * l2 * 4 +
+               static_cast<uintmax_t>(buckets) * l3 * l2 * 2 +
+               static_cast<uintmax_t>(buckets) * l3 * 4 +
+               static_cast<uintmax_t>(buckets) * l3 * 2 + static_cast<uintmax_t>(buckets) * 4);
     if (file_size != expected_size) return false;
     NnueNet next{};
     next.per1 = true;
+    next.per1_simple = simple;
+    next.per1_ft = hidden;
     next.per1_qa = qa;
     next.per1_qb = qb;
     next.per1_scale = scale;
     next.per1_w0.resize(static_cast<std::size_t>(features) * hidden);
     in.read(reinterpret_cast<char*>(next.per1_w0.data()),
             static_cast<std::streamsize>(next.per1_w0.size() * 2));
-    in.read(reinterpret_cast<char*>(next.per1_b0.data()), NnueNet::kPer1Hidden * 2);
-    for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
-      in.read(reinterpret_cast<char*>(next.per1_w1[b].data()), 2 * NnueNet::kPer1Hidden * 2);
-    in.read(reinterpret_cast<char*>(next.per1_b1.data()), NnueNet::kPer1Buckets * 4);
+    in.read(reinterpret_cast<char*>(next.per1_b0.data()), static_cast<std::streamsize>(hidden * 2));
+    if (simple) {
+      in.read(reinterpret_cast<char*>(next.per1_simple_w1.data()), 2 * hidden * 2);
+      in.read(reinterpret_cast<char*>(&next.per1_simple_b1), 4);
+    } else {
+      for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
+        for (int j = 0; j < NnueNet::kPer1L2; ++j)
+          in.read(reinterpret_cast<char*>(next.per1_l1w[b][j].data()), NnueNet::kPer1Hidden * 2);
+      in.read(reinterpret_cast<char*>(next.per1_l1b.data()),
+              NnueNet::kPer1Buckets * NnueNet::kPer1L2 * 4);
+      for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
+        for (int j = 0; j < NnueNet::kPer1L3; ++j)
+          in.read(reinterpret_cast<char*>(next.per1_l2w[b][j].data()), NnueNet::kPer1L2 * 2);
+      in.read(reinterpret_cast<char*>(next.per1_l2b.data()),
+              NnueNet::kPer1Buckets * NnueNet::kPer1L3 * 4);
+      for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
+        in.read(reinterpret_cast<char*>(next.per1_l3w[b].data()), NnueNet::kPer1L3 * 2);
+      in.read(reinterpret_cast<char*>(next.per1_l3b.data()), NnueNet::kPer1Buckets * 4);
+    }
     if (!in) return false;
     next.loaded = true;
     net_ = std::move(next);
@@ -378,12 +379,13 @@ void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.per1) {
     ++acc.piece_count;
-    const int16_t* col_w = net_.per1_w0.data() + per1_feature(WHITE, pc, sq) * NnueNet::kPer1Hidden;
-    const int16_t* col_b = net_.per1_w0.data() + per1_feature(BLACK, pc, sq) * NnueNet::kPer1Hidden;
+    const int ft = net_.per1_ft;
+    const int16_t* col_w = net_.per1_w0.data() + per1_feature(WHITE, pc, sq) * ft;
+    const int16_t* col_b = net_.per1_w0.data() + per1_feature(BLACK, pc, sq) * ft;
 #if defined(__AVX2__)
-    per1_acc_add2(acc.per1[WHITE].data(), acc.per1[BLACK].data(), col_w, col_b);
+    per1_acc_add2(acc.per1[WHITE].data(), acc.per1[BLACK].data(), col_w, col_b, ft);
 #else
-    for (int h = 0; h < NnueNet::kPer1Hidden; ++h) {
+    for (int h = 0; h < ft; ++h) {
       acc.per1[WHITE][h] = clamp_i16(acc.per1[WHITE][h] + col_w[h]);
       acc.per1[BLACK][h] = clamp_i16(acc.per1[BLACK][h] + col_b[h]);
     }
@@ -407,12 +409,13 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
   if (pc == NO_PIECE) return;
   if (net_.per1) {
     if (acc.piece_count) --acc.piece_count;
-    const int16_t* col_w = net_.per1_w0.data() + per1_feature(WHITE, pc, sq) * NnueNet::kPer1Hidden;
-    const int16_t* col_b = net_.per1_w0.data() + per1_feature(BLACK, pc, sq) * NnueNet::kPer1Hidden;
+    const int ft = net_.per1_ft;
+    const int16_t* col_w = net_.per1_w0.data() + per1_feature(WHITE, pc, sq) * ft;
+    const int16_t* col_b = net_.per1_w0.data() + per1_feature(BLACK, pc, sq) * ft;
 #if defined(__AVX2__)
-    per1_acc_sub2(acc.per1[WHITE].data(), acc.per1[BLACK].data(), col_w, col_b);
+    per1_acc_sub2(acc.per1[WHITE].data(), acc.per1[BLACK].data(), col_w, col_b, ft);
 #else
-    for (int h = 0; h < NnueNet::kPer1Hidden; ++h) {
+    for (int h = 0; h < ft; ++h) {
       acc.per1[WHITE][h] = clamp_i16(acc.per1[WHITE][h] - col_w[h]);
       acc.per1[BLACK][h] = clamp_i16(acc.per1[BLACK][h] - col_b[h]);
     }
@@ -490,24 +493,86 @@ void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
 }
 
 int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
+  if (net_.per1 && net_.per1_simple) {
+    const int qa = net_.per1_qa;
+    const int qb = net_.per1_qb;
+    const int ft = net_.per1_ft;
+    std::array<int32_t, 2 * NnueNet::kPer1SimpleHidden> act{};
+    auto fill = [&](const int16_t* a, int off) {
+      for (int i = 0; i < ft; ++i) {
+        const int x = std::clamp(static_cast<int>(a[i]), 0, qa);
+        act[off + i] = x * x;
+      }
+    };
+    fill(acc.per1[stm].data(), 0);
+    fill(acc.per1[~stm].data(), ft);
+#if defined(__AVX2__)
+    int64_t sum = per1_dot_i16(act.data(), net_.per1_simple_w1.data(), 2 * ft);
+#else
+    int64_t sum = 0;
+    for (int i = 0; i < 2 * ft; ++i)
+      sum += static_cast<int64_t>(act[i]) * net_.per1_simple_w1[i];
+#endif
+    sum /= qa;
+    sum += net_.per1_simple_b1;
+    return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
+  }
   if (net_.per1) {
     const int bucket = per1_output_bucket(acc.piece_count);
     const int qa = net_.per1_qa;
-    const int16_t* w = net_.per1_w1[bucket].data();
-    const auto& stm_acc = acc.per1[stm];
-    const auto& nstm_acc = acc.per1[~stm];
-    int64_t sum = 0;
+    const int qb = net_.per1_qb;
+    const int half = NnueNet::kPer1Hidden / 2;
+    std::array<int32_t, NnueNet::kPer1Hidden> pair{};
+    auto fill_pair = [&](const int16_t* a, int off) {
+      for (int i = 0; i < half; ++i) {
+        const int x0 = std::clamp(static_cast<int>(a[i]), 0, qa);
+        const int x1 = std::clamp(static_cast<int>(a[half + i]), 0, qa);
+        pair[off + i] = x0 * x1 / qa;
+      }
+    };
+    fill_pair(acc.per1[stm].data(), 0);
+    fill_pair(acc.per1[~stm].data(), half);
+
+    std::array<int32_t, NnueNet::kPer1L2> h2{};
+    for (int j = 0; j < NnueNet::kPer1L2; ++j) {
 #if defined(__AVX2__)
-    if (qa > 0 && qa <= 32767)
-      sum = per1_screlu_dual_avx(stm_acc.data(), nstm_acc.data(), w, qa);
-    else
+      int64_t s = per1_dot_i16(pair.data(), net_.per1_l1w[bucket][j].data(), NnueNet::kPer1Hidden);
+#else
+      int64_t s = 0;
+      for (int i = 0; i < NnueNet::kPer1Hidden; ++i)
+        s += static_cast<int64_t>(pair[i]) * net_.per1_l1w[bucket][j][i];
 #endif
-      sum = per1_screlu_dual_scalar(stm_acc.data(), nstm_acc.data(), w, qa);
-    // Match bullet: SCReLU is QA^2, first divide restores QA*QB, then add bias
-    // (stored at QA*QB) before the final SCALE/(QA*QB).
+      s /= qa;
+      s += net_.per1_l1b[bucket][j];
+      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
+      h2[j] = x * x;
+    }
+
+    std::array<int32_t, NnueNet::kPer1L3> h3{};
+    for (int j = 0; j < NnueNet::kPer1L3; ++j) {
+#if defined(__AVX2__)
+      int64_t s = per1_dot_i16(h2.data(), net_.per1_l2w[bucket][j].data(), NnueNet::kPer1L2);
+#else
+      int64_t s = 0;
+      for (int i = 0; i < NnueNet::kPer1L2; ++i)
+        s += static_cast<int64_t>(h2[i]) * net_.per1_l2w[bucket][j][i];
+#endif
+      s /= qa;
+      s += net_.per1_l2b[bucket][j];
+      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
+      h3[j] = x * x;
+    }
+
+#if defined(__AVX2__)
+    int64_t sum = per1_dot_i16(h3.data(), net_.per1_l3w[bucket].data(), NnueNet::kPer1L3);
+#else
+    int64_t sum = 0;
+    for (int i = 0; i < NnueNet::kPer1L3; ++i)
+      sum += static_cast<int64_t>(h3[i]) * net_.per1_l3w[bucket][i];
+#endif
     sum /= qa;
-    sum += net_.per1_b1[bucket];
-    return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * net_.per1_qb));
+    sum += net_.per1_l3b[bucket];
+    return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
   }
   if (net_.halfkp) {
     int32_t sum = net_.b1;
