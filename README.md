@@ -1,46 +1,106 @@
-# OPTILINE - MOTOR DE AJEDREZ NSCE
+# Optiline (NSCE) — C++20 Chess Engine with Quantized NNUE Evaluation
 
-Optiline es el repositorio de NSCE, un programa que juega al ajedrez. En cada
-turno examina las continuaciones posibles y elige la que considera mejor.
+[![CI](https://github.com/gonzalocolina/Optiline/actions/workflows/ci.yml/badge.svg)](https://github.com/gonzalocolina/Optiline/actions)
+![C++20](https://img.shields.io/badge/Language-C%2B%2B20-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)
+![SIMD](https://img.shields.io/badge/Optimization-AVX2%20%2F%20int16-orange.svg)
+![License](https://img.shields.io/badge/License-GPLv3-lightgrey.svg)
 
-Para decidir, construye un **árbol de búsqueda**: a partir de la posición
-actual genera las jugadas legales, después las respuestas a esas jugadas, y
-así sucesivamente. Recorrer ese árbol entero es imposible, así que usa **poda
-alfa-beta**. Cuando una línea ya no puede mejorar lo que ha encontrado, la
-abandona y sigue con otra. Profundiza donde importa y no pierde el tiempo en
-variantes que no van a salir.
+Optiline (engine name: **NSCE**) is a high-performance chess engine combining classical alpha-beta search with an **Efficiently Updatable Neural Network (NNUE)**. Designed for low-compute environments, it achieves sub-microsecond evaluation throughput via incremental feature accumulators, int16 quantization, and hand-tuned AVX2 vectorization.
 
-En esas posiciones no aplica una receta de puntos hecha a mano. Una **red
-neuronal** mira el tablero y estima quién está mejor y por cuánto. La red
-juzga la posición; el árbol elige el movimiento.
+---
 
-El proyecto quiere ver hasta dónde llega este planteamiento frente a
-Stockfish, con la misma máquina y el mismo tiempo por jugada. En el estado
-actual, en partidas a 100 ms, NSCE gana unos 145 Elo a Stockfish 18 limitado
-a 2200. No es un motor de élite; se puede jugar contra él igual.
+### Key Benchmarks
 
-El motor está pensado para ser ejecutado en máquinas con una cantidad de cómputo 
-limitada, como teléfonos móviles o ordenadores de mesa portátiles, no para las 
-competiciones oficiales como TCEC (Top Chess Engine Championship).
+| Metric | Specification / Result |
+| :--- | :--- |
+| **Playing Strength** | **+145 Elo** vs. Stockfish 18 (limited to 2200) @ 100 ms/move |
+| **Statistical Validation** | SPRT (Sequential Probability Ratio Test) via `fastchess` |
+| **Evaluation Latency** | Optimized for millions of evaluations/sec on single-core CPU |
+| **Protocols** | UCI (Universal Chess Interface) + embedded web GUI |
 
-## Jugar
+---
 
-Hay un tablero en el navegador para poder jugar contra el motor. Desde la carpeta del proyecto:
+### Systems & ML Architecture
 
+In high-depth tree search, evaluation latency dominates playing strength. The architecture is engineered around the ML-Systems trade-off: **model expressiveness vs. inference throughput**.
+
+```
+[ Board State ] 
+       │
+       ▼ (sparse update)
+[ Incremental Feature Accumulator ] ──► Updates only moved/captured pieces O(1)
+       │
+       ▼ (int16 / AVX2 SIMD)
+[ Quantized Feed-Forward Network ] ──► Multi-bucket evaluation head
+       │
+       ▼
+[ Centipawn Score ] ──► Consumed by PVS / Alpha-Beta search loop
+```
+
+#### 1. Machine Learning Pipeline (`/train`)
+* **Representations:** 768 sparse piece-square features, HalfKP, and king-relative (KAT/PER1) architectures with pairwise CReLU and SCReLU activations.
+* **Quantization-Aware Training (QAT):** Emulates int16/int8 fixed-point arithmetic during the forward pass using straight-through estimators, preventing precision mismatch when exporting to C++.
+* **Dataset & Distillation:** Teacher-student distillation using game targets (WDL) generated from self-play and engine evaluation datasets, split by opening/game source to prevent train-test contamination.
+* **Gating via Game Play (SPRT):** Checkpoints are not promoted purely on validation loss/MAE; candidate networks must pass automated full-game SPRT matches against baselines.
+
+#### 2. Engine & Systems Optimization (`/engine`)
+* **Incremental Accumulators:** Piece moves update only the altered input weights rather than recomputing the full 768-feature layer from scratch.
+* **Vectorized Kernels:** AVX2-accelerated fused multiply-add operations operating on quantized integer weights.
+* **Search Infrastructure:** Principal Variation Search (PVS), Quiescence search, Transposition Tables (TT), and adaptive move ordering heuristics.
+
+---
+
+### Repository Structure
+
+```text
+├── engine/             # C++20 engine source
+│   ├── src/nnue/       # SIMD inference, accumulators, quantized layers
+│   ├── src/search/     # Alpha-beta, PVS, move ordering, transposition tables
+│   └── benches/        # Component-level latency benchmarks
+├── train/              # ML training & data pipeline
+│   ├── train_nnue.py   # QAT, model definitions (768, PER1), binary weight export
+│   └── datagen.py      # Self-play and dataset formatting
+├── tools/              # Automated SPRT, fastchess wrappers, Elo calculation
+└── .github/workflows/  # CI: Release, ASan/UBSan, TSan, and multi-threaded tests
+```
+
+---
+
+### Quickstart
+
+#### Build & Run CLI
+Requires a C++20 compiler and CMake:
 ```bash
+# Build optimized binary
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
+
+# Run interactive CLI (or connect via UCI to CuteChess/Arena)
+./build/nsce
+```
+
+#### Run Web Interface
+Launch the engine with the local web interface at `http://127.0.0.1:8765/`:
+```bash
 ./play.sh
 ```
 
-Hace falta un compilador de C++ y CMake. El último comando arranca el motor y
-deja el tablero en
-[http://127.0.0.1:8765/](http://127.0.0.1:8765/). Se abre esa dirección, se
-mueve una pieza y el programa responde.
+#### Run Tests & Sanity Checks
+```bash
+ctest --test-dir build --output-on-failure
+```
 
-En la terminal: `./play.sh --cli`. Si ya se usa un programa de ajedrez (Arena,
-Cute Chess y similares), basta con apuntarlo a `build/nsce`.
+---
 
-## Licencia
+### Engineering & Quality Assurance
 
-NSCE se distribuye bajo la [GNU GPL versión 3](LICENSE).
+All commits pass an automated test matrix:
+* **Memory & Thread Safety:** Instrumented with `AddressSanitizer (ASan)`, `UndefinedBehaviorSanitizer (UBSan)`, and `ThreadSanitizer (TSan)`.
+* **Reproducible Evaluation:** Match manifests, PGN logs, and SPRT stopping bounds are tracked under `/experiments`.
+
+---
+
+### License
+
+Distributed under the [GNU General Public License v3.0](LICENSE).
