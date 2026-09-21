@@ -19,9 +19,13 @@ Stockfish, con la misma máquina y el mismo tiempo por jugada. En el estado
 actual, en partidas a 100 ms, NSCE gana unos 145 Elo a Stockfish 18 limitado
 a 2200. No es un motor de élite; se puede jugar contra él igual.
 
+El motor está pensado para ser ejecutado en máquinas con una cantidad de cómputo 
+limitada, como teléfonos móviles o ordenadores de mesa portátiles, no para las 
+competiciones oficiales como TCEC (Top Chess Engine Championship).
+
 ## Jugar
 
-Hay un tablero en el navegador. Desde la carpeta del proyecto:
+Hay un tablero en el navegador para poder jugar contra el motor. Desde la carpeta del proyecto:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
