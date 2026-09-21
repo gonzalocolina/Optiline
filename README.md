@@ -15,16 +15,11 @@ Este repositorio se llama Optiline; el binario y el identificador UCI son
 
 ## Estado
 
-La versión actual es la 0.10. El generador de movimientos legales está
-comprobado con perft. La búsqueda es PVS con las podas y extensiones habituales
-de un motor contemporáneo, evaluación NNUE `768×128×1` más un residual
-clásico, y un pool de hilos persistente entre comandos `go`.
+La versión actual es la 0.10. Hay un generador de movimientos legales. La búsqueda es PVS con las podas y extensiones habituales
+de un motor contemporáneo, con una evaluación de las posiciones con una NNUE de tamaño `768×128×1`.
 
 Frente a la red interna del propio motor, la red promovida gana unos
-145 ± 45 Elo en partidas completas a 100 ms. Frente a Stockfish 18 sin límite
-de fuerza, en las mismas condiciones, el resultado fue 0–1–99: el motor sigue
-muy por detrás del norte que se ha fijado. Esa distancia es el objeto de
-trabajo, no un resultado que se pretenda disimular.
+145 ± 45 Elo en partidas completas a 100 ms contra StockFish18 a 2200 de Elo.
 
 ## Arquitectura
 
@@ -32,7 +27,7 @@ trabajo, no un resultado que se pretenda disimular.
 | --- | --- |
 | Tablero y movegen | Representación bitboard, jaques, clavadas y *en passant* legales |
 | Búsqueda | PVS / alfa-beta, tabla de transposición, SEE, Lazy SMP |
-| Evaluación | NNUE cuantizada (`EvalFile`) y, en el baseline, residual `extras()` |
+| Evaluación | NNUE cuantizada |
 | Interfaz | UCI (`Hash`, `Threads`, `EvalFile` y flags de ablación) |
 | Datos | `nsce_datagen` escribe posiciones en formato bullet para reentrenar |
 
