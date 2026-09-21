@@ -1,110 +1,41 @@
-# OPTILINE -  MOTOR DE AJEDREZ NSCE
+# OPTILINE - MOTOR DE AJEDREZ NSCE
 
-NSCE (Neural Search Chess Engine) es un motor de ajedrez UCI escrito en C++20.
-Juega a través del protocolo estándar, de modo que puede usarse desde cualquier
-interfaz compatible (Arena, Cute Chess, este repositorio o un cliente propio).
+Optiline es el repositorio de NSCE, un programa que juega al ajedrez. En cada
+turno examina las continuaciones posibles y elige la que considera mejor.
 
-El proyecto investiga si una política neuronal puede asignar el presupuesto de
-búsqueda —ordenación de movimientos, profundidad y reducciones— con más
-aprovechamiento que un conjunto fijo de heurísticas. El criterio de éxito no es
-ganar a Stockfish limitado por `UCI_Elo`, sino acercarse a Stockfish 19 con la
-misma CPU, los mismos hilos y el mismo control de tiempo.
+Para decidir, construye un **árbol de búsqueda**: a partir de la posición
+actual genera las jugadas legales, después las respuestas a esas jugadas, y
+así sucesivamente. Recorrer ese árbol entero es imposible, así que usa **poda
+alfa-beta**. Cuando una línea ya no puede mejorar lo que ha encontrado, la
+abandona y sigue con otra. Profundiza donde importa y no pierde el tiempo en
+variantes que no van a salir.
 
-Este repositorio se llama Optiline; el binario y el identificador UCI son
-`NSCE`.
+En esas posiciones no aplica una receta de puntos hecha a mano. Una **red
+neuronal** mira el tablero y estima quién está mejor y por cuánto. La red
+juzga la posición; el árbol elige el movimiento.
 
-## Estado
+El proyecto quiere ver hasta dónde llega este planteamiento frente a
+Stockfish, con la misma máquina y el mismo tiempo por jugada. En el estado
+actual, en partidas a 100 ms, NSCE gana unos 145 Elo a Stockfish 18 limitado
+a 2200. No es un motor de élite; se puede jugar contra él igual.
 
-La versión actual es la 0.10. Hay un generador de movimientos legales. La búsqueda es PVS con las podas y extensiones habituales
-de un motor contemporáneo, con una evaluación de las posiciones con una NNUE de tamaño `768×128×1`.
+## Jugar
 
-Frente a la red interna del propio motor, la red promovida gana unos
-145 ± 45 Elo en partidas completas a 100 ms contra StockFish18 a 2200 de Elo.
-
-## Arquitectura
-
-| Componente | Papel |
-| --- | --- |
-| Tablero y movegen | Representación bitboard, jaques, clavadas y *en passant* legales |
-| Búsqueda | PVS / alfa-beta, tabla de transposición, SEE, Lazy SMP |
-| Evaluación | NNUE cuantizada |
-| Interfaz | UCI (`Hash`, `Threads`, `EvalFile` y flags de ablación) |
-| Datos | `nsce_datagen` escribe posiciones en formato bullet para reentrenar |
-
-El código de búsqueda y los pesos `.nnue` de Stockfish no forman parte de este
-árbol. Sí se permiten etiquetas de un motor profesor (centipawns o WDL) para
-entrenar redes propias.
-
-La configuración promovida está en `tools/configs/baseline.uci`: hash de 16 MB,
-la red `nets/nnue_search_leaves40k_rw0.bin`, extras activados, política y
-controlador de búsqueda desactivados.
-
-## Compilación
-
-Hace falta un compilador C++20 (GCC o Clang), CMake 3.16 o posterior y, para
-las pruebas, Python 3 con NumPy.
+Hay un tablero en el navegador. Desde la carpeta del proyecto:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
-ctest --test-dir build --output-on-failure
-```
-
-En Release, CMake activa por defecto `-march=native`, LTO y AVX2. Pueden
-desactivarse con `-DNSCE_NATIVE=OFF`, `-DNSCE_LTO=OFF` y `-DNSCE_AVX2=OFF`.
-Las sanitizers (`NSCE_SANITIZE`, `NSCE_TSAN`) y la telemetría de búsqueda
-(`NSCE_STATS`) están pensadas para desarrollo, no para partidas de Elo.
-
-## Uso
-
-```bash
-./build/nsce
-```
-
-El proceso habla UCI por la entrada estándar. Para una partida local contra el
-baseline, con tablero en el navegador:
-
-```bash
 ./play.sh
 ```
 
-Abre [http://127.0.0.1:8765/](http://127.0.0.1:8765/). La misma sesión en
-terminal: `./play.sh --cli`.
+Hace falta un compilador de C++ y CMake. El último comando arranca el motor y
+deja el tablero en
+[http://127.0.0.1:8765/](http://127.0.0.1:8765/). Se abre esa dirección, se
+mueve una pieza y el programa responde.
 
-Microbenchmark de búsqueda con la red promovida:
-
-```bash
-./build/nsce_bench 12 1 1 nets/nnue_search_leaves40k_rw0.bin
-```
-
-## Entrenamiento y partidas de medición
-
-El generador de datos vive en el propio motor (`build/nsce_datagen`). El
-entrenamiento y el empaquetado de redes se documentan en
-[train/README.md](train/README.md). Los conjuntos de posiciones y los
-checkpoints no se publican en git; ocupan varios gigabytes y se regeneran.
-
-Las comparaciones de Elo se hacen con partidas completas (adjudicación de
-abandono y tablas), no con cortes a un número fijo de plies. El runner está en
-`tools/fastchess_match.py` y espera un binario de
-[fastchess](https://github.com/Disservin/fastchess) en `third_party/fastchess`.
-Los informes resumidos de esos matches están en `experiments/`.
-
-Stockfish se usa como referencia externa. Los binarios no se versionan: hay
-que colocar `stockfish-19` (y, si se desea, el pin histórico `stockfish-18`)
-en `third_party/stockfish/`, según [third_party/stockfish/README.md](third_party/stockfish/README.md).
-El `stockfish` del PATH no es una referencia fiable.
-
-## Estructura del repositorio
-
-```text
-engine/        Motor: tablero, búsqueda, evaluación, UCI y datagen
-nets/          Pesos NNUE promovidos
-tools/         Tablero local, matches, configuraciones UCI y pruebas
-train/         Entrenamiento y exportación de redes
-experiments/   Informes de partidas y manifiestos de medición
-play.sh        Atajo para jugar contra el baseline
-```
+En la terminal: `./play.sh --cli`. Si ya se usa un programa de ajedrez (Arena,
+Cute Chess y similares), basta con apuntarlo a `build/nsce`.
 
 ## Licencia
 
