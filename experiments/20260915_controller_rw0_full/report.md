@@ -1,7 +1,7 @@
 # fastchess match — 20260915_controller_rw0_full
 
-- A: `baseline` = `/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce` + `tools/configs/baseline.uci`
-- B: `controller` = `/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce` + `tools/configs/controller_rw0.uci`
+- A: `baseline` = `build/nsce` + `tools/configs/baseline.uci`
+- B: `controller` = `build/nsce` + `tools/configs/controller_rw0.uci`
 - Limit: 100 ms/move; concurrency 4; openings `openings_balanced.epd` random seed 20260915
 - Games play to a result (resign ±1000cp × 4, draw after move 40 |cp|<10 × 8, max 300 moves)
 - Date: 2026-09-15

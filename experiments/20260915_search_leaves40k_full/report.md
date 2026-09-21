@@ -1,7 +1,7 @@
 # fastchess match — 20260915_search_leaves40k_full
 
-- A: `baseline` = `/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce` + `tools/configs/baseline.uci`
-- B: `leaves40k` = `/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce` + `tools/configs/nnue_search_leaves40k.uci`
+- A: `baseline` = `build/nsce` + `tools/configs/baseline.uci`
+- B: `leaves40k` = `build/nsce` + `tools/configs/nnue_search_leaves40k.uci`
 - Limit: 100 ms/move; concurrency 4; openings `openings_balanced.epd` random seed 20260915
 - Games play to a result (resign ±1000cp × 4, draw after move 40 |cp|<10 × 8, max 300 moves)
 - Date: 2026-09-15

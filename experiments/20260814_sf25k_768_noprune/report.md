@@ -1,6 +1,6 @@
 # Ablation report — 20260814_sf25k_768_noprune
 
-- Engine: `/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce`
+- Engine: `build/nsce`
 - Games/match: 40
 - Color-reversed opening pairs: 20
 - Movetime: 100 ms

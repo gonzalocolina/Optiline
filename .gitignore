@@ -12,9 +12,13 @@ nets/*
 !nets/nnue_trained.bin
 !nets/nnue_trained.metrics.json
 !nets/nnue_validation.json
+!nets/nnue_search_leaves40k_rw0.bin
+!nets/nnue_search_leaves40k_rw0.metrics.json
 train/data/
 train/checkpoints/
 train/bullet_checkpoints/
+train/bullet_checkpoints_rw0/
+train/bullet_checkpoints_simple/
 train/bullet_checkpoints_gen*/
 train/candidates/
 .venv/
@@ -30,6 +34,9 @@ third_party/bullet/
 third_party/weather-factory/
 tmp/
 dist/
+docs/
+config.json
+*.lock
 third_party/cuda-12.2/
 third_party/llvm-mingw/
 experiments/**/*.json
@@ -42,6 +49,7 @@ experiments/**/*.pgn
 experiments/**/*.out
 experiments/**/run.sh
 experiments/**/resume_train.sh
+experiments/**/next_seed
 experiments/profiles/
 *.callgrind
 !experiments/**/manifest.json

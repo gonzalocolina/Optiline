@@ -1,17 +1,17 @@
 {
   "artifacts": {
     "configs": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5"
+      "tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5"
     },
-    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
-    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915",
+    "engine": "build/nsce",
+    "engine_b": "build/nsce-frozen-20260915",
     "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
     "engine_sha256": "6bfe02eb068f1fe80743971a3d6316bba9a974dcc60f80a992afd584f6dbd300",
-    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_uho.epd",
+    "openings": "tools/openings_uho.epd",
     "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
     "referenced_files": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
-      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_search_leaves40k_rw0.bin": "06e342b8ddf128ce7c8b5b9c9c2ce4b45f555871d1dab7e853a6b09bc6bd1b54"
+      "build/nsce-frozen-20260915": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "nets/nnue_search_leaves40k_rw0.bin": "06e342b8ddf128ce7c8b5b9c9c2ce4b45f555871d1dab7e853a6b09bc6bd1b54"
     }
   },
   "command": [
@@ -56,9 +56,9 @@
   },
   "parameters": {
     "concurrency": 14,
-    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce-frozen-20260915",
+    "engine_b": "build/nsce-frozen-20260915",
     "engine_b_sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
-    "frozen_targets": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/frozen-targets/manifest.json",
+    "frozen_targets": "experiments/frozen-targets/manifest.json",
     "full_length_games": true,
     "harness": "fastchess",
     "harness_sha256": "4e8eff8b855229b96dd5a366846ce42a5ac10ff35563691e286d702a799e9f0d",
@@ -120,26 +120,26 @@
   "targets": {
     "nsce": {
       "label": "nsce-under-test",
-      "path": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+      "path": "build/nsce",
       "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
       "version": "NSCE 0.10"
     },
     "stockfish": [
       {
         "label": "stockfish-18-stable",
-        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-18",
+        "path": "third_party/stockfish/stockfish-18",
         "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
         "version": "Stockfish 18"
       },
       {
         "label": "stockfish-current-development",
-        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-dev",
+        "path": "third_party/stockfish/stockfish-dev",
         "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
         "version": "Stockfish dev-20260825-2edd935b"
       },
       {
         "label": "stockfish-17-historical-ladder",
-        "path": "/home/gonzalo/Escritorio/Codigo/Optiline/third_party/stockfish/stockfish-17",
+        "path": "third_party/stockfish/stockfish-17",
         "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
         "version": "Stockfish 17"
       }

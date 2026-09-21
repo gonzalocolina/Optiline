@@ -1,6 +1,6 @@
 # fastchess match — 20260915_no_check_ext
 
-- A: `baseline` = `build/nsce` + `/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci`
+- A: `baseline` = `build/nsce` + `tools/configs/baseline.uci`
 - B: `no_check_ext` = `build-cand/nsce` + `tools/configs/baseline.uci`
 - Limit: 100 ms/move; concurrency 14; openings `openings_balanced.epd` random seed 20260915
 - Games play to a result (resign ±1000cp × 4, draw after move 40 |cp|<10 × 8, max 300 moves)

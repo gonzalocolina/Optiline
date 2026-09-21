@@ -1,17 +1,17 @@
 {
   "artifacts": {
     "configs": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "018228987752ebcaf90df8013fde1009f31852d8deb13ea16f96fbc3ecfb4012"
+      "tools/configs/baseline.uci": "018228987752ebcaf90df8013fde1009f31852d8deb13ea16f96fbc3ecfb4012"
     },
-    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine": "build/nsce",
     "engine_sha256": "842f4ff668ae4e8597267d565ac234128774e4e840bc5ec0838eda73b2dc0685",
-    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings": "tools/openings_balanced.epd",
     "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e"
   },
   "command": [
     "tools/ablation_match.py",
     "--engine",
-    "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "build/nsce",
     "--engine-b",
     "/tmp/nsce-baseline/build/nsce",
     "--cfg-a",

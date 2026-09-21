@@ -1,0 +1,146 @@
+{
+  "artifacts": {
+    "configs": {
+      "tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5",
+      "train/candidates/nsceper1_gen0_extras_off.uci": "f242e1e2cc69eaef874358ba6bfbd5320e04cddfb6d628035514150f2d499ea9"
+    },
+    "engine": "build-per1/nsce",
+    "engine_b": "build-per1/nsce",
+    "engine_b_sha256": "97d5fe75650c40f174408762833ae53e7f619afe62fe6448d83780c14d455622",
+    "engine_sha256": "97d5fe75650c40f174408762833ae53e7f619afe62fe6448d83780c14d455622",
+    "openings": "tools/openings_uho.epd",
+    "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
+    "referenced_files": {
+      "build-per1/nsce": "97d5fe75650c40f174408762833ae53e7f619afe62fe6448d83780c14d455622",
+      "nets/nsceper1_gen0.bin": "150cc105f3248917aaffc00c3ab3b0d03dfe8c6b76dc7fecc468e525ae0fc35c"
+    }
+  },
+  "command": [
+    "tools/fastchess_match.py",
+    "--engine",
+    "build-per1/nsce",
+    "--cfg-b",
+    "train/candidates/nsceper1_gen0_extras_off.uci",
+    "--name-b",
+    "nsceper1_gen0_extras_off",
+    "--st",
+    "100",
+    "--rounds",
+    "500",
+    "--concurrency",
+    "14",
+    "--outdir",
+    "experiments/20260918_nsceper1_gen0_extras_off_screen"
+  ],
+  "created_utc": "2026-09-18T20:00:55.704376+00:00",
+  "environment": {
+    "NSCE_CHECKPOINT_DIR": "train/bullet_checkpoints",
+    "NSCE_DATASET": "train/data/gen0.shuffled.bin"
+  },
+  "git": {
+    "branch": "master",
+    "commit": "5a3558b99004feff5467ee68e5459df02e38c50e",
+    "dirty": true,
+    "status_porcelain": "M docs/eval_pipeline.md\n M docs/handoff.md\n M docs/knowledge.md\n M engine/include/nsce/nnue.hpp\n M engine/src/nnue.cpp\n M engine/tests/test_nnue.cpp\n M experiments/20260916_datagen_gen0/report.md\n M tools/pack_nsceper1.py\n M tools/per1_float_ref.py\n M tools/resume_gen0.sh\n M tools/run_gen1.sh\n M tools/tests/test_eval_pipeline.py\n M tools/tests/test_pack_nsceper1.py\n M tools/tests/test_per1_float_ref.py\n M tools/watch_datagen_then_train.sh\n M train/bullet_nsce.rs\n M train/run_bullet.sh\n?? config.json\n?? experiments/20260916_datagen100m/datagen.lock\n?? experiments/20260916_datagen_gen0/datagen.lock\n?? experiments/20260916_datagen_gen0/next_seed\n?? experiments/20260916_datagen_gen0/train.lock\n?? experiments/20260918_bullet_mlp_smoke/\n?? experiments/20260918_nsceper1_gen0_extras_off_screen/\n?? experiments/20260918_nsceper1_gen0_screen/"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "concurrency": 14,
+    "engine_b": "build-per1/nsce",
+    "engine_b_sha256": "97d5fe75650c40f174408762833ae53e7f619afe62fe6448d83780c14d455622",
+    "frozen_targets": "experiments/frozen-targets/manifest.json",
+    "full_length_games": true,
+    "harness": "fastchess",
+    "harness_sha256": "4e8eff8b855229b96dd5a366846ce42a5ac10ff35563691e286d702a799e9f0d",
+    "kind": "fastchess_match",
+    "nodes_per_move": 0,
+    "rounds": 500,
+    "sprt": null,
+    "st_ms": 100,
+    "state_isolation": "normal_game_warm",
+    "tc": "8+0.08"
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nsceper1_gen0.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "false",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260915,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "217ffffebffe0ebca18a11480c561fe0968f0936591212a2a9d6677acddce156",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

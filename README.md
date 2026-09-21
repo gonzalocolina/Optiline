@@ -1,7 +1,7 @@
 # NSCE — Neural Search Chess Engine
 
 Motor de ajedrez UCI en C++20. Hipótesis: ganar Elo a **igual CPU, hilos y
-tiempo** frente a Stockfish. El norte es Stockfish 18 sin `UCI_Elo`, no un
+tiempo** frente a Stockfish. El norte es Stockfish 19 sin `UCI_Elo`, no un
 peldaño con hándicap.
 
 ## Estado actual (v0.10)
@@ -21,12 +21,10 @@ peldaño con hándicap.
   cuentan el corte como tablas (~90 % de las puertas viejas) y no sirven como
   veredicto de fuerza
 - Frente a Stockfish 18 sin límite, 100 ms, partidas completas: **0-1-99**
-  (> 900 Elo). La misma 768 es **+145 ± 45** contra la red interna
+  (> 900 Elo; norte ahora SF19, aún sin medir). La misma 768 es **+145 ± 45**
+  contra la red interna
 - Datagen en el motor: `build/nsce_datagen` (bulletformat, ~200 M pos/día)
 - Optimización: AVX2, LTO, `-march=native`, pool SMP persistente entre `go`
-
-Siguiente trabajo: [docs/handoff.md](docs/handoff.md). Modelo del laboratorio:
-[docs/knowledge.md](docs/knowledge.md).
 
 ## Build
 
@@ -39,8 +37,9 @@ cmake --build build -j"$(nproc)"
 Opciones CMake: `NSCE_NATIVE`, `NSCE_LTO`, `NSCE_AVX2`, `NSCE_SANITIZE`,
 `NSCE_TSAN`, `NSCE_STATS`, `NSCE_PGO_GENERATE`, `NSCE_PGO_USE`.
 
-Stockfish 18 está en `third_party/stockfish/stockfish-18` (gitignored). Nunca
-usar el `stockfish` del PATH (en esta máquina es SF17).
+Stockfish 19 está en `third_party/stockfish/stockfish-19` (gitignored). SF18
+sigue pinneado como histórico. Nunca usar el `stockfish` del PATH (en esta
+máquina es SF17).
 
 ## Uso
 
@@ -77,10 +76,10 @@ python3 tools/fastchess_match.py --cfg-b tools/configs/<candidate>.uci \
 python3 tools/fastchess_match.py --cfg-b tools/configs/<candidate>.uci \
   --tc 8+0.08 --sprt 0 5 --rounds 3000 --outdir experiments/$(date +%Y%m%d)_<name>_sprt
 
-# vs Stockfish 18 sin límite
-python3 tools/fastchess_match.py --engine-b third_party/stockfish/stockfish-18 \
-  --cfg-b tools/configs/sf18_unlimited.uci --name-b sf18 --st 100 --rounds 50 \
-  --outdir experiments/$(date +%Y%m%d)_sf18
+# vs Stockfish 19 sin límite
+python3 tools/fastchess_match.py --engine-b third_party/stockfish/stockfish-19 \
+  --cfg-b tools/configs/sf19_unlimited.uci --name-b sf19 --st 100 --rounds 50 \
+  --outdir experiments/$(date +%Y%m%d)_sf19
 ```
 
 Datagen a escala (no el bucle Python `selfplay.py` / `collect_leaves.py`):
@@ -93,13 +92,9 @@ Datagen a escala (no el bucle Python `selfplay.py` / `collect_leaves.py`):
 Un cambio por SPRT. 768 con extras on, o red de rey con extras off. No
 promocionar `baseline.uci` sin H1 pentanomial.
 
-Protocolo: [docs/handoff.md](docs/handoff.md),
-[docs/eval_pipeline.md](docs/eval_pipeline.md),
-[docs/measurement.md](docs/measurement.md),
-[docs/experiments.md](docs/experiments.md).
 Entrenamiento (clon + legado NumPy): [train/README.md](train/README.md).
 
 ## Licencia
 
-MIT. No incorporar código GPL (p. ej. Stockfish) en este árbol. Etiquetas de
-profesor sí; pesos `.nnue` y clones de búsqueda no.
+[GNU GPLv3](LICENSE). Etiquetas de un profesor sí; pesos `.nnue` de Stockfish y
+clones de su búsqueda no.

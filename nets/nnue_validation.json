@@ -134,7 +134,7 @@
     "wdl_mae": 0.0026545046420475464
   },
   "trained_options": {
-    "EvalFile": "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_wdl_leaves640k.bin",
+    "EvalFile": "nets/nnue_wdl_leaves640k.bin",
     "UseExtras": true
   }
 }

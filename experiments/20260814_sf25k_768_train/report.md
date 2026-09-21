@@ -1,6 +1,6 @@
 # 768×128 from internal on Stockfish 25k-node labels
 
-Date: 2026-08-14. Teacher: unrestricted Stockfish (`/home/gonzalo/.local/bin/stockfish`),
+Date: 2026-08-14. Teacher: unrestricted Stockfish (`stockfish`),
 `Threads=1`, `Hash=16`, `go nodes 25000` on the first 200k FENs of
 `train/data/lichess_evals_1m.jsonl`. Labels: `train/data/sf18_nodes25k.jsonl`
 (200000 rows, 0 null `score_cp`, sha256 `99c6a7a0…`). Same FENs as the closed

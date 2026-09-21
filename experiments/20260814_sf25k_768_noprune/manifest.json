@@ -1,18 +1,18 @@
 {
   "artifacts": {
     "configs": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260814_sf25k_768_noprune/baseline_noprune.uci": "96fa92ec47587bc77d5ac2241948356420c32e594ecbbf2c02b8d2bd0eb4a028",
-      "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260814_sf25k_768_noprune/nnue_sf25k_noprune.uci": "f2baf9162a9f1ec973c286a1f735a9f70f0e9bf00f7e3694c648130d9dec2d22"
+      "experiments/20260814_sf25k_768_noprune/baseline_noprune.uci": "96fa92ec47587bc77d5ac2241948356420c32e594ecbbf2c02b8d2bd0eb4a028",
+      "experiments/20260814_sf25k_768_noprune/nnue_sf25k_noprune.uci": "f2baf9162a9f1ec973c286a1f735a9f70f0e9bf00f7e3694c648130d9dec2d22"
     },
-    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
-    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine": "build/nsce",
+    "engine_b": "build/nsce",
     "engine_b_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
     "engine_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
-    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_balanced.epd",
+    "openings": "tools/openings_balanced.epd",
     "openings_sha256": "8a063a62a144a6aeab6c5985e8c07e5c4c48356cc31bcb30964b557eaf34e83e",
     "referenced_files": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
-      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nnue_sf25k.bin": "2e5f01e654f1eba8a3af65b3876c32519564a407b62355c75d20cb4d278d42d3"
+      "build/nsce": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
+      "nets/nnue_sf25k.bin": "2e5f01e654f1eba8a3af65b3876c32519564a407b62355c75d20cb4d278d42d3"
     }
   },
   "command": [
@@ -45,7 +45,7 @@
   "parameters": {
     "adjudication_cp": 800,
     "adjudication_plies": 6,
-    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine_b": "build/nsce",
     "engine_b_sha256": "75396c9f660b96c8fe4ad8945c89e1c7e98b6e3d4756acd69a5c666e16d4effc",
     "exploratory_short_tc": false,
     "games": 40,

@@ -25,7 +25,7 @@ Error while creating match: Failed to set position from opening book, invalid FE
 Error while creating match: Failed to set position from opening book, invalid FEN or EPD: r1bqk2r/1Bp2p1p/p2p3n/3Np1p1/4P2P/6P1/PPQP1b2/1RB1NK1R w kq -;
 Failed to set position from opening book, invalid FEN or EPD: 1rbqkb1r/ppn1p2p/2p2p2/2Pp2p1/B3P1n1/2N2N2/PP1P1PPP/R1BQK1R1 w Qk d6;
 Error while creating match: Failed to set position from opening book, invalid FEN or EPD: 1rbqkb1r/ppn1p2p/2p2p2/2Pp2p1/B3P1n1/2N2N2/PP1P1PPP/R1BQK1R1 w Qk d6;
-Tournament was interrupted. To resume the tournament, run: /home/gonzalo/Escritorio/Codigo/Optiline/third_party/fastchess/fastchess -config file=config.json
+Tournament was interrupted. To resume the tournament, run: third_party/fastchess/fastchess -config file=config.json
 Finished match
 Total Time: 00:00:01 (hours:minutes:seconds)
 ```

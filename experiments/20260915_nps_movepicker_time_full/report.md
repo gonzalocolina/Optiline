@@ -1,6 +1,6 @@
 # fastchess match — 20260915_nps_movepicker_time_full
 
-- A: `frozen` = `build/nsce-frozen-20260915` + `/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci`
+- A: `frozen` = `build/nsce-frozen-20260915` + `tools/configs/baseline.uci`
 - B: `movepicker` = `build-nps/nsce` + `tools/configs/baseline.uci`
 - Limit: 100 ms/move; concurrency 14; openings `openings_balanced.epd` random seed 20260915
 - Games play to a result (resign ±1000cp × 4, draw after move 40 |cp|<10 × 8, max 300 moves)

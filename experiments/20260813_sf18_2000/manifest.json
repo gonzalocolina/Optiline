@@ -1,11 +1,11 @@
 {
   "artifacts": {
     "configs": {
-      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "3f7588cd1d2f6d04a8867b68d12881b1546c3961eaccba1024c8975c195eaedf"
+      "tools/configs/baseline.uci": "3f7588cd1d2f6d04a8867b68d12881b1546c3961eaccba1024c8975c195eaedf"
     },
-    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build/nsce",
+    "engine": "build/nsce",
     "engine_sha256": "321212d1091e578e630967fd83f8fa75b28d703f5a329f0d788934342e7eabc8",
-    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings.epd",
+    "openings": "tools/openings.epd",
     "openings_sha256": "dd42f8d02ffce27ba7e807459441bd364ff51981a2d3f602b9411069e43d4fb3"
   },
   "command": [
