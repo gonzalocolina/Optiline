@@ -1,4 +1,4 @@
-# NSCE
+# OPTILINE -  MOTOR DE AJEDREZ NSCE
 
 NSCE (Neural Search Chess Engine) es un motor de ajedrez UCI escrito en C++20.
 Juega a través del protocolo estándar, de modo que puede usarse desde cualquier
