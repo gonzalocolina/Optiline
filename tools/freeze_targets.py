@@ -45,8 +45,24 @@ def target(binary: Path, label: str) -> dict[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", required=True, type=Path, help="NSCE binary under test")
-    parser.add_argument("--stockfish18", required=True, type=Path)
-    parser.add_argument("--stockfish-dev", required=True, type=Path)
+    parser.add_argument(
+        "--stockfish19",
+        required=True,
+        type=Path,
+        help="official Stockfish 19 pin (north-star stable)",
+    )
+    parser.add_argument(
+        "--stockfish18",
+        type=Path,
+        default=None,
+        help="optional historical Stockfish 18 pin (pre-2026-09-21 reports)",
+    )
+    parser.add_argument(
+        "--stockfish-dev",
+        type=Path,
+        default=None,
+        help="optional development snapshot (must be newer than the stable pin)",
+    )
     parser.add_argument(
         "--stockfish-historical",
         type=Path,
@@ -60,10 +76,11 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
-    references = [
-        target(args.stockfish18, "stockfish-18-stable"),
-        target(args.stockfish_dev, "stockfish-current-development"),
-    ]
+    references = [target(args.stockfish19, "stockfish-19-stable")]
+    if args.stockfish18:
+        references.append(target(args.stockfish18, "stockfish-18-historical"))
+    if args.stockfish_dev:
+        references.append(target(args.stockfish_dev, "stockfish-current-development"))
     if args.stockfish_historical:
         references.append(target(args.stockfish_historical, "stockfish-17-historical-ladder"))
     manifest = build_manifest(

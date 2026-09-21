@@ -95,9 +95,10 @@ def resolve_stockfish(explicit: str | None = None) -> str | None:
     env = os.environ.get("STOCKFISH")
     if env and Path(env).exists():
         return env
-    frozen = ROOT / "third_party" / "stockfish" / "stockfish-18"
-    if frozen.exists():
-        return str(frozen)
+    for name in ("stockfish-19", "stockfish-18"):
+        frozen = ROOT / "third_party" / "stockfish" / name
+        if frozen.exists():
+            return str(frozen)
     w = shutil.which("stockfish")
     if w:
         return w
@@ -227,7 +228,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--stockfish",
-        default=str(ROOT / "third_party/stockfish/stockfish-18"),
+        default=str(ROOT / "third_party/stockfish/stockfish-19"),
         help="pinned Stockfish binary; do not rely on PATH",
     )
     ap.add_argument(

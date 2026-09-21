@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# Ladder helper for cutechess-cli. Requires cutechess-cli and a Stockfish binary on PATH
-# (or set STOCKFISH=/path/to/stockfish).
+# Ladder helper for cutechess-cli. Requires cutechess-cli. Prefer the pinned
+# Stockfish 19 binary; never rely on PATH `stockfish` (this lab's PATH is SF17).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NSCE="${NSCE:-$ROOT/build/nsce}"
-STOCKFISH="${STOCKFISH:-stockfish}"
+if [[ -z "${STOCKFISH:-}" ]]; then
+  if [[ -x "$ROOT/third_party/stockfish/stockfish-19" ]]; then
+    STOCKFISH="$ROOT/third_party/stockfish/stockfish-19"
+  elif [[ -x "$ROOT/third_party/stockfish/stockfish-18" ]]; then
+    STOCKFISH="$ROOT/third_party/stockfish/stockfish-18"
+  else
+    STOCKFISH="stockfish"
+  fi
+fi
 OPENINGS="${OPENINGS:-$ROOT/tools/openings.epd}"
 ROUNDS="${ROUNDS:-20}"
 TC="${TC:-10+0.1}"

@@ -23,8 +23,8 @@ SPRT [0, 5] nElo, stop when decided:
 Against pinned Stockfish (no strength limit):
 
     python3 tools/fastchess_match.py --cfg-a tools/configs/baseline.uci \
-        --engine-b third_party/stockfish/stockfish-18 --cfg-b tools/configs/sf_unlimited.uci \
-        --name-b sf18 --tc 8+0.08 --rounds 100
+        --engine-b third_party/stockfish/stockfish-19 --cfg-b tools/configs/sf19_unlimited.uci \
+        --name-b sf19 --tc 8+0.08 --rounds 100
 """
 
 from __future__ import annotations
