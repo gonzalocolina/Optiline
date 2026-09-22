@@ -17,8 +17,11 @@ class Position;
 //   NSCEHFKP — 16 king buckets × 768 (legacy HalfKA-lite)
 //   NSCEKAT1 — 32 horizontally-mirrored buckets × 768 + 12-dim tactical residual
 // Dual-perspective bullet net (NSCEPER1):
-//   MLP: Chess768 FT L1=128, pairwise CReLU, L2=16 SCReLU, L3=32 SCReLU, 8 buckets.
-//   Simple: (768→512)×2 SCReLU → 1 (original P1 graph; header l2=l3=buckets=0).
+//   MLP: Chess768 FT L1=512, pairwise CReLU, L2=32/L3=32 pair-act (CReLU∥SCReLU),
+//        skip = CReLU of last two L2 neurons. SF19-shaped, not a clone of SFNNv16 (no)
+//        L1=1024, HalfKA, PP_3Wide, or .nnue weights).
+//   Simple: (768→512)×2 SCReLU → 1 (header l2=l3=buckets=0).
+//   HL: (768→512)×2 SCReLU → 32 SCReLU → 1 (header buckets=0, l2=32, l3=1).
 //   HalfKA / threats / pawn-pairs stay a later generation.
 struct NnueNet {
   static constexpr int kFeatures = 12 * 64;
@@ -29,14 +32,18 @@ struct NnueNet {
   static constexpr int kKatFeatures = kKatBuckets * kFeatures;
   static constexpr int kThreatDim = 12;
   static constexpr int kWeightScale = 64;  // int16 weights; activate / scale
-  static constexpr int kPer1Hidden = 128;
+  static constexpr int kPer1Hidden = 512;
   static constexpr int kPer1SimpleHidden = 512;
+  static constexpr int kPer1Hl = 32;
   static constexpr int kPer1Acc = 512;
-  static constexpr int kPer1L2 = 16;
+  static constexpr int kPer1L2 = 32;
   static constexpr int kPer1L3 = 32;
+  static constexpr int kPer1L2Act = 2 * kPer1L2;
+  static constexpr int kPer1L3Act = 2 * kPer1L3;
   static_assert(kPer1Acc % 16 == 0, "PER1 accumulator AVX2 kernels step by 16");
   static_assert(kPer1Hidden <= kPer1Acc && kPer1SimpleHidden <= kPer1Acc);
   static_assert(kPer1L2 % 8 == 0 && kPer1L3 % 8 == 0, "PER1 GEMM AVX2 kernels step by 8");
+  static_assert(kPer1L2Act % 8 == 0 && kPer1L3Act % 8 == 0, "PER1 pair-act GEMM AVX2 step by 8");
   static constexpr int kPer1Buckets = 8;
   static constexpr int kPer1QA = 255;
   static constexpr int kPer1QB = 64;
@@ -47,6 +54,7 @@ struct NnueNet {
   bool kat = false;
   bool per1 = false;
   bool per1_simple = false;
+  bool per1_hl = false;
   int per1_ft = kPer1Hidden;
   std::array<std::array<int16_t, kHidden>, kFeatures> w0{};
   std::array<int16_t, kHidden> b0{};
@@ -59,11 +67,15 @@ struct NnueNet {
   alignas(32) std::array<int16_t, kPer1Acc> per1_b0{};
   alignas(32) std::array<int16_t, 2 * kPer1SimpleHidden> per1_simple_w1{};
   int32_t per1_simple_b1 = 0;
+  std::vector<int16_t> per1_hl_w1{};
+  std::array<int32_t, kPer1Hl> per1_hl_b1{};
+  std::array<int16_t, kPer1Hl> per1_hl_w2{};
+  int32_t per1_hl_b2 = 0;
   alignas(32) std::array<std::array<std::array<int16_t, kPer1Hidden>, kPer1L2>, kPer1Buckets> per1_l1w{};
   std::array<std::array<int32_t, kPer1L2>, kPer1Buckets> per1_l1b{};
-  alignas(32) std::array<std::array<std::array<int16_t, kPer1L2>, kPer1L3>, kPer1Buckets> per1_l2w{};
+  alignas(32) std::array<std::array<std::array<int16_t, kPer1L2Act>, kPer1L3>, kPer1Buckets> per1_l2w{};
   std::array<std::array<int32_t, kPer1L3>, kPer1Buckets> per1_l2b{};
-  alignas(32) std::array<std::array<int16_t, kPer1L3>, kPer1Buckets> per1_l3w{};
+  alignas(32) std::array<std::array<int16_t, kPer1L3Act>, kPer1Buckets> per1_l3w{};
   std::array<int32_t, kPer1Buckets> per1_l3b{};
   int per1_qa = kPer1QA;
   int per1_qb = kPer1QB;

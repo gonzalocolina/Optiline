@@ -44,9 +44,9 @@ static void write_per1_net(const std::filesystem::path& path, const std::vector<
   };
   fill16(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2 * NnueNet::kPer1Hidden);
   fill32(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2);
-  fill16(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3 * NnueNet::kPer1L2);
+  fill16(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3 * NnueNet::kPer1L2Act);
   fill32(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3);
-  fill16(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3);
+  fill16(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3Act);
   out.write(reinterpret_cast<const char*>(l3b.data()), sizeof(l3b));
 }
 
@@ -430,10 +430,10 @@ TEST(NnueTest, Per1BiasMatchesBulletScale) {
   std::filesystem::remove(path);
 }
 
-TEST(NnueTest, Per1EvaluateMatchesIndependentScrelu) {
+TEST(NnueTest, Per1EvaluateMatchesIndependentPairAct) {
   init_bitboards();
   Zobrist::init();
-  auto path = std::filesystem::temp_directory_path() / "nsce_per1_screlu.bin";
+    auto path = std::filesystem::temp_directory_path() / "nsce_per1_pairact.bin";
   {
     std::vector<int16_t> w0(static_cast<std::size_t>(NnueNet::kFeatures) * NnueNet::kPer1Hidden);
     for (std::size_t i = 0; i < w0.size(); ++i)
@@ -464,31 +464,45 @@ TEST(NnueTest, Per1EvaluateMatchesIndependentScrelu) {
     };
     fill(acc.per1[stm].data(), 0);
     fill(acc.per1[~stm].data(), half);
-    std::array<int32_t, NnueNet::kPer1L2> h2{};
+    std::array<int64_t, NnueNet::kPer1L2> h2pre{};
     for (int j = 0; j < NnueNet::kPer1L2; ++j) {
       int64_t s = 0;
       for (int i = 0; i < NnueNet::kPer1Hidden; ++i)
         s += static_cast<int64_t>(pair[i]) * net.per1_l1w[bucket][j][i];
       s /= qa;
       s += net.per1_l1b[bucket][j];
-      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
-      h2[j] = x * x;
+      h2pre[j] = s;
     }
-    std::array<int32_t, NnueNet::kPer1L3> h3{};
+    std::array<int32_t, NnueNet::kPer1L2Act> h2{};
+    for (int j = 0; j < NnueNet::kPer1L2; ++j) {
+      const int x = std::clamp(static_cast<int>(h2pre[j] / qb), 0, qa);
+      h2[j] = x;
+      h2[NnueNet::kPer1L2 + j] = x * x / qa;
+    }
+    const int64_t skip = (static_cast<int64_t>(h2[NnueNet::kPer1L2 - 2]) -
+                          static_cast<int64_t>(h2[NnueNet::kPer1L2 - 1])) *
+                         qb;
+    std::array<int64_t, NnueNet::kPer1L3> h3pre{};
     for (int j = 0; j < NnueNet::kPer1L3; ++j) {
       int64_t s = 0;
-      for (int i = 0; i < NnueNet::kPer1L2; ++i)
+      for (int i = 0; i < NnueNet::kPer1L2Act; ++i)
         s += static_cast<int64_t>(h2[i]) * net.per1_l2w[bucket][j][i];
       s /= qa;
       s += net.per1_l2b[bucket][j];
-      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
-      h3[j] = x * x;
+      h3pre[j] = s;
+    }
+    std::array<int32_t, NnueNet::kPer1L3Act> h3{};
+    for (int j = 0; j < NnueNet::kPer1L3; ++j) {
+      const int x = std::clamp(static_cast<int>(h3pre[j] / qb), 0, qa);
+      h3[j] = x;
+      h3[NnueNet::kPer1L3 + j] = x * x / qa;
     }
     int64_t sum = 0;
-    for (int i = 0; i < NnueNet::kPer1L3; ++i)
+    for (int i = 0; i < NnueNet::kPer1L3Act; ++i)
       sum += static_cast<int64_t>(h3[i]) * net.per1_l3w[bucket][i];
     sum /= qa;
     sum += net.per1_l3b[bucket];
+    sum += skip;
     return static_cast<int>(sum * net.per1_scale / (static_cast<int64_t>(qa) * qb));
   };
   EXPECT_EQ(nnue.evaluate(pos), expected(pos.nnue_acc(), pos.side_to_move()));
@@ -599,6 +613,43 @@ TEST(NnueTest, Per1SimpleBiasIsScaleCp) {
   ASSERT_TRUE(nnue.load(path.string()));
   EXPECT_TRUE(nnue.uses_per1());
   EXPECT_TRUE(nnue.net().per1_simple);
+  Position pos;
+  pos.set_nnue(&nnue);
+  pos.set_use_extras(false);
+  pos.set_startpos();
+  EXPECT_EQ(nnue.evaluate(pos), NnueNet::kPer1Scale);
+  std::filesystem::remove(path);
+}
+
+TEST(NnueTest, Per1HlBiasIsScaleCp) {
+  init_bitboards();
+  Zobrist::init();
+  auto path = std::filesystem::temp_directory_path() / "nsce_per1_hl_bias.bin";
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write("NSCEPER1", 8);
+    int32_t hdr[] = {NnueNet::kPer1SimpleHidden, NnueNet::kFeatures, 0, NnueNet::kPer1Hl, 1,
+                     NnueNet::kPer1QA,           NnueNet::kPer1QB,   NnueNet::kPer1Scale};
+    out.write(reinterpret_cast<const char*>(hdr), sizeof(hdr));
+    std::vector<int16_t> w0(
+        static_cast<std::size_t>(NnueNet::kFeatures) * NnueNet::kPer1SimpleHidden, 0);
+    out.write(reinterpret_cast<const char*>(w0.data()), static_cast<std::streamsize>(w0.size() * 2));
+    std::array<int16_t, NnueNet::kPer1SimpleHidden> b0{};
+    out.write(reinterpret_cast<const char*>(b0.data()), sizeof(b0));
+    std::vector<int16_t> w1(static_cast<std::size_t>(NnueNet::kPer1Hl) * 2 * NnueNet::kPer1SimpleHidden,
+                            0);
+    out.write(reinterpret_cast<const char*>(w1.data()), static_cast<std::streamsize>(w1.size() * 2));
+    std::array<int32_t, NnueNet::kPer1Hl> b1{};
+    out.write(reinterpret_cast<const char*>(b1.data()), sizeof(b1));
+    std::array<int16_t, NnueNet::kPer1Hl> w2{};
+    out.write(reinterpret_cast<const char*>(w2.data()), sizeof(w2));
+    int32_t b2 = NnueNet::kPer1QA * NnueNet::kPer1QB;
+    out.write(reinterpret_cast<const char*>(&b2), 4);
+  }
+  Nnue nnue;
+  ASSERT_TRUE(nnue.load(path.string()));
+  EXPECT_TRUE(nnue.net().per1_hl);
+  EXPECT_FALSE(nnue.net().per1_simple);
   Position pos;
   pos.set_nnue(&nnue);
   pos.set_use_extras(false);

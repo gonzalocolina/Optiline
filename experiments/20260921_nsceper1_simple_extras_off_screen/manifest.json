@@ -1,0 +1,152 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/train/candidates/nsceper1_gen0_extras_off.uci": "f242e1e2cc69eaef874358ba6bfbd5320e04cddfb6d628035514150f2d499ea9"
+    },
+    "engine": "/home/gonzalo/Escritorio/Codigo/Optiline/build-per1/nsce",
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build-per1/nsce",
+    "engine_b_sha256": "b6fff1ca307ee17b8b408630a49efa46e49555c0295600e9cbeb0dd52b60b134",
+    "engine_sha256": "b6fff1ca307ee17b8b408630a49efa46e49555c0295600e9cbeb0dd52b60b134",
+    "openings": "/home/gonzalo/Escritorio/Codigo/Optiline/tools/openings_uho.epd",
+    "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
+    "referenced_files": {
+      "/home/gonzalo/Escritorio/Codigo/Optiline/build-per1/nsce": "b6fff1ca307ee17b8b408630a49efa46e49555c0295600e9cbeb0dd52b60b134",
+      "/home/gonzalo/Escritorio/Codigo/Optiline/nets/nsceper1_gen0.bin": "b31484beb4611dd7711068ee486b4bbc385900c21b9228386f1b4ce73a7ad11c"
+    }
+  },
+  "command": [
+    "/home/gonzalo/Escritorio/Codigo/Optiline/tools/fastchess_match.py",
+    "--engine",
+    "/home/gonzalo/Escritorio/Codigo/Optiline/build-per1/nsce",
+    "--cfg-b",
+    "/home/gonzalo/Escritorio/Codigo/Optiline/train/candidates/nsceper1_gen0_extras_off.uci",
+    "--name-b",
+    "nsceper1_gen0_extras_off",
+    "--st",
+    "100",
+    "--rounds",
+    "500",
+    "--concurrency",
+    "14",
+    "--outdir",
+    "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260921_nsceper1_simple_extras_off_screen"
+  ],
+  "created_utc": "2026-09-21T20:36:30.766327+00:00",
+  "environment": {
+    "NSCE_CHECKPOINT_DIR": "/home/gonzalo/Escritorio/Codigo/Optiline/train/bullet_checkpoints_simple",
+    "NSCE_DATASET": "/home/gonzalo/Escritorio/Codigo/Optiline/train/data/gen0.shuffled.bin",
+    "NSCE_EXTRAS_OFF_OUT": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260921_nsceper1_simple_extras_off_screen",
+    "NSCE_GRAPH": "simple",
+    "NSCE_SCREEN_OUT": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260921_nsceper1_simple_screen",
+    "NSCE_SPRT_OUT": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260921_nsceper1_simple_sprt",
+    "NSCE_TRAIN_LOG": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/20260921_bullet_gen0_simple.log",
+    "NSCE_WDL": "0"
+  },
+  "git": {
+    "branch": "master",
+    "commit": "a51a6c4e27709c78593cb75c475e141823799d81",
+    "dirty": true,
+    "status_porcelain": "M engine/include/nsce/nnue.hpp\n M engine/src/nnue.cpp\n M engine/tests/test_nnue.cpp\n M tools/pack_nsceper1.py\n M tools/per1_float_ref.py\n M tools/tests/test_pack_nsceper1.py\n M tools/tests/test_per1_float_ref.py\n M train/bullet_nsce.rs\n M train/bullet_nsce_simple.rs\n M train/run_bullet.sh\n?? experiments/20260921_nsceper1_simple_extras_off_screen/\n?? experiments/20260921_nsceper1_simple_screen/\n?? tools/per1_l2_collapse.py\n?? tools/per1_l2_occupancy.py\n?? train/bullet_checkpoints_512mlp/\n?? train/bullet_checkpoints_512mlp_clip/\n?? train/bullet_checkpoints_512mlp_skipact/"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "concurrency": 14,
+    "engine_b": "/home/gonzalo/Escritorio/Codigo/Optiline/build-per1/nsce",
+    "engine_b_sha256": "b6fff1ca307ee17b8b408630a49efa46e49555c0295600e9cbeb0dd52b60b134",
+    "frozen_targets": "/home/gonzalo/Escritorio/Codigo/Optiline/experiments/frozen-targets/manifest.json",
+    "full_length_games": true,
+    "harness": "fastchess",
+    "harness_sha256": "4e8eff8b855229b96dd5a366846ce42a5ac10ff35563691e286d702a799e9f0d",
+    "kind": "fastchess_match",
+    "nodes_per_move": 0,
+    "rounds": 500,
+    "sprt": null,
+    "st_ms": 100,
+    "state_isolation": "normal_game_warm",
+    "tc": "8+0.08"
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "cpu_count": 16,
+    "cpu_governor": "schedutil",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nsceper1_gen0.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "false",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260915,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "217ffffebffe0ebca18a11480c561fe0968f0936591212a2a9d6677acddce156",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  }
+}

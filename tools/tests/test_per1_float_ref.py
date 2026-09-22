@@ -12,6 +12,8 @@ sys.path.insert(0, str(TOOLS))
 
 import pack_nsceper1 as pack  # noqa: E402
 from per1_float_ref import Per1Net, trunc_div  # noqa: E402
+from per1_l2_occupancy import occupancy  # noqa: E402
+from per1_l2_collapse import eta_squared  # noqa: E402
 
 
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -23,9 +25,9 @@ def _zero_blobs() -> tuple[bytes, ...]:
         b"\x00\x00" * pack.HIDDEN,
         b"\x00\x00" * (pack.BUCKETS * pack.L2 * pack.HIDDEN),
         b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L2),
-        b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2_ACT),
         b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L3),
-        b"\x00\x00" * (pack.BUCKETS * pack.L3),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3_ACT),
         b"\x00\x00\x00\x00" * pack.BUCKETS,
     )
 
@@ -39,11 +41,11 @@ def _ones_net(path: Path) -> None:
     blobs[3] = struct.pack(
         f"<{pack.BUCKETS * pack.L2}i", *([pack.QA * pack.QB] * (pack.BUCKETS * pack.L2))
     )
-    blobs[4] = b"\x01\x00" * (pack.BUCKETS * pack.L3 * pack.L2)
+    blobs[4] = b"\x01\x00" * (pack.BUCKETS * pack.L3 * pack.L2_ACT)
     blobs[5] = struct.pack(
         f"<{pack.BUCKETS * pack.L3}i", *([pack.QA * pack.QB] * (pack.BUCKETS * pack.L3))
     )
-    blobs[6] = b"\x01\x00" * (pack.BUCKETS * pack.L3)
+    blobs[6] = b"\x01\x00" * (pack.BUCKETS * pack.L3_ACT)
     pack.write_per1(path, *blobs)
 
 
@@ -92,6 +94,33 @@ class Per1FloatRefTest(unittest.TestCase):
             self.assertEqual(net.eval_int(STARTPOS), pack.SCALE)
             self.assertAlmostEqual(net.eval_float(STARTPOS), float(pack.SCALE), places=5)
 
+    def test_hl_bias_and_one_unit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hl.bin"
+            l0w = b"\x00\x00" * (pack.FEATURES * pack.SIMPLE_HIDDEN)
+            l0b = b"\x00\x00" * pack.SIMPLE_HIDDEN
+            l1w = b"\x00\x00" * (pack.HL * 2 * pack.SIMPLE_HIDDEN)
+            l1b = b"\x00\x00\x00\x00" * pack.HL
+            l2w = b"\x00\x00" * pack.HL
+            l2b = struct.pack("<i", pack.QA * pack.QB)
+            pack.write_per1_hl(path, l0w, l0b, l1w, l1b, l2w, l2b)
+            net = Per1Net(path)
+            self.assertTrue(net.hl)
+            self.assertFalse(net.simple)
+            self.assertEqual(net.eval_int(STARTPOS), pack.SCALE)
+            l0b = struct.pack("<" + "h" * pack.SIMPLE_HIDDEN, pack.QA, *([0] * (pack.SIMPLE_HIDDEN - 1)))
+            l1_vals = [0] * (pack.HL * 2 * pack.SIMPLE_HIDDEN)
+            l1_vals[0] = pack.QB
+            l1w = struct.pack("<" + "h" * len(l1_vals), *l1_vals)
+            l2_vals = [0] * pack.HL
+            l2_vals[0] = pack.QB
+            l2w = struct.pack("<" + "h" * pack.HL, *l2_vals)
+            l2b = struct.pack("<i", 0)
+            pack.write_per1_hl(path, l0w, l0b, l1w, l1b, l2w, l2b)
+            net = Per1Net(path)
+            self.assertEqual(net.eval_int(STARTPOS), pack.SCALE)
+            self.assertAlmostEqual(net.eval_float(STARTPOS), float(pack.SCALE), places=5)
+
     def test_trunc_div_matches_cpp_toward_zero(self) -> None:
         self.assertEqual(trunc_div(-753668, 255), -2955)
         self.assertEqual(trunc_div(-2955 * 400, 255 * 64), -72)
@@ -124,6 +153,41 @@ class Per1FloatRefTest(unittest.TestCase):
                 engine.close()
             self.assertEqual(details["nnue"], net.eval_int(STARTPOS))
             self.assertLessEqual(abs(net.eval_float(STARTPOS) - details["nnue"]), 1.0)
+
+    def test_l2_occupancy_zero_net_is_all_low(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "z.bin"
+            pack.write_per1(path, *_zero_blobs())
+            stats = occupancy(Per1Net(path), [STARTPOS])
+            self.assertEqual(stats["mean_l2mid"], 0.0)
+            self.assertEqual(stats["low"], [1] * pack.L2)
+            self.assertEqual(stats["mid"], [0] * pack.L2)
+            self.assertEqual(stats["high"], [0] * pack.L2)
+
+    def test_l2_occupancy_ones_bias_is_all_high(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ones.bin"
+            _ones_net(path)
+            stats = occupancy(Per1Net(path), [STARTPOS])
+            self.assertEqual(stats["mean_l2mid"], 0.0)
+            self.assertEqual(stats["low"], [0] * pack.L2)
+            self.assertEqual(stats["mid"], [0] * pack.L2)
+            self.assertEqual(stats["high"], [1] * pack.L2)
+
+    def test_eval_parts_sum_matches_eval_int(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ones.bin"
+            _ones_net(path)
+            net = Per1Net(path)
+            parts = net.eval_parts(STARTPOS)
+            self.assertEqual(parts["total"], net.eval_int(STARTPOS))
+
+    def test_eta_squared_is_one_when_value_is_the_bucket(self) -> None:
+        values = [float(b) for b in (0, 0, 1, 1, 7, 7)]
+        groups = [0, 0, 1, 1, 7, 7]
+        self.assertGreater(eta_squared(values, groups), 0.99)
+        noise = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+        self.assertLess(eta_squared(noise, groups), 0.01)
 
 
 if __name__ == "__main__":

@@ -19,9 +19,9 @@ def _zeros() -> tuple[bytes, ...]:
         b"\x00\x00" * pack.HIDDEN,
         b"\x00\x00" * (pack.BUCKETS * pack.L2 * pack.HIDDEN),
         b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L2),
-        b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2_ACT),
         b"\x00\x00\x00\x00" * (pack.BUCKETS * pack.L3),
-        b"\x00\x00" * (pack.BUCKETS * pack.L3),
+        b"\x00\x00" * (pack.BUCKETS * pack.L3_ACT),
         b"\x00\x00\x00\x00" * pack.BUCKETS,
     )
 
@@ -36,7 +36,7 @@ class PackNsceper1Test(unittest.TestCase):
             hidden, features, buckets, l2, l3, qa, qb, scale = struct.unpack_from("<8i", data, 8)
             self.assertEqual(
                 (hidden, features, buckets, l2, l3, qa, qb, scale),
-                (128, 768, 8, 16, 32, 255, 64, 400),
+                (512, 768, 8, 32, 32, 255, 64, 400),
             )
             self.assertEqual(len(data), pack.expected_size())
 
@@ -45,9 +45,9 @@ class PackNsceper1Test(unittest.TestCase):
         l0b = b"\x00\x00" * pack.HIDDEN
         l1w = b"\x00\x00" * (pack.BUCKETS * pack.L2 * pack.HIDDEN)
         l1b16 = struct.pack(f"<{pack.BUCKETS * pack.L2}h", *([0] * (pack.BUCKETS * pack.L2 - 8) + [1, 2, 3, 4, 5, 6, 7, -8]))
-        l2w = b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2)
+        l2w = b"\x00\x00" * (pack.BUCKETS * pack.L3 * pack.L2_ACT)
         l2b16 = b"\x00\x00" * (pack.BUCKETS * pack.L3)
-        l3w = b"\x00\x00" * (pack.BUCKETS * pack.L3)
+        l3w = b"\x00\x00" * (pack.BUCKETS * pack.L3_ACT)
         l3b16 = struct.pack("<8h", 1, 2, 3, 4, 5, 6, 7, -8)
         padded = l0w + l0b + l1w + l1b16 + l2w + l2b16 + l3w + l3b16 + b"bullet" * 8
         blobs = pack.pack_from_quantised(padded)

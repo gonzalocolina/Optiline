@@ -1,14 +1,11 @@
-//! Dual-perspective net shaped like Stockfish 19's MLP, not a clone of SFNNv16.
-//!
-//! SFNNv16 is L1=1024 / L2=32 / L3=32, HalfKA-hm, PP_3Wide, GPL weights. This
-//! graph keeps Chess768 (so gen0.bin stays valid) and L1=512 (GTX 1650; do not
-//! clone the 1024-wide FT). L2=32 L3=32 with pair activations (CReLU ∥ SCReLU)
-//! and skip = CReLU of the last two L2 neurons — the SF19 MLP ideas.
-//! Copy to third_party/bullet/examples/nsce.rs via train/run_bullet.sh.
+//! (768→512)×2 SCReLU → 32 SCReLU → 1. No material buckets.
+//! The bucketed 512/32/32 MLP collapsed to a constant inside each bucket.
+//! The 1-layer net learned chess and lost ~100 Elo (corr 0.44 vs 0.64).
+//! Copy to third_party/bullet/examples/nsce.rs with NSCE_GRAPH=hl.
 
 use bullet_lib::{
-    game::{inputs::Chess768, outputs::MaterialCount},
-    nn::optimiser::AdamW,
+    game::inputs::Chess768,
+    nn::{optimiser::AdamW, Affine, InitSettings},
     trainer::{
         save::SavedFormat,
         schedule::{TrainingSchedule, TrainingSteps, lr, wdl},
@@ -17,6 +14,9 @@ use bullet_lib::{
     value::{ValueTrainerBuilder, loader::DirectSequentialDataLoader},
 };
 use std::path::{Path, PathBuf};
+
+const FT: usize = 512;
+const HL: usize = 32;
 
 fn env_usize(name: &str, default: usize) -> usize {
     std::env::var(name)
@@ -51,16 +51,11 @@ fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
 }
 
 fn main() {
-    // SF19-shaped MLP: 512/32/32, not SF18-small 128/16/32 (collapsed) and not
-    // SFNNv16 L1=1024. Pairwise CReLU at the FT; pair acts at L2 and L3; skip.
-    let l1 = 512;
-    let l2 = 32;
-    let l3 = 32;
     let dataset_path = std::env::var("NSCE_DATASET")
         .unwrap_or_else(|_| "../../train/data/gen0.bin".to_string());
     let smoke = std::env::var("NSCE_SMOKE").is_ok();
-    let initial_lr = 0.001;
-    let final_lr = 0.001 * 0.3f32.powi(5);
+    let initial_lr = env_f32("NSCE_LR", 0.0002);
+    let final_lr = initial_lr * 0.3f32.powi(5);
     let batch_size = env_usize("NSCE_BATCH", 8_192);
     let batches_per_superbatch = env_usize("NSCE_BATCHES", if smoke { 2 } else { 12_208 });
     let superbatches = env_usize("NSCE_SUPERBATCHES", if smoke { 1 } else { 320 });
@@ -68,53 +63,61 @@ fn main() {
     let batch_queue_size = env_usize("NSCE_QUEUE", if smoke { 2 } else { 64 });
     let wdl_proportion = env_f32("NSCE_WDL", 0.0);
     println!("wdl_proportion={wdl_proportion}");
-    println!("graph=mlp hidden={l1} l2={l2} l3={l3} pair_act=1 skip=crelu clip=0");
-    const NUM_OUTPUT_BUCKETS: usize = 8;
+    println!(
+        "graph=hl hidden={FT} hl={HL} buckets=0 lr={initial_lr} ft_bias=0.15 l1_bias=0.4 l1_std_div=4"
+    );
 
     let mut trainer = ValueTrainerBuilder::default()
         .dual_perspective()
         .optimiser(AdamW)
         .inputs(Chess768)
-        .output_buckets(MaterialCount::<NUM_OUTPUT_BUCKETS>)
         .save_format(&[
             SavedFormat::id("l0w").round().quantise::<i16>(255),
             SavedFormat::id("l0b").round().quantise::<i16>(255),
             SavedFormat::id("l1w").round().quantise::<i16>(64).transpose(),
             SavedFormat::id("l1b").round().quantise::<i16>(255 * 64),
-            SavedFormat::id("l2w").round().quantise::<i16>(64).transpose(),
+            SavedFormat::id("l2w").round().quantise::<i16>(64),
             SavedFormat::id("l2b").round().quantise::<i16>(255 * 64),
-            SavedFormat::id("l3w").round().quantise::<i16>(64).transpose(),
-            SavedFormat::id("l3b").round().quantise::<i16>(255 * 64),
         ])
         .loss_fn(|output, target| output.sigmoid().squared_error(target))
-        .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
-            let l0 = builder.new_affine("l0", 768, l1);
-            // Pair act concat(CReLU, SCReLU) doubles L2/L3 into the next affine.
-            let aff1 = builder.new_affine("l1", l1, NUM_OUTPUT_BUCKETS * l2);
-            let aff2 = builder.new_affine("l2", 2 * l2, NUM_OUTPUT_BUCKETS * l3);
-            let aff3 = builder.new_affine("l3", 2 * l3, NUM_OUTPUT_BUCKETS);
-            let ft = |input, start, end| l0.slice(start, end).forward(input).crelu();
-            let stm_hidden = ft(stm_inputs, 0, l1 / 2) * ft(stm_inputs, l1 / 2, l1);
-            let ntm_hidden = ft(ntm_inputs, 0, l1 / 2) * ft(ntm_inputs, l1 / 2, l1);
-            let hl1 = stm_hidden.concat(ntm_hidden);
-            // Skip from CReLU outputs (already [0,1]), not the raw affine.
-            // Raw skip drowned the MLP (nsce-10..50). Layer-wide clip(0,1) just
-            // slammed 28/32 L2 units into the walls (clip nsce-10).
-            let h2 = aff1.forward(hl1).select(output_buckets);
-            let c2 = h2.crelu();
-            let skip = c2.slice_rows(l2 - 2, l2 - 1) - c2.slice_rows(l2 - 1, l2);
-            let hl2 = c2.concat(c2 * c2);
-            let h3 = aff2.forward(hl2).select(output_buckets);
-            let c3 = h3.crelu();
-            let hl3 = c3.concat(c3 * c3);
-            aff3.forward(hl3).select(output_buckets) + skip
+        .build(|builder, stm_inputs, ntm_inputs| {
+            // Bias 0.5 on both SCReLU layers saturated 31/32 hidden units by nsce-10:
+            // the FT outputs got large and the 1024-wide dot left (0, 1).
+            // Keep a small FT lift, and shrink the hidden weights so that dot stays inside.
+            let l0w = builder.new_weights(
+                "l0w",
+                (FT, 768),
+                InitSettings::Normal { mean: 0.0, stdev: (2.0 / 768.0_f32).sqrt() },
+            );
+            let l0b = builder.new_weights(
+                "l0b",
+                (FT, 1),
+                InitSettings::Normal { mean: 0.15, stdev: 0.02 },
+            );
+            let l0 = Affine { weights: l0w, bias: l0b };
+            let l1_stdev = (2.0 / (2 * FT) as f32).sqrt() / 4.0;
+            let l1w = builder.new_weights(
+                "l1w",
+                (HL, 2 * FT),
+                InitSettings::Normal { mean: 0.0, stdev: l1_stdev },
+            );
+            let l1b = builder.new_weights(
+                "l1b",
+                (HL, 1),
+                InitSettings::Normal { mean: 0.4, stdev: 0.05 },
+            );
+            let l1 = Affine { weights: l1w, bias: l1b };
+            let l2 = builder.new_affine("l2", HL, 1);
+            let stm = l0.forward(stm_inputs).screlu();
+            let ntm = l0.forward(ntm_inputs).screlu();
+            l2.forward(l1.forward(stm.concat(ntm)).screlu())
         });
 
     let output_directory = std::env::var("NSCE_CHECKPOINT_DIR").unwrap_or_else(|_| {
         if smoke {
-            "../../tmp/bullet_smoke".to_string()
+            "../../tmp/bullet_smoke_hl".to_string()
         } else {
-            "../../train/bullet_checkpoints_512mlp_skipact".to_string()
+            "../../train/bullet_checkpoints_hl_l1small".to_string()
         }
     });
     std::fs::create_dir_all(&output_directory).ok();

@@ -72,8 +72,11 @@ GRAPH="${NSCE_GRAPH:-mlp}"
 if [[ "$GRAPH" == simple ]]; then
   DEFAULT_CKPT="$ROOT/train/bullet_checkpoints_simple"
   TRAIN_SRC="$ROOT/train/bullet_nsce_simple.rs"
+elif [[ "$GRAPH" == hl ]]; then
+  DEFAULT_CKPT="$ROOT/train/bullet_checkpoints_hl_l1small"
+  TRAIN_SRC="$ROOT/train/bullet_nsce_hl.rs"
 else
-  DEFAULT_CKPT="$ROOT/train/bullet_checkpoints"
+  DEFAULT_CKPT="$ROOT/train/bullet_checkpoints_512mlp_skipact"
   TRAIN_SRC="$ROOT/train/bullet_nsce.rs"
 fi
 CKPT_DIR="${NSCE_CHECKPOINT_DIR:-$DEFAULT_CKPT}"
@@ -149,6 +152,9 @@ SIZE_FN=expected_size
 if [[ "${NSCE_GRAPH:-mlp}" == simple ]]; then
   PACK_FLAGS+=(--simple)
   SIZE_FN=expected_size_simple
+elif [[ "${NSCE_GRAPH:-mlp}" == hl ]]; then
+  PACK_FLAGS+=(--hl)
+  SIZE_FN=expected_size_hl
 fi
 python3 "$ROOT/tools/pack_nsceper1.py" --from-quantised "$ckpt/quantised.bin" "${PACK_FLAGS[@]}" -o "$CAND_NET"
 got=$(stat -c%s "$CAND_NET")

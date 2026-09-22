@@ -4,6 +4,7 @@
 #include "nsce/eval.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -228,9 +229,11 @@ bool Nnue::load(const std::string& path) {
     in.read(reinterpret_cast<char*>(&scale), 4);
     if (!in || features != NnueNet::kFeatures || qa <= 0 || qb <= 0 || scale <= 0) return false;
     const bool simple = (hidden == NnueNet::kPer1SimpleHidden && buckets == 0 && l2 == 0 && l3 == 0);
+    const bool hl = (hidden == NnueNet::kPer1SimpleHidden && buckets == 0 && l2 == NnueNet::kPer1Hl &&
+                     l3 == 1);
     const bool mlp = (hidden == NnueNet::kPer1Hidden && buckets == NnueNet::kPer1Buckets &&
                       l2 == NnueNet::kPer1L2 && l3 == NnueNet::kPer1L3);
-    if (!simple && !mlp) return false;
+    if (!simple && !hl && !mlp) return false;
     std::error_code size_error;
     const uintmax_t file_size = std::filesystem::file_size(path, size_error);
     if (size_error) return false;
@@ -238,17 +241,25 @@ bool Nnue::load(const std::string& path) {
         simple
             ? (8 + 8 * 4 + static_cast<uintmax_t>(features) * hidden * 2 +
                static_cast<uintmax_t>(hidden) * 2 + static_cast<uintmax_t>(2 * hidden) * 2 + 4)
+            : hl
+            ? (8 + 8 * 4 + static_cast<uintmax_t>(features) * hidden * 2 +
+               static_cast<uintmax_t>(hidden) * 2 +
+               static_cast<uintmax_t>(NnueNet::kPer1Hl) * (2 * hidden) * 2 +
+               static_cast<uintmax_t>(NnueNet::kPer1Hl) * 4 +
+               static_cast<uintmax_t>(NnueNet::kPer1Hl) * 2 + 4)
             : (8 + 8 * 4 + static_cast<uintmax_t>(features) * hidden * 2 +
                static_cast<uintmax_t>(hidden) * 2 +
                static_cast<uintmax_t>(buckets) * l2 * hidden * 2 +
                static_cast<uintmax_t>(buckets) * l2 * 4 +
-               static_cast<uintmax_t>(buckets) * l3 * l2 * 2 +
+               static_cast<uintmax_t>(buckets) * l3 * (2 * l2) * 2 +
                static_cast<uintmax_t>(buckets) * l3 * 4 +
-               static_cast<uintmax_t>(buckets) * l3 * 2 + static_cast<uintmax_t>(buckets) * 4);
+               static_cast<uintmax_t>(buckets) * (2 * l3) * 2 +
+               static_cast<uintmax_t>(buckets) * 4);
     if (file_size != expected_size) return false;
     NnueNet next{};
     next.per1 = true;
     next.per1_simple = simple;
+    next.per1_hl = hl;
     next.per1_ft = hidden;
     next.per1_qa = qa;
     next.per1_qb = qb;
@@ -260,6 +271,13 @@ bool Nnue::load(const std::string& path) {
     if (simple) {
       in.read(reinterpret_cast<char*>(next.per1_simple_w1.data()), 2 * hidden * 2);
       in.read(reinterpret_cast<char*>(&next.per1_simple_b1), 4);
+    } else if (hl) {
+      next.per1_hl_w1.resize(static_cast<std::size_t>(NnueNet::kPer1Hl) * 2 * hidden);
+      in.read(reinterpret_cast<char*>(next.per1_hl_w1.data()),
+              static_cast<std::streamsize>(next.per1_hl_w1.size() * 2));
+      in.read(reinterpret_cast<char*>(next.per1_hl_b1.data()), NnueNet::kPer1Hl * 4);
+      in.read(reinterpret_cast<char*>(next.per1_hl_w2.data()), NnueNet::kPer1Hl * 2);
+      in.read(reinterpret_cast<char*>(&next.per1_hl_b2), 4);
     } else {
       for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
         for (int j = 0; j < NnueNet::kPer1L2; ++j)
@@ -268,11 +286,11 @@ bool Nnue::load(const std::string& path) {
               NnueNet::kPer1Buckets * NnueNet::kPer1L2 * 4);
       for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
         for (int j = 0; j < NnueNet::kPer1L3; ++j)
-          in.read(reinterpret_cast<char*>(next.per1_l2w[b][j].data()), NnueNet::kPer1L2 * 2);
+          in.read(reinterpret_cast<char*>(next.per1_l2w[b][j].data()), NnueNet::kPer1L2Act * 2);
       in.read(reinterpret_cast<char*>(next.per1_l2b.data()),
               NnueNet::kPer1Buckets * NnueNet::kPer1L3 * 4);
       for (int b = 0; b < NnueNet::kPer1Buckets; ++b)
-        in.read(reinterpret_cast<char*>(next.per1_l3w[b].data()), NnueNet::kPer1L3 * 2);
+        in.read(reinterpret_cast<char*>(next.per1_l3w[b].data()), NnueNet::kPer1L3Act * 2);
       in.read(reinterpret_cast<char*>(next.per1_l3b.data()), NnueNet::kPer1Buckets * 4);
     }
     if (!in) return false;
@@ -517,6 +535,42 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
     sum += net_.per1_simple_b1;
     return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
   }
+  if (net_.per1 && net_.per1_hl) {
+    const int qa = net_.per1_qa;
+    const int qb = net_.per1_qb;
+    const int ft = net_.per1_ft;
+    std::array<int32_t, 2 * NnueNet::kPer1SimpleHidden> act{};
+    auto fill = [&](const int16_t* a, int off) {
+      for (int i = 0; i < ft; ++i) {
+        const int x = std::clamp(static_cast<int>(a[i]), 0, qa);
+        act[off + i] = x * x;
+      }
+    };
+    fill(acc.per1[stm].data(), 0);
+    fill(acc.per1[~stm].data(), ft);
+    std::array<int32_t, NnueNet::kPer1Hl> h{};
+    for (int j = 0; j < NnueNet::kPer1Hl; ++j) {
+      const int16_t* w = net_.per1_hl_w1.data() + static_cast<std::size_t>(j) * (2 * ft);
+#if defined(__AVX2__)
+      int64_t s = per1_dot_i16(act.data(), w, 2 * ft);
+#else
+      int64_t s = 0;
+      for (int i = 0; i < 2 * ft; ++i) s += static_cast<int64_t>(act[i]) * w[i];
+#endif
+      s = s / qa + net_.per1_hl_b1[j];
+      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
+      h[j] = x * x;
+    }
+#if defined(__AVX2__)
+    int64_t sum = per1_dot_i16(h.data(), net_.per1_hl_w2.data(), NnueNet::kPer1Hl);
+#else
+    int64_t sum = 0;
+    for (int j = 0; j < NnueNet::kPer1Hl; ++j)
+      sum += static_cast<int64_t>(h[j]) * net_.per1_hl_w2[j];
+#endif
+    sum = sum / qa + net_.per1_hl_b2;
+    return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
+  }
   if (net_.per1) {
     const int bucket = per1_output_bucket(acc.piece_count);
     const int qa = net_.per1_qa;
@@ -533,7 +587,7 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
     fill_pair(acc.per1[stm].data(), 0);
     fill_pair(acc.per1[~stm].data(), half);
 
-    std::array<int32_t, NnueNet::kPer1L2> h2{};
+    std::array<int64_t, NnueNet::kPer1L2> h2pre{};
     for (int j = 0; j < NnueNet::kPer1L2; ++j) {
 #if defined(__AVX2__)
       int64_t s = per1_dot_i16(pair.data(), net_.per1_l1w[bucket][j].data(), NnueNet::kPer1Hidden);
@@ -544,34 +598,49 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
 #endif
       s /= qa;
       s += net_.per1_l1b[bucket][j];
-      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
-      h2[j] = x * x;
+      h2pre[j] = s;
     }
+    std::array<int32_t, NnueNet::kPer1L2Act> h2{};
+    for (int j = 0; j < NnueNet::kPer1L2; ++j) {
+      const int x = std::clamp(static_cast<int>(h2pre[j] / qb), 0, qa);
+      h2[j] = x;
+      h2[NnueNet::kPer1L2 + j] = x * x / qa;
+    }
+    const int64_t skip = (static_cast<int64_t>(h2[NnueNet::kPer1L2 - 2]) -
+                          static_cast<int64_t>(h2[NnueNet::kPer1L2 - 1])) *
+                         qb;
 
-    std::array<int32_t, NnueNet::kPer1L3> h3{};
+    std::array<int64_t, NnueNet::kPer1L3> h3pre{};
     for (int j = 0; j < NnueNet::kPer1L3; ++j) {
 #if defined(__AVX2__)
-      int64_t s = per1_dot_i16(h2.data(), net_.per1_l2w[bucket][j].data(), NnueNet::kPer1L2);
+      int64_t s = per1_dot_i16(h2.data(), net_.per1_l2w[bucket][j].data(), NnueNet::kPer1L2Act);
 #else
       int64_t s = 0;
-      for (int i = 0; i < NnueNet::kPer1L2; ++i)
+      for (int i = 0; i < NnueNet::kPer1L2Act; ++i)
         s += static_cast<int64_t>(h2[i]) * net_.per1_l2w[bucket][j][i];
 #endif
       s /= qa;
       s += net_.per1_l2b[bucket][j];
-      const int x = std::clamp(static_cast<int>(s / qb), 0, qa);
-      h3[j] = x * x;
+      h3pre[j] = s;
+    }
+
+    std::array<int32_t, NnueNet::kPer1L3Act> h3{};
+    for (int j = 0; j < NnueNet::kPer1L3; ++j) {
+      const int x = std::clamp(static_cast<int>(h3pre[j] / qb), 0, qa);
+      h3[j] = x;
+      h3[NnueNet::kPer1L3 + j] = x * x / qa;
     }
 
 #if defined(__AVX2__)
-    int64_t sum = per1_dot_i16(h3.data(), net_.per1_l3w[bucket].data(), NnueNet::kPer1L3);
+    int64_t sum = per1_dot_i16(h3.data(), net_.per1_l3w[bucket].data(), NnueNet::kPer1L3Act);
 #else
     int64_t sum = 0;
-    for (int i = 0; i < NnueNet::kPer1L3; ++i)
+    for (int i = 0; i < NnueNet::kPer1L3Act; ++i)
       sum += static_cast<int64_t>(h3[i]) * net_.per1_l3w[bucket][i];
 #endif
     sum /= qa;
     sum += net_.per1_l3b[bucket];
+    sum += skip;
     return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
   }
   if (net_.halfkp) {

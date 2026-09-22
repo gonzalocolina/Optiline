@@ -1,5 +1,6 @@
 //! Original P1 graph: (768 → 512)×2 SCReLU → 1. Chess768 so gen0.bin stays valid.
 //! Copy to third_party/bullet/examples/nsce.rs with NSCE_GRAPH=simple.
+//! Resumed after 512/32/32 pair-act collapsed to per-bucket constants (nsce-20).
 
 use bullet_lib::{
     game::inputs::Chess768,
