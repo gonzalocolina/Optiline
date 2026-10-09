@@ -123,3 +123,83 @@ TEST(TranspositionTableTest, StoresAndProbesStaticEval) {
   EXPECT_TRUE(entry.eval_valid);
   EXPECT_EQ(entry.eval, 96);
 }
+
+TEST(TranspositionTableTest, StaticEvalRoundTripsExactly) {
+  TranspositionTable table;
+  table.resize(1);
+  const int evals[] = {37, -1234, 0, 1, -1, 2999};
+  Key key = 0x5555000000000000ULL;
+  for (int eval : evals) {
+    key += 1ULL << 32;
+    table.store(key, 5, 10, BOUND_EXACT, Move::make(SQ_E2, SQ_E4), 0, eval);
+    TTEntry entry;
+    ASSERT_TRUE(table.probe(key, entry));
+    EXPECT_TRUE(entry.eval_valid);
+    EXPECT_EQ(entry.eval, eval);
+  }
+}
+
+TEST(TranspositionTableTest, MissingEvalRoundTripsAsInvalid) {
+  TranspositionTable table;
+  table.resize(1);
+  const Key key = 0x2222;
+  table.store(key, 0, -5, BOUND_UPPER, Move{}, 0, VALUE_NONE);
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_FALSE(entry.eval_valid);
+  EXPECT_EQ(entry.depth, 0);
+  EXPECT_EQ(entry.move, 0u);
+  EXPECT_EQ(entry.score, -5);
+}
+
+TEST(TranspositionTableTest, PvFlagRoundTrips) {
+  TranspositionTable table;
+  table.resize(1);
+  TTEntry entry;
+  table.store(0x3333, 4, 0, BOUND_EXACT, Move::make(SQ_E2, SQ_E4), 0, 12, true);
+  ASSERT_TRUE(table.probe(0x3333, entry));
+  EXPECT_TRUE(entry.is_pv);
+  table.store(0x4444, 4, 0, BOUND_EXACT, Move::make(SQ_E2, SQ_E4), 0, 12, false);
+  ASSERT_TRUE(table.probe(0x4444, entry));
+  EXPECT_FALSE(entry.is_pv);
+}
+
+TEST(TranspositionTableTest, NullMoveStoreKeepsOldMove) {
+  TranspositionTable table;
+  table.resize(1);
+  const Key key = 0x6666;
+  const Move move = Move::make(SQ_G1, SQ_F3);
+  table.store(key, 4, 20, BOUND_LOWER, move, 0, 50);
+  table.store(key, 6, 30, BOUND_EXACT, Move{}, 0, 60);
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_EQ(entry.move, move.raw);
+  EXPECT_EQ(entry.depth, 6);
+  EXPECT_EQ(entry.score, 30);
+  EXPECT_EQ(entry.eval, 60);
+}
+
+TEST(TranspositionTableTest, ShallowStoreReplacesDeepEntryFromOlderSearch) {
+  TranspositionTable table;
+  table.resize(1);
+  const Key key = 0x7777;
+  table.store(key, 12, 50, BOUND_LOWER, Move::make(SQ_G1, SQ_F3), 0);
+  table.new_search();
+  table.store(key, 2, 75, BOUND_UPPER, Move::make(SQ_B1, SQ_C3), 0);
+
+  TTEntry entry;
+  ASSERT_TRUE(table.probe(key, entry));
+  EXPECT_EQ(entry.depth, 2);
+  EXPECT_EQ(entry.score, 75);
+}
+
+TEST(TranspositionTableTest, HashfullCountsOnlyCurrentGeneration) {
+  TranspositionTable table;
+  table.resize(1);
+  for (Key k = 0; k < 400; ++k) table.store(k, 4, 0, BOUND_EXACT, Move::make(SQ_A2, SQ_A3), 0);
+  EXPECT_GT(table.hashfull(), 0);
+  table.new_search();
+  EXPECT_EQ(table.hashfull(), 0);
+}

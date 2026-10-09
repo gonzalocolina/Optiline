@@ -19,6 +19,7 @@ struct TTEntry {
   uint8_t bound = BOUND_NONE;
   uint8_t generation = 0;
   bool eval_valid = false;
+  bool is_pv = false;
 };
 
 class TranspositionTable {
@@ -30,7 +31,8 @@ class TranspositionTable {
 
   bool probe(Key key, TTEntry& entry) const;
   void prefetch(Key key) const;
-  void store(Key key, int depth, int score, Bound bound, Move move, int ply, int eval = VALUE_NONE);
+  void store(Key key, int depth, int score, Bound bound, Move move, int ply, int eval = VALUE_NONE,
+             bool is_pv = false);
 
   static int score_to_tt(int score, int ply);
   static int score_from_tt(int score, int ply);

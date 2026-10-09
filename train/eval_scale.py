@@ -78,6 +78,33 @@ def training_target(
     return float(min(max(target, -target_clip), target_clip))
 
 
+def wdl_permille_to_winrate(win: int, draw: int, loss: int) -> float:
+    total = int(win) + int(draw) + int(loss)
+    if total <= 0:
+        return 0.5
+    return (float(win) + 0.5 * float(draw)) / float(total)
+
+
+def fit_logistic_scale(cps: list[float], winrates: list[float]) -> float:
+    """Least-squares logistic scale s for P = sigmoid(cp / s). Search (30, 800)."""
+    if len(cps) != len(winrates) or len(cps) < 8:
+        raise ValueError("need at least 8 (cp, winrate) pairs to fit a WDL scale")
+    best_s = 200.0
+    best_err = float("inf")
+    s = 30.0
+    while s <= 800.0:
+        err = 0.0
+        for cp, p in zip(cps, winrates):
+            pred = cp_to_wdl(cp, s)
+            delta = pred - float(p)
+            err += delta * delta
+        if err < best_err:
+            best_err = err
+            best_s = s
+        s += 2.0
+    return best_s
+
+
 def teacher_family(identity: dict[str, Any] | None, command: str = "") -> str:
     name = ""
     if identity:

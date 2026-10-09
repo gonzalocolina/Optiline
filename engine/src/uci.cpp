@@ -67,6 +67,7 @@ void Uci::handle_command(const std::string& line) {
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
     std::cout << "option name Clear Hash type button\n";
     std::cout << "option name Threads type spin default 1 min 1 max 64\n";
+    std::cout << "option name MoveOverhead type spin default 10 min 0 max 5000\n";
     std::cout << "option name UseNNUE type check default true\n";
     std::cout << "option name UsePolicy type check default false\n";
     std::cout << "option name UseSearchController type check default false\n";
@@ -254,6 +255,8 @@ void Uci::handle_setoption(std::istringstream& is) {
       search_.set_hash_mb(hash);
     } else if (name == "Threads") {
       search_.set_threads(std::clamp(std::stoi(value), 1, 64));
+    } else if (name == "MoveOverhead") {
+      search_.set_move_overhead(std::stoi(value));
     }
   else if (name == "UseNNUE") {
     context_.nnue_wanted = (value == "true" || value == "1");

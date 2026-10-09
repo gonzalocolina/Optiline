@@ -57,6 +57,30 @@ TEST(BoardTest, DetectsThreefoldWithinReversibleWindow) {
   EXPECT_TRUE(pos.is_draw());
 }
 
+TEST(BoardTest, SearchDrawCountsSingleRepetitionAfterRoot) {
+  Position pos;
+  pos.set_startpos();
+  const std::size_t root_size = pos.history_size();
+  EXPECT_EQ(root_size, 1u);
+  const char* moves[] = {"g1f3", "g8f6", "f3g1", "f6g8", "g1f3"};
+  StateInfo states[5];
+  for (int i = 0; i < 4; ++i) {
+    Move move = parse_uci_move(pos, moves[i]);
+    ASSERT_TRUE(move);
+    pos.do_move(move, states[i]);
+  }
+  EXPECT_FALSE(pos.is_draw());
+  EXPECT_FALSE(pos.is_draw_in_search(root_size));
+  EXPECT_TRUE(pos.is_draw_in_search(0));
+
+  Move move = parse_uci_move(pos, moves[4]);
+  ASSERT_TRUE(move);
+  pos.do_move(move, states[4]);
+  EXPECT_FALSE(pos.is_draw());
+  EXPECT_TRUE(pos.is_draw_in_search(root_size));
+  EXPECT_FALSE(pos.is_draw_in_search(pos.history_size()));
+}
+
 TEST(BoardTest, PawnAndNonpawnKeysSurviveUndo) {
   Position pos;
   pos.set_startpos();

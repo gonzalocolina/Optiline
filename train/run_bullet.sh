@@ -130,10 +130,11 @@ if [[ -z "$ckpt" || ! -f "$ckpt/quantised.bin" ]]; then
   exit 1
 fi
 GEN="${NSCE_GEN:-0}"
-CAND_REL="nets/nsceper1_gen${GEN}.bin"
+CAND_REL="${NSCE_PACK_REL:-nets/nsceper1_gen${GEN}.bin}"
 CAND_NET="$ROOT/$CAND_REL"
-CAND_CFG="$ROOT/train/candidates/nsceper1_gen${GEN}.uci"
-OFF_CFG="$ROOT/train/candidates/nsceper1_gen${GEN}_extras_off.uci"
+PACK_STEM="$(basename "$CAND_REL" .bin)"
+CAND_CFG="$ROOT/train/candidates/${PACK_STEM}.uci"
+OFF_CFG="$ROOT/train/candidates/${PACK_STEM}_extras_off.uci"
 BASE_EVAL=$(python3 - "$ROOT" <<'PY'
 from pathlib import Path
 import sys
@@ -164,7 +165,8 @@ if [[ "$got" -ne "$exp" ]]; then
   exit 1
 fi
 # Alias for gen0 / manuals. Never overwrite a promoted baseline path.
-if [[ "$BASE_EVAL" != "nets/nsceper1.bin" ]]; then
+# Named packs (NSCE_PACK_REL) keep their own filename; do not clobber nsceper1.bin.
+if [[ -z "${NSCE_PACK_REL:-}" && "$BASE_EVAL" != "nets/nsceper1.bin" ]]; then
   cp -f "$CAND_NET" "$ROOT/nets/nsceper1.bin"
 fi
 python3 "$ROOT/tools/write_per1_uci.py" --eval-file "$CAND_REL" --extras true -o "$CAND_CFG"

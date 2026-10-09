@@ -55,6 +55,8 @@ class Position {
 
   bool in_check() const { return checkers_ != 0; }
   bool is_draw() const;
+  bool is_draw_in_search(std::size_t root_history_size) const;
+  std::size_t history_size() const { return history_keys_.size(); }
   bool is_capture(Move m) const;
 
   Bitboard attackers_to(Square s, Bitboard occ) const;
@@ -72,6 +74,7 @@ class Position {
 
  private:
   void clear();
+  bool is_fifty_or_material_draw() const;
   void update_checkers();
   Key compute_key() const;
   void refresh_nnue();

@@ -5,17 +5,19 @@
 namespace nsce {
 namespace {
 
-constexpr int kEvalSentinel = -128;
+// payload: move 24 | score 16 | depth 8 | bound 2 | generation 6 | pv 1 | used 1
+// aux:     key[17..63] | eval_valid 1 | eval 16; verification = aux ^ payload
+constexpr uint64_t kUsedBit = 1ULL << 57;
+constexpr uint64_t kPvBit = 1ULL << 56;
+constexpr uint64_t kKeyMask = ~0x1FFFFULL;
+constexpr uint64_t kEvalValidBit = 1ULL << 16;
 
-int pack_eval(int eval) {
-  if (eval == VALUE_NONE || eval <= -VALUE_MATE + 256 || eval >= VALUE_MATE - 256) return kEvalSentinel;
-  return std::clamp(eval / 16, -127, 127);
+bool eval_storable(int eval) {
+  return eval != VALUE_NONE && eval > -VALUE_MATE + 256 && eval < VALUE_MATE - 256;
 }
 
-int unpack_eval(int packed) {
-  if (packed == kEvalSentinel) return VALUE_NONE;
-  return packed * 16;
-}
+int payload_depth(uint64_t payload) { return static_cast<uint8_t>(payload >> 40); }
+int payload_generation(uint64_t payload) { return static_cast<int>((payload >> 50) & 63); }
 
 }  // namespace
 
@@ -42,16 +44,19 @@ void TranspositionTable::clear() {
 }
 
 void TranspositionTable::new_search() {
-  ++generation_;
+  generation_ = static_cast<uint8_t>((generation_ + 1) & 63);
 }
 
 int TranspositionTable::hashfull() const {
   if (size_ == 0) return 0;
   const std::size_t clusters = std::min<std::size_t>(size_, 1000);
   std::size_t used = 0;
-  for (std::size_t i = 0; i < clusters; ++i)
-    for (const Slot& slot : table_[i].slots)
-      if (slot.payload.load(std::memory_order_relaxed) != 0) ++used;
+  for (std::size_t i = 0; i < clusters; ++i) {
+    for (const Slot& slot : table_[i].slots) {
+      const uint64_t payload = slot.payload.load(std::memory_order_relaxed);
+      if ((payload & kUsedBit) && payload_generation(payload) == generation_) ++used;
+    }
+  }
   if (used == 0) return 0;
   return std::max(1, static_cast<int>((used * 1000) / (clusters * 4)));
 }
@@ -73,18 +78,18 @@ bool TranspositionTable::probe(Key key, TTEntry& entry) const {
 #endif
   for (const Slot& slot : cluster.slots) {
     const uint64_t payload = slot.payload.load(std::memory_order_relaxed);
-    if (payload == 0) continue;
-    const uint64_t verification = slot.verification.load(std::memory_order_acquire);
-    if ((verification ^ payload) != key) continue;
+    if (!(payload & kUsedBit)) continue;
+    const uint64_t aux = slot.verification.load(std::memory_order_acquire) ^ payload;
+    if ((aux & kKeyMask) != (key & kKeyMask)) continue;
 
     entry.move = static_cast<uint32_t>(payload) & Move::kEncodingMask;
     entry.score = static_cast<int16_t>(static_cast<uint16_t>(payload >> 24));
-    entry.depth = static_cast<uint8_t>(payload >> 40);
+    entry.depth = static_cast<uint8_t>(payload_depth(payload));
     entry.bound = static_cast<uint8_t>((payload >> 48) & 0x3);
-    entry.generation = static_cast<uint8_t>((payload >> 50) & 63);
-    const int packed = static_cast<int>(static_cast<int8_t>(payload >> 56));
-    entry.eval = static_cast<int16_t>(unpack_eval(packed));
-    entry.eval_valid = packed != kEvalSentinel;
+    entry.generation = static_cast<uint8_t>(payload_generation(payload));
+    entry.is_pv = (payload & kPvBit) != 0;
+    entry.eval_valid = (aux & kEvalValidBit) != 0;
+    entry.eval = entry.eval_valid ? static_cast<int16_t>(static_cast<uint16_t>(aux)) : static_cast<int16_t>(VALUE_NONE);
     return true;
   }
   return false;
@@ -102,50 +107,54 @@ int TranspositionTable::score_from_tt(int score, int ply) {
   return score;
 }
 
-void TranspositionTable::store(Key key, int depth, int score, Bound bound, Move move, int ply, int eval) {
+void TranspositionTable::store(Key key, int depth, int score, Bound bound, Move move, int ply, int eval,
+                               bool is_pv) {
   if (size_ == 0) return;
 
   Cluster& cluster = table_[key & (size_ - 1)];
-  Slot* replacement = nullptr;
-  int replacement_value = 10000;
-  int preserved_eval = pack_eval(eval);
+  const int clamped_depth = std::clamp(depth, 0, 255);
+  uint64_t packed_move = move.raw & Move::kEncodingMask;
+  uint64_t eval_bits = eval_storable(eval) ? (static_cast<uint16_t>(eval) | kEvalValidBit) : 0;
 
+  Slot* match = nullptr;
+  Slot* empty = nullptr;
+  Slot* worst = nullptr;
+  int worst_value = 0;
   for (Slot& slot : cluster.slots) {
-    const uint64_t verification = slot.verification.load(std::memory_order_acquire);
     const uint64_t old_payload = slot.payload.load(std::memory_order_relaxed);
-    if (old_payload == 0) {
-      replacement = &slot;
+    if (!(old_payload & kUsedBit)) {
+      if (!empty) empty = &slot;
+      continue;
+    }
+    const uint64_t old_aux = slot.verification.load(std::memory_order_acquire) ^ old_payload;
+    const int old_depth = payload_depth(old_payload);
+    const int old_generation = payload_generation(old_payload);
+    if ((old_aux & kKeyMask) == (key & kKeyMask)) {
+      if (bound != BOUND_EXACT && old_generation == generation_ &&
+          clamped_depth + 4 + 2 * static_cast<int>(is_pv) <= old_depth)
+        return;
+      if (!packed_move) packed_move = old_payload & Move::kEncodingMask;
+      if (!eval_bits) eval_bits = old_aux & (kEvalValidBit | 0xFFFFULL);
+      match = &slot;
       break;
     }
-
-    if ((verification ^ old_payload) == key) {
-      int old_depth = static_cast<uint8_t>(old_payload >> 40);
-      if (depth + 2 < old_depth && bound != BOUND_EXACT) return;
-      if (preserved_eval == kEvalSentinel) preserved_eval = static_cast<int>(static_cast<int8_t>(old_payload >> 56));
-      replacement = &slot;
-      break;
-    }
-
-    int old_depth = static_cast<uint8_t>(old_payload >> 40);
-    int old_bound = static_cast<uint8_t>((old_payload >> 48) & 0x3);
-    int old_generation = static_cast<uint8_t>((old_payload >> 50) & 63);
-    int age = (static_cast<int>(generation_ & 63) - old_generation) & 63;
-    int value = old_depth + (old_bound == BOUND_EXACT ? 4 : 0) - 4 * age;
-    if (value < replacement_value) {
-      replacement_value = value;
-      replacement = &slot;
+    const int age = (generation_ - old_generation) & 63;
+    const int value = old_depth - 8 * age;
+    if (!worst || value < worst_value) {
+      worst_value = value;
+      worst = &slot;
     }
   }
 
+  Slot* target = match ? match : (empty ? empty : worst);
   const uint64_t packed_score = static_cast<uint16_t>(score_to_tt(score, ply));
-  const uint64_t packed_depth = static_cast<uint8_t>(std::clamp(depth, 0, 255));
-  const uint64_t packed_eval = static_cast<uint8_t>(preserved_eval);
-  const uint64_t payload = (static_cast<uint64_t>(move.raw & Move::kEncodingMask)) | (packed_score << 24) |
-                           (packed_depth << 40) | (static_cast<uint64_t>(bound) << 48) |
-                           (static_cast<uint64_t>(generation_ & 63) << 50) | (packed_eval << 56);
+  const uint64_t payload = packed_move | (packed_score << 24) | (static_cast<uint64_t>(clamped_depth) << 40) |
+                           (static_cast<uint64_t>(bound & 0x3) << 48) | (static_cast<uint64_t>(generation_ & 63) << 50) |
+                           (is_pv ? kPvBit : 0) | kUsedBit;
+  const uint64_t aux = (key & kKeyMask) | eval_bits;
 
-  replacement->payload.store(payload, std::memory_order_relaxed);
-  replacement->verification.store(key ^ payload, std::memory_order_release);
+  target->payload.store(payload, std::memory_order_relaxed);
+  target->verification.store(aux ^ payload, std::memory_order_release);
 }
 
 }  // namespace nsce

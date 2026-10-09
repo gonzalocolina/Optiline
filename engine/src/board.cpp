@@ -340,7 +340,7 @@ bool Position::is_capture(Move m) const {
   return m.is_capture() || m.is_ep();
 }
 
-bool Position::is_draw() const {
+bool Position::is_fifty_or_material_draw() const {
   if (halfmove_ >= 100) return true;
 
   if (!(pieces(PAWN) | pieces(ROOK) | pieces(QUEEN))) {
@@ -353,12 +353,30 @@ bool Position::is_draw() const {
       if (!(bishop_squares & DarkSquares) || !(bishop_squares & ~DarkSquares)) return true;
     }
   }
+  return false;
+}
+
+bool Position::is_draw() const {
+  if (is_fifty_or_material_draw()) return true;
 
   int reps = 1;
   int current = static_cast<int>(history_keys_.size()) - 1;
   int earliest = std::max(static_cast<int>(repetition_start_), current - halfmove_);
   for (int i = current - 2; i >= earliest; i -= 2) {
     if (history_keys_[i] == key_ && ++reps >= 3) return true;
+  }
+  return false;
+}
+
+bool Position::is_draw_in_search(std::size_t root_history_size) const {
+  if (is_fifty_or_material_draw()) return true;
+
+  int reps = 1;
+  int current = static_cast<int>(history_keys_.size()) - 1;
+  int earliest = std::max(static_cast<int>(repetition_start_), current - halfmove_);
+  for (int i = current - 2; i >= earliest; i -= 2) {
+    if (history_keys_[i] != key_) continue;
+    if (static_cast<std::size_t>(i) >= root_history_size || ++reps >= 3) return true;
   }
   return false;
 }

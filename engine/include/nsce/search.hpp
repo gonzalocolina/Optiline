@@ -104,32 +104,55 @@ struct SearchStats {
   SearchStats& operator+=(const SearchStats& other);
 };
 
+using PieceToHistory = int16_t[12][SQUARE_NB];
+
 struct SearchStack {
+  PieceToHistory* cont_hist = nullptr;
   Move current_move{};
   Move excluded{};
-  int static_eval = 0;
+  int static_eval = VALUE_NONE;
+  int stat_score = 0;
+  int move_count = 0;
+  int cutoff_count = 0;
   int double_extensions = 0;
-  bool skip_null = false;
+  int ply = 0;
+  bool in_check = false;
+  bool tt_pv = false;
+  bool tt_hit = false;
   Piece moved_piece = NO_PIECE;
 };
 
 struct SearchWorker {
   static constexpr int kMaxPly = 128;
-  static constexpr int kStackPad = 6;
+  static constexpr int kStackPad = 7;
   static constexpr int kCorrSize = 16384;
-  Move killers[kMaxPly][2]{};
-  int history[12][SQUARE_NB]{};
-  int capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
-  int16_t continuation[12][SQUARE_NB][12][SQUARE_NB]{};
+  static constexpr int kHistoryMax = 16384;
+
+  int16_t main_history[COLOR_NB][SQUARE_NB * SQUARE_NB]{};
+  int16_t capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
+  PieceToHistory continuation[12][SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
   int nonpawn_corr[COLOR_NB][kCorrSize]{};
   int cont_corr[12][SQUARE_NB]{};
-  Move countermove[SQUARE_NB][SQUARE_NB]{};
+  Move killers[kMaxPly][2]{};
+  Move countermove[12][SQUARE_NB]{};
   Move pv[kMaxPly][kMaxPly]{};
   int pv_len[kMaxPly]{};
+  Move root_pv[kMaxPly]{};
+  int root_pv_len = 0;
+  uint64_t root_move_nodes[SQUARE_NB * SQUARE_NB]{};
+  std::size_t root_history_size = 0;
+  int root_depth = 0;
+  int sel_depth = 0;
+  int nmp_min_ply = 0;
+  int completed_depth = 0;
+  Move best_move{};
+  int best_score = -VALUE_INFINITE;
   uint64_t nodes = 0;
   uint64_t published_nodes = 0;
   SearchStats stats{};
+
+  void reset_search_state();
 };
 
 class Search {
@@ -153,6 +176,7 @@ class Search {
   void clear_search_state();
   void set_leaf_telemetry(const std::string& path);
   void set_eval_scale(int permille) { eval_scale_permille_ = std::clamp(permille, 250, 4000); }
+  void set_move_overhead(int ms) { move_overhead_ms_ = std::clamp(ms, 0, 5000); }
   bool set_tune_param(const std::string& name, int value);
   const SearchTune& tune() const { return tune_; }
   void set_use_tt(bool on) { use_tt_ = on; }
@@ -170,38 +194,35 @@ class Search {
   uint64_t bench(int depth);
 
  private:
-  int search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, int alpha, int beta, int ply,
-             bool cut_node);
-  int quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta, int ply);
+  int search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, int alpha, int beta, bool cut_node);
+  int quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alpha, int beta);
+  void iterative_deepening(SearchWorker& w, bool is_main, int max_depth);
   bool time_up() const;
   bool stopped() const {
     return cancelled_.load(std::memory_order_relaxed) || time_expired_.load(std::memory_order_relaxed);
   }
   bool count_node(SearchWorker& w);
   void flush_nodes(SearchWorker& w);
-  void score_moves(SearchWorker& w, const Position& pos, const SearchStack* ss, MoveList& list, Move tt_move,
-                   Move counter, int ply, int* scores) const;
-  void sort_moves(MoveList& list, int* scores) const;
-  void update_quiet_stats(SearchWorker& w, const Position& pos, SearchStack* ss, Move best, const Move* quiets,
-                          int quiet_count, int depth, int ply, Move prev);
-  void update_capture_stats(SearchWorker& w, const Position& pos, Move best, const Move* captures, int capture_count,
-                            int depth);
-  int correction(const SearchWorker& w, const Position& pos) const;
-  int correction(const SearchWorker& w, const Position& pos, const SearchStack* ss, int ply) const;
+  int quiet_score(const SearchWorker& w, const Position& pos, const SearchStack* ss, Move m) const;
+  int capture_score(const SearchWorker& w, const Position& pos, Move m) const;
+  void update_quiet_histories(SearchWorker& w, const Position& pos, SearchStack* ss, Move m, int bonus);
+  void update_continuation(SearchStack* ss, Piece pc, Square to, int bonus);
+  void update_capture_history(SearchWorker& w, const Position& pos, Move m, int bonus);
+  int correction(const SearchWorker& w, const Position& pos, const SearchStack* ss) const;
+  void update_correction(SearchWorker& w, const Position& pos, const SearchStack* ss, int diff, int depth);
   int evaluate_for_search(const Position& pos) const;
-  void update_correction(SearchWorker& w, const Position& pos, int static_eval, int best_score, Bound bound, int depth);
-
-  int lmr_quiet_[64][64]{};
-  int lmr_capture_[64][64]{};
-  int pick_next_move(MoveList& list, int* scores, int start) const;
   void rebuild_lmr_tables();
-  int search_root_parallel(int depth, int alpha, int beta);
+  void report_iteration(const SearchWorker& w, int depth, int score) const;
+  bool soft_time_exceeded(const SearchWorker& w, int stable_iterations, int score_drop) const;
   void start_helper_pool();
   void stop_helper_pool();
   void helper_worker_loop(std::size_t index);
   void launch_helper_job(std::function<void(SearchWorker&)> job);
   void wait_helper_job();
   void record_leaf(const Position& pos, const char* site, int depth, int ply, int score);
+
+  int lmr_quiet_[64][64]{};
+  int lmr_capture_[64][64]{};
 
   Position root_;
   TranspositionTable tt_;
@@ -212,6 +233,7 @@ class Search {
   std::atomic<int64_t> deadline_ns_{0};
   int optimum_ms_ = 0;
   int maximum_ms_ = 0;
+  int move_overhead_ms_ = 10;
   bool use_soft_time_ = false;
   int64_t nodes_limit_ = 0;
   int threads_ = 1;
@@ -229,11 +251,10 @@ class Search {
   SearchTune tune_{};
   PolicyNet* policy_ = nullptr;
   SearchController* controller_ = nullptr;
-  int root_depth_ = 0;
   std::vector<Move> root_moves_;
   std::atomic<bool> ponder_hit_requested_{false};
   std::atomic<bool> pondering_{false};
-  SearchWorker main_worker_{};
+  std::unique_ptr<SearchWorker> main_worker_;
   SearchStats last_stats_{};
   std::vector<std::unique_ptr<SearchWorker>> helper_workers_;
   std::vector<std::thread> helper_threads_;

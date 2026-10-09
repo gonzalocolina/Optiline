@@ -11,9 +11,11 @@ sys.path.insert(0, str(TRAIN))
 from eval_scale import (  # noqa: E402
     NSCE_SEARCH_WDL_SCALE,
     cp_to_wdl,
+    fit_logistic_scale,
     teacher_family,
     to_white_cp,
     training_target,
+    wdl_permille_to_winrate,
     wdl_to_search_cp,
 )
 
@@ -103,6 +105,16 @@ class EvalScaleTest(unittest.TestCase):
         self.assertEqual(teacher_family({"id_name": "Stockfish 18"}, "stockfish"), "stockfish")
         self.assertEqual(teacher_family({"id_name": "Stockfish 19"}, "stockfish"), "stockfish")
         self.assertTrue(math.isfinite(NSCE_SEARCH_WDL_SCALE))
+
+    def test_wdl_permille_draw_is_half(self) -> None:
+        self.assertAlmostEqual(wdl_permille_to_winrate(18, 964, 18), 0.5)
+        self.assertGreater(wdl_permille_to_winrate(800, 100, 100), 0.8)
+
+    def test_fit_logistic_scale_recovers_teacher_curve(self) -> None:
+        true_s = 90.0
+        cps = [-400.0, -200.0, -80.0, -40.0, 0.0, 40.0, 80.0, 200.0, 400.0]
+        rates = [cp_to_wdl(c, true_s) for c in cps]
+        self.assertLess(abs(fit_logistic_scale(cps, rates) - true_s), 4.0)
 
 
 if __name__ == "__main__":

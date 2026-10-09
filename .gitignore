@@ -16,10 +16,7 @@ nets/*
 !nets/nnue_search_leaves40k_rw0.metrics.json
 train/data/
 train/checkpoints/
-train/bullet_checkpoints/
-train/bullet_checkpoints_rw0/
-train/bullet_checkpoints_simple/
-train/bullet_checkpoints_gen*/
+train/bullet_checkpoints*/
 train/candidates/
 .venv/
 __pycache__/
