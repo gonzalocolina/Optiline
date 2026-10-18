@@ -38,7 +38,7 @@ def parse_specs() -> dict[str, dict[str, int]]:
 class SpsaMapTest(unittest.TestCase):
     def test_json_matches_kTuneSpecs(self) -> None:
         specs = parse_specs()
-        self.assertEqual(len(specs), 44)
+        self.assertEqual(len(specs), 41)
         cfg = json.loads(SPSA.read_text())
         self.assertEqual(set(cfg), set(specs))
         for name, spec in specs.items():
