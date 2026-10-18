@@ -1,0 +1,139 @@
+{
+  "artifacts": {
+    "configs": {
+      "/workspace/tools/configs/baseline.uci": "7425cfd26a36d26cac509e7e779529f36ea03ff0a9110515a8e7ce791ecd8dc5",
+      "/workspace/tools/configs/nsceper1_hl_gen0.uci": "1cd7631ced375296f8e41ca97e2575113b9aaedbdf86d105b589f37c6b12cfd5"
+    },
+    "engine": "/workspace/build/nsce",
+    "engine_b": "/workspace/build/nsce",
+    "engine_b_sha256": "99ac9101fd91ef99e61204cb9605e7b8ed8deb5e2045c3244ce1f36547f6a07d",
+    "engine_sha256": "99ac9101fd91ef99e61204cb9605e7b8ed8deb5e2045c3244ce1f36547f6a07d",
+    "openings": "/workspace/tools/openings_uho.epd",
+    "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
+    "referenced_files": {
+      "/workspace/build/nsce": "99ac9101fd91ef99e61204cb9605e7b8ed8deb5e2045c3244ce1f36547f6a07d",
+      "/workspace/nets/nsceper1_gen0.bin": "1f22c4ef667bedef088c41133dc594e86cbdf09dfae63677488a97e7d078899a"
+    }
+  },
+  "command": [
+    "tools/fastchess_match.py",
+    "--engine",
+    "/workspace/build/nsce",
+    "--cfg-a",
+    "tools/configs/baseline.uci",
+    "--cfg-b",
+    "tools/configs/nsceper1_hl_gen0.uci",
+    "--name-a",
+    "baseline",
+    "--name-b",
+    "hl_gen0",
+    "--st",
+    "100",
+    "--rounds",
+    "500",
+    "--concurrency",
+    "4",
+    "--openings",
+    "tools/openings_uho.epd",
+    "--seed",
+    "20260915",
+    "--outdir",
+    "experiments/20261018_hl_gen0_newsearch"
+  ],
+  "created_utc": "2026-10-18T14:26:51.161072+00:00",
+  "environment": {},
+  "git": {
+    "branch": "cursor/hl-vs-baseline-new-search-4428",
+    "commit": "66e0908572b82ae53c5f62df250099e75e8290cb",
+    "dirty": true,
+    "status_porcelain": "?? experiments/20261018_hl_gen0_newsearch/"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "concurrency": 4,
+    "engine_b": "/workspace/build/nsce",
+    "engine_b_sha256": "99ac9101fd91ef99e61204cb9605e7b8ed8deb5e2045c3244ce1f36547f6a07d",
+    "frozen_targets": "/workspace/experiments/frozen-targets/manifest.json",
+    "full_length_games": true,
+    "harness": "fastchess",
+    "harness_sha256": "6db1ac100ed9894c121a41fdf0331902414b5ab5825e88c64b39476e5e6fa2ac",
+    "kind": "fastchess_match",
+    "nodes_per_move": 0,
+    "rounds": 500,
+    "sprt": null,
+    "st_ms": 100,
+    "state_isolation": "normal_game_warm",
+    "tc": "8+0.08"
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "cpu_count": 4,
+    "cpu_governor": null,
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "system": "Linux-6.12.94+-x86_64-with-glibc2.39"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nsceper1_gen0.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "Threads": "1",
+    "UseExtras": "true",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20260915,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": "4398d816c899c59f92af082b7aca6452406cd058fcb59cc74ba203682a4d324b",
+    "cxx": "Ubuntu clang version 18.1.3 (1ubuntu1)"
+  }
+}
