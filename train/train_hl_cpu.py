@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Train the HL graph (768→512)×2 SCReLU → 32 SCReLU → 1 on a bulletformat file.
 
+SCReLU has no slope outside (0, 1). `--window` adds a training penalty, zero
+inside that interval, that pulls a preactivation back in. The engine still
+evaluates plain SCReLU. The default step size is the 0.0002 this init was
+written for; 0.001 pushes units out of the interval within a few dozen steps.
+
 bullet's current trainer only runs on CUDA or ROCm. This is the same graph,
 init, AdamW and quantised layout, on CPU, for a machine without a GPU.
 The label is sigmoid(cp / 400); NSCE_WDL is 0, so the result byte is unused.
@@ -166,8 +171,35 @@ def forward(params: dict[str, np.ndarray], stm: np.ndarray, ntm: np.ndarray) -> 
     }
 
 
+def window_pull(pre: np.ndarray, coeff: float) -> np.ndarray:
+    """Gradient of a penalty that is zero inside (0, 1) and quadratic outside.
+
+    SCReLU itself has slope zero outside that interval, so a unit that leaves
+    never receives a task gradient. This term pulls it back. It is not part of
+    the evaluated network.
+    """
+    if coeff == 0.0:
+        return np.zeros_like(pre)
+    outside = np.where(pre < 0.0, pre, np.where(pre > 1.0, pre - 1.0, 0.0))
+    return np.asarray(2.0 * coeff / pre.shape[0] * outside, dtype=np.float32)
+
+
+def occupancy(params: dict[str, np.ndarray], stm: np.ndarray, ntm: np.ndarray) -> tuple[float, int, float]:
+    cache = forward(params, stm, ntm)
+    ft = np.concatenate((cache["stm_pre"], cache["ntm_pre"]), axis=0)
+    inside = (ft > 0.0) & (ft < 1.0)
+    live = int((inside.mean(axis=0) > 0.5).sum())
+    hidden = cache["h_pre"]
+    hidden_inside = float(((hidden > 0.0) & (hidden < 1.0)).mean())
+    return float(inside.mean()), live, hidden_inside
+
+
 def loss_and_grads(
-    params: dict[str, np.ndarray], stm: np.ndarray, ntm: np.ndarray, scores: np.ndarray
+    params: dict[str, np.ndarray],
+    stm: np.ndarray,
+    ntm: np.ndarray,
+    scores: np.ndarray,
+    window: float = 0.0,
 ) -> tuple[float, dict[str, np.ndarray]]:
     cache = forward(params, stm, ntm)
     logit = cache["logit"].reshape(-1)
@@ -184,6 +216,7 @@ def loss_and_grads(
     dh = dlogit[:, None] * params["l2w"]
     dh_pre = dh * (2.0 * cache["h_clamped"])
     dh_pre[(cache["h_pre"] <= 0.0) | (cache["h_pre"] >= 1.0)] = 0.0
+    dh_pre += window_pull(cache["h_pre"], window)
     grads["l1b"] = dh_pre.sum(axis=0)
     grads["l1w"] = dh_pre.T @ cache["hidden_in"]
     d_hidden = dh_pre @ params["l1w"]
@@ -191,6 +224,8 @@ def loss_and_grads(
     d_ntm = d_hidden[:, FT:] * (2.0 * cache["ntm_clamped"])
     d_stm[(cache["stm_pre"] <= 0.0) | (cache["stm_pre"] >= 1.0)] = 0.0
     d_ntm[(cache["ntm_pre"] <= 0.0) | (cache["ntm_pre"] >= 1.0)] = 0.0
+    d_stm += window_pull(cache["stm_pre"], window)
+    d_ntm += window_pull(cache["ntm_pre"], window)
     _scatter(stm, d_stm, grads["l0w"])
     _scatter(ntm, d_ntm, grads["l0w"])
     grads["l0b"] = d_stm.sum(axis=0) + d_ntm.sum(axis=0)
@@ -239,7 +274,9 @@ def quantise(params: dict[str, np.ndarray]) -> bytes:
     )
 
 
-def train(path: Path, epochs: int, batch: int, lr: float, seed: int, out_dir: Path) -> Path:
+def train(
+    path: Path, epochs: int, batch: int, lr: float, seed: int, out_dir: Path, window: float
+) -> Path:
     blob = path.read_bytes()
     print(f"decoding {len(blob) // RECORD_SIZE} records", flush=True)
     stm, ntm, scores = decode_records(blob)
@@ -257,13 +294,18 @@ def train(path: Path, epochs: int, batch: int, lr: float, seed: int, out_dir: Pa
         seen = 0
         for step in range(steps):
             pick = order[step * batch : (step + 1) * batch]
-            loss, grads = loss_and_grads(params, stm[pick], ntm[pick], scores[pick])
+            loss, grads = loss_and_grads(params, stm[pick], ntm[pick], scores[pick], window)
             adamw_step(params, grads, moments, velocity, lr)
             total += loss * batch
             seen += batch
         cp = forward(params, stm[:4096], ntm[:4096])["logit"].reshape(-1) * SCALE
         mae = float(np.mean(np.abs(cp - scores[:4096])))
-        print(f"epoch {epoch} loss {total / seen:.6f} mae_cp {mae:.1f}", flush=True)
+        ft_inside, live, hidden_inside = occupancy(params, stm[:2048], ntm[:2048])
+        print(
+            f"epoch {epoch} loss {total / seen:.6f} mae_cp {mae:.1f} "
+            f"ft_inside {ft_inside:.3f} ft_live {live}/{FT} hl_inside {hidden_inside:.3f}",
+            flush=True,
+        )
         np.savez(out_dir / "latest.npz", epoch=epoch, **params)
         (out_dir / "quantised.bin").write_bytes(quantise(params))
     quant_path = out_dir / "quantised.bin"
@@ -277,11 +319,17 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=ROOT / "train/data/lichess_eval_2m.bin")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch", type=int, default=1024)
-    parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--lr", type=float, default=0.0002)
+    parser.add_argument(
+        "--window",
+        type=float,
+        default=0.05,
+        help="pull SCReLU preactivations back into (0, 1); 0 disables it",
+    )
     parser.add_argument("--seed", type=int, default=20261018)
     parser.add_argument("--out", type=Path, default=ROOT / "train/bullet_checkpoints_hl_lichess")
     args = parser.parse_args()
-    train(args.data, args.epochs, args.batch, args.lr, args.seed, args.out)
+    train(args.data, args.epochs, args.batch, args.lr, args.seed, args.out, args.window)
     return 0
 
 

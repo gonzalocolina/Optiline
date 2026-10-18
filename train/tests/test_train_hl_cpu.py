@@ -11,7 +11,17 @@ sys.path.insert(0, str(ROOT / "train"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from jsonl_to_bullet import fen_to_record  # noqa: E402
-from train_hl_cpu import FEATURES, FT, HL, QA, QB, decode_records, init_params, quantise  # noqa: E402
+from train_hl_cpu import (  # noqa: E402
+    FEATURES,
+    FT,
+    HL,
+    QA,
+    QB,
+    decode_records,
+    init_params,
+    loss_and_grads,
+    quantise,
+)
 
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -42,6 +52,15 @@ class TrainHlCpuTest(unittest.TestCase):
         self.assertEqual(len(raw), expected)
         self.assertEqual(QA, 255)
         self.assertEqual(QB, 64)
+
+    def test_window_pulls_a_dead_unit_back_toward_the_interval(self) -> None:
+        stm, ntm, scores = decode_records(fen_to_record(STARTPOS, 20) * 8)
+        params = init_params(np.random.default_rng(0))
+        params["l0b"][:] = -3.0
+        _, grads = loss_and_grads(params, stm, ntm, scores, window=0.05)
+        self.assertLess(float(grads["l0b"][0]), 0.0)
+        _, bare = loss_and_grads(params, stm, ntm, scores, window=0.0)
+        self.assertEqual(float(bare["l0b"][0]), 0.0)
 
 
 if __name__ == "__main__":
