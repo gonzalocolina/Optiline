@@ -1,0 +1,29 @@
+{
+  "architecture": [
+    768,
+    512,
+    32,
+    1
+  ],
+  "graph": "hl_screlu",
+  "trainer": "train/train_hl_cpu.py",
+  "reason_cpu": "bullet 1.x steps only with cuda or rocm; this machine has neither",
+  "dataset": "https://database.lichess.org/lichess_db_eval.jsonl.zst",
+  "dataset_license": "CC0",
+  "dataset_slice": "2_000_000 positions, min depth 12, abs(cp) <= 3000, shuffled seed 20261018",
+  "holdout": 2000,
+  "epochs": 12,
+  "batch": 1024,
+  "lr": 0.001,
+  "wdl": 0.0,
+  "eval_scale": 400,
+  "seed": 20261018,
+  "engine_holdout": {
+    "n": 1998,
+    "skipped": 2,
+    "mae_cp": 157.65,
+    "sign_accuracy": 0.7523,
+    "correlation": 0.4041,
+    "use_extras": false
+  }
+}
