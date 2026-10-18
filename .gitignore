@@ -16,6 +16,8 @@ nets/*
 !nets/nnue_search_leaves40k_rw0.metrics.json
 !nets/nsceper1_hl_lichess.bin
 !nets/nsceper1_hl_lichess.metrics.json
+!nets/nsceper1_hl_full.bin
+!nets/nsceper1_hl_full.metrics.json
 train/data/
 train/checkpoints/
 train/bullet_checkpoints*/
