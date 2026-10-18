@@ -155,7 +155,7 @@ fn main() {
             final_lr,
             final_superbatch: superbatches,
         },
-        save_rate: if smoke { 1 } else { 10 },
+        save_rate: env_usize("NSCE_SAVE_RATE", if smoke { 1 } else { 10 }),
     };
 
     let settings = LocalSettings {
