@@ -1,0 +1,27 @@
+{
+  "architecture": [768, 512, 32, 1],
+  "graph": "hl_screlu",
+  "trainer": "train/train_hl_cpu.py",
+  "lr": 0.0002,
+  "window": 0.05,
+  "dataset": "train/data/lichess_eval_2m.bin",
+  "dataset_sha256": "075ec5e26c55e247a260d197125d1d172ba0bc0897c97c541043a3f151cbb098",
+  "selection": "best held-out correlation on |cp|<200; training loss was still falling",
+  "ft_live": "512/512 every epoch",
+  "engine_holdout": {
+    "n": 1998,
+    "mae_cp": 119.9,
+    "correlation": 0.668,
+    "quiet_200_correlation": 0.421,
+    "quiet_200_mae_cp": 60.1,
+    "use_extras": false
+  },
+  "screen_100ms": {
+    "games": 200,
+    "baseline_wdl": "137-12-51",
+    "elo_baseline_minus_hl": 159.8,
+    "elo_err_95": 43.4,
+    "draw_ratio_pct": 46.0,
+    "report": "experiments/20261018_hl_full_screen/report.md"
+  }
+}
