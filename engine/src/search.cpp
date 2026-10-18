@@ -148,11 +148,17 @@ struct MovePicker {
   Move next(const Position& pos, bool lazy_see, bool skip_quiets, QuietFn&& quiet_score) {
     while (true) {
       if (index < end) {
-        int best = index;
-        for (int i = index + 1; i < end; ++i)
-          if (scores[i] > scores[best]) best = i;
-        std::swap(list.moves[index], list.moves[best]);
-        std::swap(scores[index], scores[best]);
+        // Once quiets are being discarded, their order no longer affects the
+        // tree (the caller only counts them). Skip the selection scan.
+        if (!(skip_quiets && quiets_done)) {
+          int best = index;
+          for (int i = index + 1; i < end; ++i)
+            if (scores[i] > scores[best]) best = i;
+          if (best != index) {
+            std::swap(list.moves[index], list.moves[best]);
+            std::swap(scores[index], scores[best]);
+          }
+        }
         const int s = scores[index];
         const Move m = list.moves[index++];
         if (lazy_see && s >= kGoodNoisyScore && s < kTTMoveScore && !see_ge(pos, m, -(s - kGoodNoisyScore) / 36)) {
@@ -178,6 +184,16 @@ struct MovePicker {
 };
 
 }  // namespace
+
+namespace {
+thread_local const TranspositionTable* prefetch_tt = nullptr;
+}
+
+// Issued from do_move once the successor key is known, before checker updates
+// and the recursive call, so the transposition-table miss overlaps that work.
+void prefetch_position_key(Key key) {
+  if (prefetch_tt) prefetch_tt->prefetch(key);
+}
 
 SearchStats& SearchStats::operator+=(const SearchStats& other) {
 #define NSCE_MERGE_STAT(field) field += other.field
@@ -1157,6 +1173,7 @@ bool Search::soft_time_exceeded(const SearchWorker& w, int stable_iterations, in
 }
 
 void Search::iterative_deepening(SearchWorker& w, bool is_main, int max_depth) {
+  prefetch_tt = &tt_;
   Position pos = root_;
   w.root_history_size = pos.history_size();
   w.best_move = Move{};

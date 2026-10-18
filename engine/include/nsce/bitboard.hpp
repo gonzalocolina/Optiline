@@ -5,10 +5,6 @@
 #include <array>
 #include <bit>
 
-#if defined(__BMI2__)
-#include <immintrin.h>
-#endif
-
 namespace nsce {
 
 constexpr Bitboard FileABB = 0x0101010101010101ULL;
@@ -52,28 +48,26 @@ namespace bb {
 extern std::array<Bitboard, SQUARE_NB> KnightAttacks;
 extern std::array<Bitboard, SQUARE_NB> KingAttacks;
 extern std::array<std::array<Bitboard, SQUARE_NB>, COLOR_NB> PawnAttacks;
-extern std::array<Bitboard, SQUARE_NB> BishopMasks;
-extern std::array<Bitboard, SQUARE_NB> RookMasks;
+// Plain magic: index = ((occ & mask) * magic) >> shift, with shift = 64 - popcount(mask).
+// Same table sizes as a PEXT index (bishop <= 9 bits, rook <= 12). A multiply is used
+// instead of PEXT because Zen 1/2 microcode PEXT (~18 cycles) and the multiply is
+// also competitive on CPUs where PEXT is single-uop.
+struct Magic {
+  Bitboard mask = 0;
+  Bitboard magic = 0;
+  int shift = 0;
+};
+
+extern std::array<Magic, SQUARE_NB> BishopMagic;
+extern std::array<Magic, SQUARE_NB> RookMagic;
 extern std::array<std::array<Bitboard, 512>, SQUARE_NB> BishopTable;
 extern std::array<std::array<Bitboard, 4096>, SQUARE_NB> RookTable;
 extern std::array<std::array<Bitboard, SQUARE_NB>, SQUARE_NB> Between;
 extern std::array<std::array<Bitboard, SQUARE_NB>, SQUARE_NB> Line;
 }  // namespace bb
 
-inline unsigned occupancy_index(Bitboard occupied, Bitboard mask) {
-#if defined(__BMI2__)
-  return static_cast<unsigned>(_pext_u64(occupied, mask));
-#else
-  unsigned index = 0;
-  unsigned bit = 0;
-  while (mask) {
-    Bitboard least = mask & (~mask + 1);
-    if (occupied & least) index |= 1U << bit;
-    mask &= mask - 1;
-    ++bit;
-  }
-  return index;
-#endif
+inline unsigned magic_index(const bb::Magic& magic, Bitboard occupied) {
+  return static_cast<unsigned>(((occupied & magic.mask) * magic.magic) >> magic.shift);
 }
 
 inline Bitboard pawn_attacks_bb(Color c, Square s) { return bb::PawnAttacks[c][s]; }
@@ -81,11 +75,11 @@ inline Bitboard knight_attacks_bb(Square s) { return bb::KnightAttacks[s]; }
 inline Bitboard king_attacks_bb(Square s) { return bb::KingAttacks[s]; }
 
 inline Bitboard bishop_attacks_bb(Square s, Bitboard occupied) {
-  return bb::BishopTable[s][occupancy_index(occupied, bb::BishopMasks[s])];
+  return bb::BishopTable[s][magic_index(bb::BishopMagic[s], occupied)];
 }
 
 inline Bitboard rook_attacks_bb(Square s, Bitboard occupied) {
-  return bb::RookTable[s][occupancy_index(occupied, bb::RookMasks[s])];
+  return bb::RookTable[s][magic_index(bb::RookMagic[s], occupied)];
 }
 
 inline Bitboard queen_attacks_bb(Square s, Bitboard occupied) {

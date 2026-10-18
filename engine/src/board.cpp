@@ -4,11 +4,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 
 namespace nsce {
+
+void prefetch_position_key(Key key);
 
 namespace {
 
@@ -390,16 +394,50 @@ void Position::do_move(Move m, StateInfo& st) {
   st.checkers = checkers_;
   st.repetition_start = repetition_start_;
 
+  // Predict the successor key before any piece-list or checker work so the
+  // transposition table can be fetched during the move itself.
+  const Square from = m.from();
+  const Square to = m.to();
+  const Piece pc = board_[from];
+  const Color us = side_;
+  Key predicted = key_ ^ Zobrist::side;
+  if (ep_square_ != SQ_NONE) predicted ^= Zobrist::enpassant[file_of(ep_square_)];
+  if (m.is_castle()) {
+    const bool kingside = file_of(to) > file_of(from);
+    const Square rfrom = kingside ? (us == WHITE ? SQ_H1 : SQ_H8) : (us == WHITE ? SQ_A1 : SQ_A8);
+    const Square rto = kingside ? (us == WHITE ? SQ_F1 : SQ_F8) : (us == WHITE ? SQ_D1 : SQ_D8);
+    const Piece rook = board_[rfrom];
+    predicted ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
+    predicted ^= Zobrist::psq[rook][rfrom] ^ Zobrist::psq[rook][rto];
+  } else {
+    if (m.is_ep()) {
+      const Square cap_sq = static_cast<Square>(to + (us == WHITE ? -8 : 8));
+      predicted ^= Zobrist::psq[board_[cap_sq]][cap_sq];
+    } else if (board_[to] != NO_PIECE) {
+      predicted ^= Zobrist::psq[board_[to]][to];
+    }
+    predicted ^= Zobrist::psq[pc][from];
+    if (m.is_promotion())
+      predicted ^= Zobrist::psq[make_piece(us, m.promotion())][to];
+    else
+      predicted ^= Zobrist::psq[pc][to];
+    if (m.is_double_push())
+      predicted ^= Zobrist::enpassant[file_of(static_cast<Square>((static_cast<int>(from) + static_cast<int>(to)) / 2))];
+  }
+  CastlingRights predicted_castling = castling_;
+  predicted_castling = static_cast<CastlingRights>(predicted_castling & ~castling_mask_for_square(from));
+  predicted_castling = static_cast<CastlingRights>(predicted_castling & ~castling_mask_for_square(to));
+  if (m.is_ep() || (!m.is_castle() && board_[to] != NO_PIECE))
+    predicted_castling = static_cast<CastlingRights>(predicted_castling & ~castling_mask_for_square(to));
+  predicted ^= Zobrist::castling[castling_] ^ Zobrist::castling[predicted_castling];
+  prefetch_position_key(predicted);
+
   key_ ^= Zobrist::side;
   if (ep_square_ != SQ_NONE) {
     key_ ^= Zobrist::enpassant[file_of(ep_square_)];
     ep_square_ = SQ_NONE;
   }
 
-  Square from = m.from();
-  Square to = m.to();
-  Piece pc = board_[from];
-  Color us = side_;
   Color them = ~us;
 
   ++halfmove_;
@@ -457,6 +495,12 @@ void Position::do_move(Move m, StateInfo& st) {
 
   update_checkers();
   history_keys_.push_back(key_);
+#ifndef NDEBUG
+  if (predicted != key_) {
+    std::cerr << "prefetch key mismatch\n";
+    std::abort();
+  }
+#endif
 }
 
 void Position::undo_move(Move m, const StateInfo& st) {
