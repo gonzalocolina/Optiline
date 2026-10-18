@@ -25,5 +25,12 @@
     "sign_accuracy": 0.7523,
     "correlation": 0.4041,
     "use_extras": false
+  },
+  "screen_100ms": {
+    "games": 200,
+    "baseline_wdl": "167-9-24",
+    "elo_baseline_minus_hl": 311.8,
+    "elo_err_95": 62.6,
+    "report": "experiments/20261018_hl_lichess_screen/report.md"
   }
 }
