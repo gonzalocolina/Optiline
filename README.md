@@ -5,7 +5,7 @@
 **A UCI chess engine pairing a modern alpha–beta searcher with quantized NNUE evaluation — shipped together with the fully gated, evidence-driven training pipeline that builds its networks.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/ci.yml?branch=master&label=CI)](https://github.com/gonzalocolina/optiline/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/engine-v0.10.0-blue)](CMakeLists.txt)
+[![Version](https://img.shields.io/badge/engine-v0.11.0-blue)](CMakeLists.txt)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-%E2%89%A53.16-064F8C?logo=cmake)](CMakeLists.txt)
 [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?logo=python&logoColor=white)](train)
@@ -51,6 +51,8 @@ The repository contains two tightly integrated halves:
 | [`train/`](train) + [`tools/`](tools) | The pipeline that creates, validates, and promotes every network the engine ships | Python (stdlib + NumPy), fastchess, bullet trainer (CUDA, optional) |
 
 The engine is explicitly engineered for **constrained hardware** — laptops and mobile-class machines — not for TCEC-style unlimited compute. The north star is pinned Stockfish builds at equal time per move; every strength claim in this repository is backed by an immutable experiment artifact under [`experiments/`](experiments).
+
+**Current release: v0.11.** This is the promoted engine line: rewritten search (stable history, full-precision TT, node-based time management) plus the Zen-2 speedup that accepted H1 at +125 ± 26 Elo vs the previous binary ([report](experiments/20261018_search_speed_sprt/report.md)). **Development toward the next release targets v0.12** — network, search, and training improvements land there; do not treat them as part of 0.11.
 
 **Current promoted baseline** ([`tools/configs/baseline.uci`](tools/configs/baseline.uci)): the `nnue_search_leaves40k_rw0` network defeats pinned Stockfish 18 limited to Elo 2200 by **+38 ± 36 Elo** over 200 games at 100 ms/move (95% CI lower bound **+2**), and the Elo 2000 rung by **+168 ± 114**. Unrestricted Stockfish is out of scope by design — and measured honestly (see [Results](#results--metrics)).
 
@@ -223,7 +225,7 @@ This produces `build/nsce` (UCI engine), `build/nsce_tests`, `build/nsce_bench*`
 ```text
 $ ./build/nsce
 uci
-id name NSCE 0.10
+id name NSCE 0.11
 ...
 uciok
 setoption name Threads value 4
