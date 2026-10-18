@@ -274,20 +274,63 @@ def quantise(params: dict[str, np.ndarray]) -> bytes:
     )
 
 
+def load_params(path: Path) -> dict[str, np.ndarray]:
+    stored = np.load(path)
+    return {name: np.asarray(stored[name], dtype=np.float32) for name in ("l0w", "l0b", "l1w", "l1b", "l2w", "l2b")}
+
+
+def band_correlation(pred: np.ndarray, scores: np.ndarray, limit: float) -> tuple[float, float, int]:
+    mask = np.abs(scores) < limit
+    if int(mask.sum()) < 20:
+        return float("nan"), float("nan"), int(mask.sum())
+    picked_pred = pred[mask]
+    picked_scores = scores[mask]
+    centered_pred = picked_pred - picked_pred.mean()
+    centered_scores = picked_scores - picked_scores.mean()
+    denom = float(np.sqrt((centered_pred ** 2).sum() * (centered_scores ** 2).sum()))
+    corr = float((centered_pred * centered_scores).sum() / denom) if denom else float("nan")
+    mae = float(np.mean(np.abs(picked_pred - picked_scores)))
+    return corr, mae, int(mask.sum())
+
+
 def train(
-    path: Path, epochs: int, batch: int, lr: float, seed: int, out_dir: Path, window: float
+    path: Path,
+    epochs: int,
+    batch: int,
+    lr: float,
+    seed: int,
+    out_dir: Path,
+    window: float,
+    init: Path | None = None,
+    holdout: Path | None = None,
+    patience: int = 0,
 ) -> Path:
     blob = path.read_bytes()
     print(f"decoding {len(blob) // RECORD_SIZE} records", flush=True)
     stm, ntm, scores = decode_records(blob)
     n = stm.shape[0]
     rng = np.random.default_rng(seed)
-    params = init_params(rng)
+    params = load_params(init) if init is not None else init_params(rng)
+    if init is not None:
+        print(f"resume weights {init}", flush=True)
     moments = {name: np.zeros_like(value) for name, value in params.items()}
     velocity = {name: np.zeros_like(value) for name, value in params.items()}
     out_dir.mkdir(parents=True, exist_ok=True)
+    hold_stm = hold_ntm = hold_scores = None
+    if holdout is not None:
+        import json
+
+        rows = [json.loads(line) for line in holdout.read_text().splitlines() if line.strip()]
+        from jsonl_to_bullet import fen_to_record
+
+        packed = b"".join(fen_to_record(row["fen"], int(row["score_cp"])) for row in rows)
+        hold_stm, hold_ntm, hold_scores = decode_records(packed)
+        print(f"holdout {len(hold_scores)}", flush=True)
     order = np.arange(n)
     steps = n // batch
+    best_quiet = -1.0
+    stale = 0
+    best_epoch = 0
     for epoch in range(1, epochs + 1):
         rng.shuffle(order)
         total = 0.0
@@ -301,15 +344,39 @@ def train(
         cp = forward(params, stm[:4096], ntm[:4096])["logit"].reshape(-1) * SCALE
         mae = float(np.mean(np.abs(cp - scores[:4096])))
         ft_inside, live, hidden_inside = occupancy(params, stm[:2048], ntm[:2048])
+        quiet = ""
+        quiet_corr = float("nan")
+        if hold_stm is not None:
+            pred = forward(params, hold_stm, hold_ntm)["logit"].reshape(-1) * SCALE
+            quiet_corr, quiet_mae, quiet_n = band_correlation(pred, hold_scores, 200.0)
+            all_corr, all_mae, _ = band_correlation(pred, hold_scores, 1.0e9)
+            quiet = (
+                f" hold_corr {all_corr:.3f} hold_mae {all_mae:.1f}"
+                f" quiet_corr {quiet_corr:.3f} quiet_mae {quiet_mae:.1f} n {quiet_n}"
+            )
         print(
             f"epoch {epoch} loss {total / seen:.6f} mae_cp {mae:.1f} "
-            f"ft_inside {ft_inside:.3f} ft_live {live}/{FT} hl_inside {hidden_inside:.3f}",
+            f"ft_inside {ft_inside:.3f} ft_live {live}/{FT} hl_inside {hidden_inside:.3f}{quiet}",
             flush=True,
         )
         np.savez(out_dir / "latest.npz", epoch=epoch, **params)
-        (out_dir / "quantised.bin").write_bytes(quantise(params))
-    quant_path = out_dir / "quantised.bin"
-    quant_path.write_bytes(quantise(params))
+        quantised = quantise(params)
+        (out_dir / "quantised.bin").write_bytes(quantised)
+        if quiet_corr > best_quiet:
+            best_quiet = quiet_corr
+            best_epoch = epoch
+            stale = 0
+            np.savez(out_dir / "best.npz", epoch=epoch, **params)
+            (out_dir / "quantised_best.bin").write_bytes(quantised)
+            print(f"best quiet_corr {best_quiet:.3f} at epoch {epoch}", flush=True)
+        else:
+            stale += 1
+            if patience and stale >= patience:
+                print(f"stop: quiet_corr unchanged for {patience} epochs (best {best_quiet:.3f} at {best_epoch})", flush=True)
+                break
+    quant_path = out_dir / "quantised_best.bin"
+    if not quant_path.exists():
+        quant_path = out_dir / "quantised.bin"
     print(f"wrote {quant_path} ({quant_path.stat().st_size} bytes)", flush=True)
     return quant_path
 
@@ -327,9 +394,23 @@ def main() -> int:
         help="pull SCReLU preactivations back into (0, 1); 0 disables it",
     )
     parser.add_argument("--seed", type=int, default=20261018)
+    parser.add_argument("--init", type=Path, default=None, help="resume float weights from this npz")
+    parser.add_argument("--holdout", type=Path, default=None)
+    parser.add_argument("--patience", type=int, default=0, help="stop after this many epochs without a better |cp|<200 correlation")
     parser.add_argument("--out", type=Path, default=ROOT / "train/bullet_checkpoints_hl_lichess")
     args = parser.parse_args()
-    train(args.data, args.epochs, args.batch, args.lr, args.seed, args.out, args.window)
+    train(
+        args.data,
+        args.epochs,
+        args.batch,
+        args.lr,
+        args.seed,
+        args.out,
+        args.window,
+        args.init,
+        args.holdout,
+        args.patience,
+    )
     return 0
 
 
