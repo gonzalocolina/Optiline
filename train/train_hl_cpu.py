@@ -3,12 +3,14 @@
 
 SCReLU has no slope outside (0, 1). `--window` adds a training penalty, zero
 inside that interval, that pulls a preactivation back in. The engine still
-evaluates plain SCReLU. The default step size is the 0.0002 this init was
-written for; 0.001 pushes units out of the interval within a few dozen steps.
+evaluates plain SCReLU. With that penalty the wide FT stays inside (0, 1) at
+learning rate 0.001; without it, that rate pushes units out of the interval.
 
 bullet's current trainer only runs on CUDA or ROCm. This is the same graph,
 init, AdamW and quantised layout, on CPU, for a machine without a GPU.
-The label is sigmoid(cp / 400); NSCE_WDL is 0, so the result byte is unused.
+NSCE_WDL is 0, so the result byte is unused. The objective is Huber on
+cp/400, not squared error of sigmoid(cp/400): on this width the probability
+loss goes flat while centipawn error is still large.
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ FEATURES = 768
 QA = 255
 QB = 64
 SCALE = 400.0
+# Huber switches from quadratic to linear past this centipawn error.
+CP_DELTA = 600.0
 RECORD_SIZE = 32
 
 
@@ -203,12 +207,19 @@ def loss_and_grads(
 ) -> tuple[float, dict[str, np.ndarray]]:
     cache = forward(params, stm, ntm)
     logit = cache["logit"].reshape(-1)
-    pred = 1.0 / (1.0 + np.exp(-np.clip(logit, -30.0, 30.0)))
-    target = 1.0 / (1.0 + np.exp(-np.clip(scores / SCALE, -30.0, 30.0)))
-    diff = pred - target
-    loss = float(np.mean(diff * diff))
+    # Squared error on sigmoid(cp/400) flattens once the wide net matches
+    # probabilities: a 100 cp miss near zero is a tiny probability error, and
+    # the gradient vanishes in the tails. Huber on the logit keeps a slope
+    # until the centipawn error itself is small. Export is still logit * 400.
+    err = logit - scores / SCALE
+    delta = CP_DELTA / SCALE
+    abs_err = np.abs(err)
+    quadratic = abs_err <= delta
+    loss = float(
+        np.mean(np.where(quadratic, 0.5 * err * err, delta * (abs_err - 0.5 * delta)))
+    )
     batch = logit.shape[0]
-    dlogit = (2.0 * diff * pred * (1.0 - pred) / batch).astype(np.float32)
+    dlogit = np.where(quadratic, err, delta * np.sign(err)).astype(np.float32) / batch
 
     grads = {name: np.zeros_like(value) for name, value in params.items()}
     grads["l2b"][0] = dlogit.sum()
@@ -386,7 +397,7 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=ROOT / "train/data/lichess_eval_2m.bin")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch", type=int, default=1024)
-    parser.add_argument("--lr", type=float, default=0.0002)
+    parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument(
         "--window",
         type=float,
