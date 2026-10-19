@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Compare NSCEPER1 float SCReLU to C++ integers on packed nets.
 
+MLP dense dots stay in QA*QB, the same scale as the quantized bias and the
+L2 CReLU skip, and are divided by QB only after those terms are added. The
+pairwise FT product is already divided by QA. Dividing a dense dot by QA
+before the bias is a different function from the one Bullet trains.
+
 Quantized Python must match C++ exactly (same toward-zero `/`). |float − C++|
 ≤ 8 cp on 10k FENs. The MLP gate of 4 cp was set after gen0 measured 2.98.
 HL adds another SCReLU square: nsce-20 already reached 3.94 cp on 2000 FENs,
@@ -204,7 +209,7 @@ class Per1Net:
             s = 0
             for i in range(HIDDEN):
                 s += pair[i] * self.l1w[bucket][j][i]
-            pre[j] = trunc_div(s, qa) + self.l1b[bucket][j]
+            pre[j] = s + self.l1b[bucket][j]
         return pre
 
     def _simple_int(self, stm_acc: list[int], nstm_acc: list[int]) -> int:
@@ -267,7 +272,7 @@ class Per1Net:
             s = 0
             for i in range(HIDDEN):
                 s += pair[i] * self.l1w[bucket][j][i]
-            h2pre[j] = trunc_div(s, qa) + self.l1b[bucket][j]
+            h2pre[j] = s + self.l1b[bucket][j]
         h2 = [0] * L2_ACT
         for j in range(L2):
             x = max(0, min(qa, trunc_div(h2pre[j], qb)))
@@ -279,7 +284,7 @@ class Per1Net:
             s = 0
             for i in range(L2_ACT):
                 s += h2[i] * self.l2w[bucket][j][i]
-            h3pre[j] = trunc_div(s, qa) + self.l2b[bucket][j]
+            h3pre[j] = s + self.l2b[bucket][j]
         h3 = [0] * L3_ACT
         for j in range(L3):
             x = max(0, min(qa, trunc_div(h3pre[j], qb)))
@@ -288,7 +293,7 @@ class Per1Net:
         total = 0
         for i in range(L3_ACT):
             total += h3[i] * self.l3w[bucket][i]
-        total = trunc_div(total, qa) + self.l3b[bucket] + skip
+        total += self.l3b[bucket] + skip
         return trunc_div(total * self.scale, qa * qb)
 
     def eval_parts(self, fen: str) -> dict[str, int]:
@@ -313,7 +318,7 @@ class Per1Net:
             s = 0
             for i in range(HIDDEN):
                 s += pair[i] * self.l1w[bucket][j][i]
-            h2pre[j] = trunc_div(s, qa) + self.l1b[bucket][j]
+            h2pre[j] = s + self.l1b[bucket][j]
         h2 = [0] * L2_ACT
         for j in range(L2):
             x = max(0, min(qa, trunc_div(h2pre[j], qb)))
@@ -325,7 +330,7 @@ class Per1Net:
             s = 0
             for i in range(L2_ACT):
                 s += h2[i] * self.l2w[bucket][j][i]
-            h3pre[j] = trunc_div(s, qa) + self.l2b[bucket][j]
+            h3pre[j] = s + self.l2b[bucket][j]
         h3 = [0] * L3_ACT
         for j in range(L3):
             x = max(0, min(qa, trunc_div(h3pre[j], qb)))
@@ -334,7 +339,6 @@ class Per1Net:
         mlp = 0
         for i in range(L3_ACT):
             mlp += h3[i] * self.l3w[bucket][i]
-        mlp = trunc_div(mlp, qa)
         def cp(x: int) -> int:
             return trunc_div(x * self.scale, qa * qb)
         return {
@@ -406,7 +410,7 @@ class Per1Net:
         h2pre = [0.0] * L2
         for j in range(L2):
             s = sum(pair[i] * self.l1w[bucket][j][i] for i in range(HIDDEN))
-            h2pre[j] = s / qa + self.l1b[bucket][j]
+            h2pre[j] = s + self.l1b[bucket][j]
         h2 = [0.0] * L2_ACT
         for j in range(L2):
             x = max(0.0, min(qa, h2pre[j] / qb))
@@ -416,14 +420,14 @@ class Per1Net:
         h3pre = [0.0] * L3
         for j in range(L3):
             s = sum(h2[i] * self.l2w[bucket][j][i] for i in range(L2_ACT))
-            h3pre[j] = s / qa + self.l2b[bucket][j]
+            h3pre[j] = s + self.l2b[bucket][j]
         h3 = [0.0] * L3_ACT
         for j in range(L3):
             x = max(0.0, min(qa, h3pre[j] / qb))
             h3[j] = x
             h3[L3 + j] = x * x / qa
         total = sum(h3[i] * self.l3w[bucket][i] for i in range(L3_ACT))
-        total = total / qa + self.l3b[bucket] + skip
+        total = total + self.l3b[bucket] + skip
         return total * self.scale / (qa * qb)
 
 

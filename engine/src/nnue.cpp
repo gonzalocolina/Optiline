@@ -596,7 +596,9 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
       for (int i = 0; i < NnueNet::kPer1Hidden; ++i)
         s += static_cast<int64_t>(pair[i]) * net_.per1_l1w[bucket][j][i];
 #endif
-      s /= qa;
+      // pair is already QA (x0*x1/QA). Weights are QB and biases QA*QB, so
+      // dot and bias share that scale. Divide by QB only after adding the bias.
+      // Dividing the dot by QA first shrinks the trained weights by QA.
       s += net_.per1_l1b[bucket][j];
       h2pre[j] = s;
     }
@@ -619,7 +621,6 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
       for (int i = 0; i < NnueNet::kPer1L2Act; ++i)
         s += static_cast<int64_t>(h2[i]) * net_.per1_l2w[bucket][j][i];
 #endif
-      s /= qa;
       s += net_.per1_l2b[bucket][j];
       h3pre[j] = s;
     }
@@ -638,7 +639,7 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
     for (int i = 0; i < NnueNet::kPer1L3Act; ++i)
       sum += static_cast<int64_t>(h3[i]) * net_.per1_l3w[bucket][i];
 #endif
-    sum /= qa;
+    // Output dot, L3 bias, and the L2 CReLU skip are all QA*QB.
     sum += net_.per1_l3b[bucket];
     sum += skip;
     return static_cast<int>(sum * net_.per1_scale / (static_cast<int64_t>(qa) * qb));
