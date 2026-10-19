@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create a GitHub Release (this ref must already be a vX.Y.Z tag)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      archive_stem: ${{ steps.meta.outputs.archive_stem }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve version metadata
+        id: meta
+        run: python3 tools/package_release.py meta --ref "${GITHUB_REF}" --github-output "$GITHUB_OUTPUT"
+
+  linux:
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Python test deps
+        run: sudo apt-get update && sudo apt-get install -y python3-numpy
+      - name: Configure portable AVX2 Release
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DNSCE_NATIVE=OFF
+          -DNSCE_AVX2=ON
+          -DNSCE_LTO=ON
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Check UCI id name
+        run: python3 tools/package_release.py verify-uci --binary build/nsce --version '${{ needs.meta.outputs.version }}'
+      - name: Exercise multithreaded UCI search
+        run: printf 'uci\nsetoption name Threads value 4\nposition startpos\ngo depth 8\nquit\n' | ./build/nsce
+      - name: Package
+        run: >-
+          python3 tools/package_release.py pack
+          --binary build/nsce
+          --platform linux-x86_64-avx2
+          --version '${{ needs.meta.outputs.version }}'
+          --tag '${{ needs.meta.outputs.tag }}'
+          --outdir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-avx2
+          path: dist/nsce-*.tar.gz
+          if-no-files-found: error
+
+  windows:
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install MinGW-w64 (posix threads)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-mingw-w64-x86-64
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: Configure Windows cross build
+        run: >-
+          cmake -S . -B build-win
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-x86_64.cmake
+          -DNSCE_NATIVE=OFF
+          -DNSCE_AVX2=ON
+          -DNSCE_LTO=ON
+      - name: Build nsce.exe
+        run: cmake --build build-win --parallel 2 --target nsce
+      - name: Package
+        run: >-
+          python3 tools/package_release.py pack
+          --binary build-win/nsce.exe
+          --platform windows-x86_64
+          --version '${{ needs.meta.outputs.version }}'
+          --tag '${{ needs.meta.outputs.tag }}'
+          --outdir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: dist/nsce-*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [meta, linux, windows]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true' && startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect archives and checksums
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name 'nsce-*.tar.gz' -o -name 'nsce-*.zip' \) -exec cp {} dist/ \;
+          python3 tools/package_release.py checksums --outdir dist
+          ls -l dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.meta.outputs.tag }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          GEN="$(mktemp)"
+          NOTES="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${TAG}" --jq .body > "${GEN}" || true
+          python3 tools/package_release.py notes --version "${VERSION}" --generated-notes-file "${GEN}" > "${NOTES}"
+          extra=()
+          if [ "${PRERELEASE}" = "true" ]; then
+            extra+=(--prerelease)
+          fi
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist/* --clobber
+          else
+            gh release create "${TAG}" dist/* \
+              --title "NSCE ${VERSION}" \
+              --notes-file "${NOTES}" \
+              "${extra[@]}"
+          fi

@@ -5,6 +5,8 @@
 **A UCI chess engine pairing a modern alpha–beta searcher with quantized NNUE evaluation — shipped together with the fully gated, evidence-driven training pipeline that builds its networks.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/ci.yml?branch=master&label=CI)](https://github.com/gonzalocolina/optiline/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/release.yml?label=Release)](https://github.com/gonzalocolina/optiline/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/gonzalocolina/optiline?include_prereleases&label=github%20release)](https://github.com/gonzalocolina/optiline/releases)
 [![Version](https://img.shields.io/badge/engine-v0.11.0-blue)](CMakeLists.txt)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-%E2%89%A53.16-064F8C?logo=cmake)](CMakeLists.txt)
@@ -34,6 +36,7 @@
   - [Training a Network](#training-a-network)
   - [Gating & Promotion](#gating--promotion)
 - [Testing & Validation](#testing--validation)
+- [GitHub Releases](#github-releases)
 - [Results & Metrics](#results--metrics)
 - [License & Author](#license--author)
 
@@ -175,7 +178,7 @@ optiline/
 ├── nets/                       # Promoted quantized networks + metrics JSON
 ├── experiments/                # 80+ dated dossiers: manifest.json + report.md
 ├── third_party/stockfish/      # Pinned reference binaries (gitignored, hash-locked)
-└── .github/workflows/ci.yml    # 4-build matrix: release · ASan+UBSan · TSan · stats
+└── .github/workflows/          # ci.yml (4-build matrix) · release.yml (GitHub Releases)
 ```
 
 ## Prerequisites & Installation
@@ -225,7 +228,7 @@ This produces `build/nsce` (UCI engine), `build/nsce_tests`, `build/nsce_bench*`
 ```text
 $ ./build/nsce
 uci
-id name NSCE 0.11
+id name NSCE 0.11.0
 ...
 uciok
 setoption name Threads value 4
@@ -324,6 +327,27 @@ cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNSCE_TSAN=ON  -DNSC
 ```
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the full matrix — **release · ASan+UBSan · TSan · stats** — builds, executes `ctest`, and finishes with a multithreaded UCI search (`Threads=4, depth 8`) on every push and pull request.
+
+## GitHub Releases
+
+Pushing a version tag publishes precompiled UCI binaries (Linux AVX2 tarball + statically linked Windows zip), the promoted networks, `configs/baseline.uci`, and `SHA256SUMS`.
+
+`project(nsce VERSION X.Y.Z)` in [`CMakeLists.txt`](CMakeLists.txt) is the source of truth — the UCI `id name` string is injected from that value at build time. The tag must match:
+
+```bash
+# after bumping project(nsce VERSION 0.12.0)
+git tag -a v0.12.0 -m "NSCE 0.12.0"
+git push origin v0.12.0
+```
+
+Prerelease tags such as `v0.12.0-rc.1` are accepted and published as GitHub prereleases. The pipeline is [`.github/workflows/release.yml`](.github/workflows/release.yml); a `workflow_dispatch` dry-run builds the same artifacts without publishing unless the ref is already a `v*` tag and **Create a GitHub Release** is checked.
+
+Local packaging (same layout the workflow uploads):
+
+```bash
+python3 tools/package_release.py pack \
+  --binary build/nsce --platform linux-x86_64-avx2 --outdir dist
+```
 
 ## Results & Metrics
 
