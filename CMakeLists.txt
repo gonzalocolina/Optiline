@@ -52,6 +52,7 @@ add_library(nsce_engine
 )
 
 target_include_directories(nsce_engine PUBLIC engine/include)
+target_compile_definitions(nsce_engine PUBLIC "NSCE_VERSION=\"${PROJECT_VERSION}\"")
 
 find_package(Threads REQUIRED)
 target_link_libraries(nsce_engine PUBLIC Threads::Threads)

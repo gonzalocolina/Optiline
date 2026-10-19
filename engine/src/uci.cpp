@@ -18,6 +18,10 @@
 #include <sstream>
 #include <string>
 
+#ifndef NSCE_VERSION
+#define NSCE_VERSION "dev"
+#endif
+
 namespace nsce {
 
 Uci::Uci() {
@@ -62,7 +66,7 @@ void Uci::handle_command(const std::string& line) {
   is >> token;
 
   if (token == "uci") {
-    std::cout << "id name NSCE 0.11\n";
+    std::cout << "id name NSCE " << NSCE_VERSION << "\n";
     std::cout << "id author Gonzalo\n";
     std::cout << "option name Hash type spin default 16 min 1 max 4096\n";
     std::cout << "option name Clear Hash type button\n";
