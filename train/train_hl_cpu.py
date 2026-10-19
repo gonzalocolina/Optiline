@@ -3,12 +3,14 @@
 
 SCReLU has no slope outside (0, 1). `--window` adds a training penalty, zero
 inside that interval, that pulls a preactivation back in. The engine still
-evaluates plain SCReLU. The default step size is the 0.0002 this init was
-written for; 0.001 pushes units out of the interval within a few dozen steps.
+evaluates plain SCReLU. With that penalty the wide FT stays inside (0, 1) at
+learning rate 0.001; without it, that rate pushes units out of the interval.
 
 bullet's current trainer only runs on CUDA or ROCm. This is the same graph,
 init, AdamW and quantised layout, on CPU, for a machine without a GPU.
-The label is sigmoid(cp / 400); NSCE_WDL is 0, so the result byte is unused.
+NSCE_WDL is 0, so the result byte is unused. The objective is Huber on
+cp/400, not squared error of sigmoid(cp/400): on this width the probability
+loss goes flat while centipawn error is still large.
 """
 
 from __future__ import annotations
@@ -32,6 +34,10 @@ FEATURES = 768
 QA = 255
 QB = 64
 SCALE = 400.0
+# Huber switches from quadratic to linear past this centipawn error.
+# 200 cp beat 600 cp on the Lichess holdout: past that point the quadratic
+# term chases outliers and the mean absolute error stops falling.
+CP_DELTA = 200.0
 RECORD_SIZE = 32
 
 
@@ -203,12 +209,19 @@ def loss_and_grads(
 ) -> tuple[float, dict[str, np.ndarray]]:
     cache = forward(params, stm, ntm)
     logit = cache["logit"].reshape(-1)
-    pred = 1.0 / (1.0 + np.exp(-np.clip(logit, -30.0, 30.0)))
-    target = 1.0 / (1.0 + np.exp(-np.clip(scores / SCALE, -30.0, 30.0)))
-    diff = pred - target
-    loss = float(np.mean(diff * diff))
+    # Squared error on sigmoid(cp/400) flattens once the wide net matches
+    # probabilities: a 100 cp miss near zero is a tiny probability error, and
+    # the gradient vanishes in the tails. Huber on the logit keeps a slope
+    # until the centipawn error itself is small. Export is still logit * 400.
+    err = logit - scores / SCALE
+    delta = CP_DELTA / SCALE
+    abs_err = np.abs(err)
+    quadratic = abs_err <= delta
+    loss = float(
+        np.mean(np.where(quadratic, 0.5 * err * err, delta * (abs_err - 0.5 * delta)))
+    )
     batch = logit.shape[0]
-    dlogit = (2.0 * diff * pred * (1.0 - pred) / batch).astype(np.float32)
+    dlogit = np.where(quadratic, err, delta * np.sign(err)).astype(np.float32) / batch
 
     grads = {name: np.zeros_like(value) for name, value in params.items()}
     grads["l2b"][0] = dlogit.sum()
@@ -328,24 +341,28 @@ def train(
         print(f"holdout {len(hold_scores)}", flush=True)
     order = np.arange(n)
     steps = n // batch
-    best_quiet = -1.0
+    best_mae = float("inf")
     stale = 0
     best_epoch = 0
     for epoch in range(1, epochs + 1):
+        # The 2M run kept improving until epoch 6 and then the fixed step
+        # size walked the holdout mean back up. Decay after the first epoch.
+        progress = (epoch - 1) / max(epochs - 1, 1)
+        epoch_lr = lr * (0.1 + 0.9 * 0.5 * (1.0 + np.cos(np.pi * progress)))
         rng.shuffle(order)
         total = 0.0
         seen = 0
         for step in range(steps):
             pick = order[step * batch : (step + 1) * batch]
             loss, grads = loss_and_grads(params, stm[pick], ntm[pick], scores[pick], window)
-            adamw_step(params, grads, moments, velocity, lr)
+            adamw_step(params, grads, moments, velocity, epoch_lr)
             total += loss * batch
             seen += batch
         cp = forward(params, stm[:4096], ntm[:4096])["logit"].reshape(-1) * SCALE
         mae = float(np.mean(np.abs(cp - scores[:4096])))
         ft_inside, live, hidden_inside = occupancy(params, stm[:2048], ntm[:2048])
         quiet = ""
-        quiet_corr = float("nan")
+        all_mae = float("nan")
         if hold_stm is not None:
             pred = forward(params, hold_stm, hold_ntm)["logit"].reshape(-1) * SCALE
             quiet_corr, quiet_mae, quiet_n = band_correlation(pred, hold_scores, 200.0)
@@ -355,24 +372,25 @@ def train(
                 f" quiet_corr {quiet_corr:.3f} quiet_mae {quiet_mae:.1f} n {quiet_n}"
             )
         print(
-            f"epoch {epoch} loss {total / seen:.6f} mae_cp {mae:.1f} "
+            f"epoch {epoch} lr {epoch_lr:.6f} loss {total / seen:.6f} mae_cp {mae:.1f} "
             f"ft_inside {ft_inside:.3f} ft_live {live}/{FT} hl_inside {hidden_inside:.3f}{quiet}",
             flush=True,
         )
         np.savez(out_dir / "latest.npz", epoch=epoch, **params)
         quantised = quantise(params)
         (out_dir / "quantised.bin").write_bytes(quantised)
-        if quiet_corr > best_quiet:
-            best_quiet = quiet_corr
+        improved = hold_stm is not None and all_mae < best_mae
+        if improved:
+            best_mae = all_mae
             best_epoch = epoch
             stale = 0
             np.savez(out_dir / "best.npz", epoch=epoch, **params)
             (out_dir / "quantised_best.bin").write_bytes(quantised)
-            print(f"best quiet_corr {best_quiet:.3f} at epoch {epoch}", flush=True)
-        else:
+            print(f"best hold_mae {best_mae:.1f} at epoch {epoch}", flush=True)
+        elif hold_stm is not None:
             stale += 1
             if patience and stale >= patience:
-                print(f"stop: quiet_corr unchanged for {patience} epochs (best {best_quiet:.3f} at {best_epoch})", flush=True)
+                print(f"stop: hold_mae unchanged for {patience} epochs (best {best_mae:.1f} at {best_epoch})", flush=True)
                 break
     quant_path = out_dir / "quantised_best.bin"
     if not quant_path.exists():
@@ -386,7 +404,7 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=ROOT / "train/data/lichess_eval_2m.bin")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch", type=int, default=1024)
-    parser.add_argument("--lr", type=float, default=0.0002)
+    parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument(
         "--window",
         type=float,

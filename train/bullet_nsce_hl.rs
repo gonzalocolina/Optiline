@@ -79,6 +79,10 @@ fn main() {
             SavedFormat::id("l2w").round().quantise::<i16>(64),
             SavedFormat::id("l2b").round().quantise::<i16>(255 * 64),
         ])
+        // sigmoid MSE goes flat on this width while centipawn error is still
+        // large. train/train_hl_cpu.py fits Huber(cp/400) instead. bullet's
+        // loss_fn only sees the probability target, so a GPU run of this file
+        // is not the CP objective.
         .loss_fn(|output, target| output.sigmoid().squared_error(target))
         .build(|builder, stm_inputs, ntm_inputs| {
             // Bias 0.5 on both SCReLU layers saturated 31/32 hidden units by nsce-10:
