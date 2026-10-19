@@ -56,7 +56,7 @@ uint64_t byteswap64(uint64_t v) {
 }
 
 // Mirrors bulletformat::ChessBoard::from_raw exactly.
-BulletChessBoard to_bullet(const PendingRecord& rec, float result_white) {
+BulletChessBoard to_bullet(const PendingRecord& rec, float result_white, uint32_t game_id) {
   uint64_t bbs[8];
   std::memcpy(bbs, rec.bbs, sizeof(bbs));
   int score = rec.score_white;
@@ -90,6 +90,7 @@ BulletChessBoard to_bullet(const PendingRecord& rec, float result_white) {
   out.result = static_cast<uint8_t>(2.0f * result);
   out.ksq = static_cast<uint8_t>(std::countr_zero(bbs[0] & bbs[7]));
   out.opp_ksq = static_cast<uint8_t>(std::countr_zero(bbs[1] & bbs[7]) ^ 56);
+  bullet_set_game_id(out.extra, game_id);
   return out;
 }
 
@@ -111,6 +112,7 @@ struct Shared {
   std::atomic<uint64_t> positions{0};
   std::atomic<uint64_t> discarded{0};
   std::atomic<uint64_t> wins{0}, draws{0}, losses{0};
+  std::atomic<uint64_t> next_game{0};
   std::atomic<bool> stop{false};
 };
 
@@ -236,6 +238,13 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
       continue;
     }
 
+    const uint64_t game_id64 = shared.next_game.fetch_add(1, std::memory_order_relaxed);
+    if (game_id64 > 0xFFFFFFu) {
+      std::cerr << "datagen: game id does not fit in extra[3]\n";
+      shared.stop.store(true, std::memory_order_relaxed);
+      break;
+    }
+    const uint32_t game_id = static_cast<uint32_t>(game_id64);
     const float result_white = end == GameEnd::WhiteWins ? 1.0f : end == GameEnd::BlackWins ? 0.0f : 0.5f;
     if (end == GameEnd::WhiteWins) shared.wins.fetch_add(1, std::memory_order_relaxed);
     else if (end == GameEnd::BlackWins) shared.losses.fetch_add(1, std::memory_order_relaxed);
@@ -256,7 +265,7 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
     } else {
       bytes.resize(pending.size() * sizeof(BulletChessBoard));
       for (std::size_t i = 0; i < pending.size(); ++i) {
-        const BulletChessBoard board = to_bullet(pending[i], result_white);
+        const BulletChessBoard board = to_bullet(pending[i], result_white, game_id);
         std::memcpy(bytes.data() + i * sizeof(BulletChessBoard), &board, sizeof(board));
       }
     }

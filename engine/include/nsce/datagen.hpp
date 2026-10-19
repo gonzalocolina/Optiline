@@ -11,12 +11,15 @@ namespace nsce {
 // uniformly random legal moves out of the start position, then `go nodes N`
 // for both sides. TT and history persist across games on that thread. Every searched position is written in bulletformat
 // `ChessBoard` (32 bytes: occ u64, pcs[16] nibbles, score i16 stm-relative,
-// result u8 stm-relative 0/1/2, ksq, opp_ksq, extra[3]) after the game result
-// is known, so bullet can train on the file directly. Positions in check, with
-// a capturing/promoting best move, or with a mate score are skipped. The stored
-// score is still the fixed-node search score, not evaluate(). Leaves use
-// UseExtras when that option is on, so a net trained on the score already sees
-// searches that included those terms.
+// result u8 stm-relative 0/1/2, ksq, opp_ksq, extra[3] little-endian game id)
+// after the game result is known, so bullet can train on the file directly.
+// Bullet does not read extra, so the id does not change the trained features.
+// A validation split must drop whole game ids; sampling positions from the
+// same games does not. Positions in check, with a capturing/promoting best
+// move, or with a mate score are skipped. The stored score is still the
+// fixed-node search score, not evaluate(). Leaves use UseExtras when that
+// option is on, so a net trained on the score already sees searches that
+// included those terms.
 struct DatagenOptions {
   std::string output;             // .bin (bulletformat) or .txt (`fen | score | wdl`)
   std::string eval_file;          // EvalFile for the playing engine; "internal" for HCE init
@@ -39,5 +42,12 @@ struct DatagenOptions {
 
 // Returns the number of positions written.
 uint64_t run_datagen(const DatagenOptions& options);
+
+// 24-bit game id in ChessBoard::extra. Ids above 0xFFFFFF do not fit.
+inline void bullet_set_game_id(uint8_t extra[3], uint32_t game_id) {
+  extra[0] = static_cast<uint8_t>(game_id);
+  extra[1] = static_cast<uint8_t>(game_id >> 8);
+  extra[2] = static_cast<uint8_t>(game_id >> 16);
+}
 
 }  // namespace nsce
