@@ -322,6 +322,26 @@ PY
   else
     echo "no UseExtras screen survived; skip SPRT."
   fi
+  # Direct extras-on vs extras-off on the same weights, openings, and colors.
+  # The baseline screens only choose which survivor gets the confirmatory SPRT.
+  # That SPRT does not measure the effect of UseExtras.
+  if [[ -z "${NSCE_SKIP_EXTRAS_PAIR:-}" && -n "$off_json" ]]; then
+    PAIR_DIR="${NSCE_EXTRAS_PAIR_OUT:-$ROOT/experiments/$(date +%Y%m%d)_nsceper1_gen${GEN}_extras_pair}"
+    echo "head-to-head UseExtras on the same net -> $PAIR_DIR"
+    python3 "$ROOT/tools/fastchess_match.py" \
+      --engine "$ENGINE" \
+      --cfg-a "$CAND_CFG" \
+      --cfg-b "$OFF_CFG" \
+      --name-a "nsceper1_gen${GEN}_extras_on" \
+      --name-b "nsceper1_gen${GEN}_extras_off" \
+      --st 100 --rounds 500 --concurrency 14 \
+      --outdir "$PAIR_DIR"
+    pair_json=$(ls -t "$PAIR_DIR"/match_*.json 2>/dev/null | head -1 || true)
+    if [[ -n "$pair_json" ]]; then
+      python3 "$ROOT/tools/append_fastchess_finding.py" --json "$pair_json" --note \
+        "NSCEPER1 gen${GEN} direct UseExtras head-to-head. Does not choose the baseline SPRT."
+    fi
+  fi
   if [[ "$do_sprt" == 1 && -z "${NSCE_SKIP_SPRT:-}" ]]; then
     SPRT_DIR="${NSCE_SPRT_OUT:-$ROOT/experiments/$(date +%Y%m%d)_${sprt_name}_sprt}"
     run_sprt "$sprt_cfg" "$sprt_name" "$SPRT_DIR" \
