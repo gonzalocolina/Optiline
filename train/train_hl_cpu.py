@@ -35,7 +35,9 @@ QA = 255
 QB = 64
 SCALE = 400.0
 # Huber switches from quadratic to linear past this centipawn error.
-CP_DELTA = 600.0
+# 200 cp beat 600 cp on the Lichess holdout: past that point the quadratic
+# term chases outliers and the mean absolute error stops falling.
+CP_DELTA = 200.0
 RECORD_SIZE = 32
 
 
@@ -339,24 +341,28 @@ def train(
         print(f"holdout {len(hold_scores)}", flush=True)
     order = np.arange(n)
     steps = n // batch
-    best_quiet = -1.0
+    best_mae = float("inf")
     stale = 0
     best_epoch = 0
     for epoch in range(1, epochs + 1):
+        # The 2M run kept improving until epoch 6 and then the fixed step
+        # size walked the holdout mean back up. Decay after the first epoch.
+        progress = (epoch - 1) / max(epochs - 1, 1)
+        epoch_lr = lr * (0.1 + 0.9 * 0.5 * (1.0 + np.cos(np.pi * progress)))
         rng.shuffle(order)
         total = 0.0
         seen = 0
         for step in range(steps):
             pick = order[step * batch : (step + 1) * batch]
             loss, grads = loss_and_grads(params, stm[pick], ntm[pick], scores[pick], window)
-            adamw_step(params, grads, moments, velocity, lr)
+            adamw_step(params, grads, moments, velocity, epoch_lr)
             total += loss * batch
             seen += batch
         cp = forward(params, stm[:4096], ntm[:4096])["logit"].reshape(-1) * SCALE
         mae = float(np.mean(np.abs(cp - scores[:4096])))
         ft_inside, live, hidden_inside = occupancy(params, stm[:2048], ntm[:2048])
         quiet = ""
-        quiet_corr = float("nan")
+        all_mae = float("nan")
         if hold_stm is not None:
             pred = forward(params, hold_stm, hold_ntm)["logit"].reshape(-1) * SCALE
             quiet_corr, quiet_mae, quiet_n = band_correlation(pred, hold_scores, 200.0)
@@ -366,24 +372,25 @@ def train(
                 f" quiet_corr {quiet_corr:.3f} quiet_mae {quiet_mae:.1f} n {quiet_n}"
             )
         print(
-            f"epoch {epoch} loss {total / seen:.6f} mae_cp {mae:.1f} "
+            f"epoch {epoch} lr {epoch_lr:.6f} loss {total / seen:.6f} mae_cp {mae:.1f} "
             f"ft_inside {ft_inside:.3f} ft_live {live}/{FT} hl_inside {hidden_inside:.3f}{quiet}",
             flush=True,
         )
         np.savez(out_dir / "latest.npz", epoch=epoch, **params)
         quantised = quantise(params)
         (out_dir / "quantised.bin").write_bytes(quantised)
-        if quiet_corr > best_quiet:
-            best_quiet = quiet_corr
+        improved = hold_stm is not None and all_mae < best_mae
+        if improved:
+            best_mae = all_mae
             best_epoch = epoch
             stale = 0
             np.savez(out_dir / "best.npz", epoch=epoch, **params)
             (out_dir / "quantised_best.bin").write_bytes(quantised)
-            print(f"best quiet_corr {best_quiet:.3f} at epoch {epoch}", flush=True)
-        else:
+            print(f"best hold_mae {best_mae:.1f} at epoch {epoch}", flush=True)
+        elif hold_stm is not None:
             stale += 1
             if patience and stale >= patience:
-                print(f"stop: quiet_corr unchanged for {patience} epochs (best {best_quiet:.3f} at {best_epoch})", flush=True)
+                print(f"stop: hold_mae unchanged for {patience} epochs (best {best_mae:.1f} at {best_epoch})", flush=True)
                 break
     quant_path = out_dir / "quantised_best.bin"
     if not quant_path.exists():
