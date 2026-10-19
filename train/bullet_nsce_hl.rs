@@ -9,7 +9,7 @@ use bullet_lib::{
     trainer::{
         save::SavedFormat,
         schedule::{TrainingSchedule, TrainingSteps, lr, wdl},
-        settings::LocalSettings,
+        settings::{LocalSettings, TestDataset},
     },
     value::{ValueTrainerBuilder, loader::DirectSequentialDataLoader},
 };
@@ -162,9 +162,17 @@ fn main() {
         save_rate: env_usize("NSCE_SAVE_RATE", if smoke { 1 } else { 10 }),
     };
 
+    let test_set_path = std::env::var("NSCE_TEST_SET").ok().filter(|p| !p.is_empty());
+    let test_freq = env_usize("NSCE_TEST_FREQ", 32);
+    if let Some(path) = test_set_path.as_deref() {
+        println!("test_set={path} freq={test_freq}");
+    }
+    let test_set = test_set_path
+        .as_deref()
+        .map(|path| TestDataset { path, freq: test_freq });
     let settings = LocalSettings {
         threads: loader_threads,
-        test_set: None,
+        test_set,
         output_directory: output_directory.as_str(),
         batch_queue_size,
     };
