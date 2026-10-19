@@ -32,6 +32,34 @@ fn env_f32(name: &str, default: f32) -> f32 {
         .unwrap_or(default)
 }
 
+fn ensure_graph_dir(dir: &Path, graph_id: &str) {
+    let path = dir.join("graph_id");
+    match std::fs::read_to_string(&path) {
+        Ok(existing) => {
+            let existing = existing.trim();
+            if existing != graph_id {
+                eprintln!(
+                    "refusing to train in {}: graph_id is {existing:?}, this run is {graph_id:?}. Use a new NSCE_CHECKPOINT_DIR.",
+                    dir.display()
+                );
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            if latest_checkpoint(dir).is_some() {
+                eprintln!(
+                    "warning: {} has checkpoints and no graph_id; stamping {graph_id:?}.",
+                    dir.display()
+                );
+            }
+            if let Err(err) = std::fs::write(&path, format!("{graph_id}\n")) {
+                eprintln!("cannot write {}: {err}", path.display());
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
 fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
     let mut best: Option<(usize, PathBuf)> = None;
     let rd = std::fs::read_dir(dir).ok()?;
@@ -118,6 +146,10 @@ fn main() {
         }
     });
     std::fs::create_dir_all(&output_directory).ok();
+    let graph_id = format!(
+        "mlp l1={l1} l2={l2} l3={l3} buckets={NUM_OUTPUT_BUCKETS} pair=crelu*crelu skip=1 wdl={wdl_proportion:.4}"
+    );
+    ensure_graph_dir(Path::new(&output_directory), &graph_id);
 
     let resume = std::env::var("NSCE_RESUME").ok().as_deref() != Some("0");
     let mut start_superbatch = env_usize("NSCE_START", 1);
