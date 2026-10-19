@@ -50,6 +50,28 @@ static void write_per1_net(const std::filesystem::path& path, const std::vector<
   out.write(reinterpret_cast<const char*>(l3b.data()), sizeof(l3b));
 }
 
+static void write_per1_layers(const std::filesystem::path& path, const std::vector<int16_t>& w0,
+                              const std::array<int16_t, NnueNet::kPer1Hidden>& b0,
+                              const std::vector<int16_t>& l1w, const std::vector<int32_t>& l1b,
+                              const std::vector<int16_t>& l2w, const std::vector<int32_t>& l2b,
+                              const std::vector<int16_t>& l3w,
+                              const std::array<int32_t, NnueNet::kPer1Buckets>& l3b) {
+  std::ofstream out(path, std::ios::binary);
+  out.write("NSCEPER1", 8);
+  int32_t hdr[] = {NnueNet::kPer1Hidden, NnueNet::kFeatures, NnueNet::kPer1Buckets,
+                   NnueNet::kPer1L2,     NnueNet::kPer1L3,   NnueNet::kPer1QA,
+                   NnueNet::kPer1QB,     NnueNet::kPer1Scale};
+  out.write(reinterpret_cast<const char*>(hdr), sizeof(hdr));
+  out.write(reinterpret_cast<const char*>(w0.data()), static_cast<std::streamsize>(w0.size() * 2));
+  out.write(reinterpret_cast<const char*>(b0.data()), sizeof(b0));
+  out.write(reinterpret_cast<const char*>(l1w.data()), static_cast<std::streamsize>(l1w.size() * 2));
+  out.write(reinterpret_cast<const char*>(l1b.data()), static_cast<std::streamsize>(l1b.size() * 4));
+  out.write(reinterpret_cast<const char*>(l2w.data()), static_cast<std::streamsize>(l2w.size() * 2));
+  out.write(reinterpret_cast<const char*>(l2b.data()), static_cast<std::streamsize>(l2b.size() * 4));
+  out.write(reinterpret_cast<const char*>(l3w.data()), static_cast<std::streamsize>(l3w.size() * 2));
+  out.write(reinterpret_cast<const char*>(l3b.data()), sizeof(l3b));
+}
+
 TEST(NnueTest, IncrementalMatchesRefresh) {
   init_bitboards();
   Zobrist::init();
@@ -469,7 +491,6 @@ TEST(NnueTest, Per1EvaluateMatchesIndependentPairAct) {
       int64_t s = 0;
       for (int i = 0; i < NnueNet::kPer1Hidden; ++i)
         s += static_cast<int64_t>(pair[i]) * net.per1_l1w[bucket][j][i];
-      s /= qa;
       s += net.per1_l1b[bucket][j];
       h2pre[j] = s;
     }
@@ -487,7 +508,6 @@ TEST(NnueTest, Per1EvaluateMatchesIndependentPairAct) {
       int64_t s = 0;
       for (int i = 0; i < NnueNet::kPer1L2Act; ++i)
         s += static_cast<int64_t>(h2[i]) * net.per1_l2w[bucket][j][i];
-      s /= qa;
       s += net.per1_l2b[bucket][j];
       h3pre[j] = s;
     }
@@ -500,7 +520,6 @@ TEST(NnueTest, Per1EvaluateMatchesIndependentPairAct) {
     int64_t sum = 0;
     for (int i = 0; i < NnueNet::kPer1L3Act; ++i)
       sum += static_cast<int64_t>(h3[i]) * net.per1_l3w[bucket][i];
-    sum /= qa;
     sum += net.per1_l3b[bucket];
     sum += skip;
     return static_cast<int>(sum * net.per1_scale / (static_cast<int64_t>(qa) * qb));
@@ -512,6 +531,79 @@ TEST(NnueTest, Per1EvaluateMatchesIndependentPairAct) {
   StateInfo st;
   pos.do_move(legal.moves[0], st);
   EXPECT_EQ(nnue.evaluate(pos), expected(pos.nnue_acc(), pos.side_to_move()));
+  std::filesystem::remove(path);
+}
+
+TEST(NnueTest, Per1MlpUnitWeightChainIsEvalScale) {
+  // FT bias puts the pairwise product of input 0 at 1. A weight of QB on that
+  // input is a float weight of 1, so each affine emits 1 and the output is
+  // eval_scale centipawns. Dividing the dot by QA before the bias yields 0.
+  init_bitboards();
+  Zobrist::init();
+  auto path = std::filesystem::temp_directory_path() / "nsce_per1_unit_chain.bin";
+  const int qa = NnueNet::kPer1QA;
+  const int qb = NnueNet::kPer1QB;
+  const int hidden = NnueNet::kPer1Hidden;
+  const int half = hidden / 2;
+  std::vector<int16_t> w0(static_cast<std::size_t>(NnueNet::kFeatures) * hidden, 0);
+  std::array<int16_t, NnueNet::kPer1Hidden> b0{};
+  b0[0] = static_cast<int16_t>(qa);
+  b0[half] = static_cast<int16_t>(qa);
+  std::vector<int16_t> l1w(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2 * hidden, 0);
+  std::vector<int32_t> l1b(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2, 0);
+  std::vector<int16_t> l2w(
+      static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3 * NnueNet::kPer1L2Act, 0);
+  std::vector<int32_t> l2b(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3, 0);
+  std::vector<int16_t> l3w(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3Act, 0);
+  std::array<int32_t, NnueNet::kPer1Buckets> l3b{};
+  for (int b = 0; b < NnueNet::kPer1Buckets; ++b) {
+    l1w[(static_cast<std::size_t>(b) * NnueNet::kPer1L2) * hidden] = static_cast<int16_t>(qb);
+    l2w[(static_cast<std::size_t>(b) * NnueNet::kPer1L3) * NnueNet::kPer1L2Act] = static_cast<int16_t>(qb);
+    l3w[static_cast<std::size_t>(b) * NnueNet::kPer1L3Act] = static_cast<int16_t>(qb);
+  }
+  write_per1_layers(path, w0, b0, l1w, l1b, l2w, l2b, l3w, l3b);
+  Nnue nnue;
+  ASSERT_TRUE(nnue.load(path.string()));
+  Position pos;
+  pos.set_nnue(&nnue);
+  pos.set_use_extras(false);
+  pos.set_startpos();
+  EXPECT_EQ(nnue.evaluate(pos), NnueNet::kPer1Scale);
+  std::filesystem::remove(path);
+}
+
+TEST(NnueTest, Per1MlpOutputAddsWeightToBiasBeforeDequant) {
+  // Hidden layers are bias-saturated, so both scale formulas agree on them.
+  // One output weight of 0.5 plus a bias of 0.5 is 1.0, so eval_scale cp.
+  // Dividing only the dot by QA reports about half of that.
+  init_bitboards();
+  Zobrist::init();
+  auto path = std::filesystem::temp_directory_path() / "nsce_per1_output_mix.bin";
+  const int qa = NnueNet::kPer1QA;
+  const int qb = NnueNet::kPer1QB;
+  const int hidden = NnueNet::kPer1Hidden;
+  const int32_t unit = qa * qb;
+  std::vector<int16_t> w0(static_cast<std::size_t>(NnueNet::kFeatures) * hidden, 0);
+  std::array<int16_t, NnueNet::kPer1Hidden> b0{};
+  std::vector<int16_t> l1w(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2 * hidden, 0);
+  std::vector<int32_t> l1b(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L2, unit);
+  std::vector<int16_t> l2w(
+      static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3 * NnueNet::kPer1L2Act, 0);
+  std::vector<int32_t> l2b(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3, unit);
+  std::vector<int16_t> l3w(static_cast<std::size_t>(NnueNet::kPer1Buckets) * NnueNet::kPer1L3Act, 0);
+  std::array<int32_t, NnueNet::kPer1Buckets> l3b{};
+  for (int b = 0; b < NnueNet::kPer1Buckets; ++b) {
+    l3w[static_cast<std::size_t>(b) * NnueNet::kPer1L3Act] = static_cast<int16_t>(qb / 2);
+    l3b[b] = unit / 2;
+  }
+  write_per1_layers(path, w0, b0, l1w, l1b, l2w, l2b, l3w, l3b);
+  Nnue nnue;
+  ASSERT_TRUE(nnue.load(path.string()));
+  Position pos;
+  pos.set_nnue(&nnue);
+  pos.set_use_extras(false);
+  pos.set_startpos();
+  EXPECT_EQ(nnue.evaluate(pos), NnueNet::kPer1Scale);
   std::filesystem::remove(path);
 }
 
