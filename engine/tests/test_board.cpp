@@ -1,5 +1,6 @@
 #include "nsce/board.hpp"
 #include "nsce/bitboard.hpp"
+#include "nsce/datagen.hpp"
 #include "nsce/movegen.hpp"
 #include "nsce/zobrist.hpp"
 
@@ -185,4 +186,16 @@ TEST(BoardTest, ConcurrentInitializationProducesValidPositions) {
     });
   }
   for (auto& worker : workers) worker.join();
+}
+
+TEST(DatagenTest, GameIdFitsInTheThreeExtraBytes) {
+  uint8_t extra[3] = {9, 9, 9};
+  bullet_set_game_id(extra, 0x010203);
+  EXPECT_EQ(extra[0], 0x03);
+  EXPECT_EQ(extra[1], 0x02);
+  EXPECT_EQ(extra[2], 0x01);
+  bullet_set_game_id(extra, 0);
+  EXPECT_EQ(extra[0], 0);
+  EXPECT_EQ(extra[1], 0);
+  EXPECT_EQ(extra[2], 0);
 }

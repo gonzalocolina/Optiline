@@ -48,14 +48,21 @@ if [[ ! -x "$UTILS" ]]; then
   (cd "$BULLET" && CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" cargo b -r --package bullet-utils)
 fi
 echo "shuffle $BIN -> $SHUF"
+# Same byte length is not the same dataset. The sidecar stores the source SHA-256.
+SIDECAR="$SHUF.sha256"
 shuf_ok=0
 if [[ -s "$SHUF" && $(stat -c%s "$SHUF") -eq $(stat -c%s "$BIN") ]]; then
-  echo "checking existing shuffled file ($(stat -c%s "$SHUF") bytes)"
-  if "$UTILS" validate --input "$SHUF"; then
-    shuf_ok=1
+  if python3 "$ROOT/tools/train_identity.py" reuse-ok --source "$BIN" --shuffled "$SHUF" --sidecar "$SIDECAR"; then
+    echo "checking existing shuffled file ($(stat -c%s "$SHUF") bytes)"
+    if "$UTILS" validate --input "$SHUF"; then
+      shuf_ok=1
+    else
+      echo "existing shuffled file failed validate; reshuffling" >&2
+      rm -f "$SHUF" "$SIDECAR"
+    fi
   else
-    echo "existing shuffled file failed validate; reshuffling" >&2
-    rm -f "$SHUF"
+    echo "shuffled file is not the current source dataset; reshuffling" >&2
+    rm -f "$SHUF" "$SIDECAR"
   fi
 fi
 if [[ "$shuf_ok" != 1 ]]; then
@@ -63,11 +70,39 @@ if [[ "$shuf_ok" != 1 ]]; then
   "$UTILS" shuffle --input "$BIN" --output "$SHUF" --mem-used-mb "${SHUFFLE_MB:-4096}"
   if ! "$UTILS" validate --input "$SHUF"; then
     echo "shuffle produced an invalid file; deleted $SHUF" >&2
-    rm -f "$SHUF"
+    rm -f "$SHUF" "$SIDECAR"
     exit 1
   fi
+  python3 "$ROOT/tools/train_identity.py" write-sidecar --source "$BIN" --sidecar "$SIDECAR"
 fi
 export NSCE_DATASET="$SHUF"
+if [[ -z "${NSCE_TEST_SET:-}" && -s "${BIN%.bin}.test.bin" ]]; then
+  export NSCE_TEST_SET="${BIN%.bin}.test.bin"
+  echo "validation set $NSCE_TEST_SET"
+fi
+if [[ -n "${NSCE_TEST_SET:-}" ]]; then
+  relation=$(python3 "$ROOT/tools/train_identity.py" games --train "$BIN" --test "$NSCE_TEST_SET" || true)
+  if [[ -z "$relation" ]]; then
+    echo "could not compare game ids in $BIN and $NSCE_TEST_SET" >&2
+    exit 1
+  fi
+  if [[ "$relation" == overlap ]]; then
+    echo "validation games also appear in $BIN; refusing to train" >&2
+    exit 1
+  fi
+  if [[ "$relation" != disjoint ]]; then
+    echo "warning: $BIN and $NSCE_TEST_SET have no game ids, so independence cannot be checked. Split with tools/train_identity.py split." >&2
+    if [[ -n "${NSCE_REQUIRE_TEST:-}" ]]; then
+      echo "NSCE_REQUIRE_TEST rejects an unmarked validation file" >&2
+      exit 1
+    fi
+  fi
+elif [[ -n "${NSCE_REQUIRE_TEST:-}" ]]; then
+  echo "NSCE_REQUIRE_TEST is set and NSCE_TEST_SET is empty" >&2
+  exit 1
+else
+  echo "warning: no validation set. Hold out whole games with tools/train_identity.py split; do not sample positions from the training games." >&2
+fi
 GRAPH="${NSCE_GRAPH:-mlp}"
 if [[ "$GRAPH" == simple ]]; then
   DEFAULT_CKPT="$ROOT/train/bullet_checkpoints_simple"
@@ -83,6 +118,17 @@ CKPT_DIR="${NSCE_CHECKPOINT_DIR:-$DEFAULT_CKPT}"
 mkdir -p "$CKPT_DIR"
 export NSCE_CHECKPOINT_DIR="$CKPT_DIR"
 cp -f "$TRAIN_SRC" "$BULLET/examples/nsce.rs"
+MANIFEST_DIR="${NSCE_MANIFEST_DIR:-$ROOT/experiments/$(date +%Y%m%d)_bullet_gen${NSCE_GEN:-0}}"
+mkdir -p "$MANIFEST_DIR"
+python3 "$ROOT/tools/train_identity.py" manifest \
+  --source "$BIN" \
+  --shuffled "$SHUF" \
+  --graph-source "$TRAIN_SRC" \
+  --graph "$GRAPH" \
+  --checkpoint-dir "$CKPT_DIR" \
+  --test-set "${NSCE_TEST_SET:-}" \
+  --out "$MANIFEST_DIR/manifest.json"
+echo "train manifest $MANIFEST_DIR/manifest.json"
 NSCE_EX="$BULLET/target/release/examples/nsce"
 # Checkpoint path in nsce.rs is relative to third_party/bullet cwd.
 if [[ ! -x "$NSCE_EX" || "$TRAIN_SRC" -nt "$NSCE_EX" ]]; then
@@ -275,6 +321,26 @@ PY
     do_sprt=1
   else
     echo "no UseExtras screen survived; skip SPRT."
+  fi
+  # Direct extras-on vs extras-off on the same weights, openings, and colors.
+  # The baseline screens only choose which survivor gets the confirmatory SPRT.
+  # That SPRT does not measure the effect of UseExtras.
+  if [[ -z "${NSCE_SKIP_EXTRAS_PAIR:-}" && -n "$off_json" ]]; then
+    PAIR_DIR="${NSCE_EXTRAS_PAIR_OUT:-$ROOT/experiments/$(date +%Y%m%d)_nsceper1_gen${GEN}_extras_pair}"
+    echo "head-to-head UseExtras on the same net -> $PAIR_DIR"
+    python3 "$ROOT/tools/fastchess_match.py" \
+      --engine "$ENGINE" \
+      --cfg-a "$CAND_CFG" \
+      --cfg-b "$OFF_CFG" \
+      --name-a "nsceper1_gen${GEN}_extras_on" \
+      --name-b "nsceper1_gen${GEN}_extras_off" \
+      --st 100 --rounds 500 --concurrency 14 \
+      --outdir "$PAIR_DIR"
+    pair_json=$(ls -t "$PAIR_DIR"/match_*.json 2>/dev/null | head -1 || true)
+    if [[ -n "$pair_json" ]]; then
+      python3 "$ROOT/tools/append_fastchess_finding.py" --json "$pair_json" --note \
+        "NSCEPER1 gen${GEN} direct UseExtras head-to-head. Does not choose the baseline SPRT."
+    fi
   fi
   if [[ "$do_sprt" == 1 && -z "${NSCE_SKIP_SPRT:-}" ]]; then
     SPRT_DIR="${NSCE_SPRT_OUT:-$ROOT/experiments/$(date +%Y%m%d)_${sprt_name}_sprt}"
