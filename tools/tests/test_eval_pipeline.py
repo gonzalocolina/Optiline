@@ -20,6 +20,7 @@ from eval_contract import (  # noqa: E402
     extras_contract_errors,
     one_change_errors,
     parse_uci_options,
+    choose_extras_sprt,
     screen_is_clear_loss,
     sprt_is_h1,
 )
@@ -136,6 +137,26 @@ class ScreenClearLossTest(unittest.TestCase):
 
     def test_baseline_ahead_beyond_ci_is_clear(self) -> None:
         self.assertTrue(screen_is_clear_loss({"elo_a_minus_b": 80.0, "elo_err_95": 25.0}))
+
+    def test_extras_off_is_measured_even_when_extras_on_survives(self) -> None:
+        # Baseline minus candidate. Lower is a stronger candidate.
+        on = {"elo_a_minus_b": 10.0, "elo_err_95": 20.0}
+        off = {"elo_a_minus_b": -30.0, "elo_err_95": 20.0}
+        self.assertFalse(screen_is_clear_loss(on))
+        self.assertEqual(choose_extras_sprt(on, off), "off")
+
+    def test_clear_loss_on_both_skips_sprt(self) -> None:
+        lost = {"elo_a_minus_b": 80.0, "elo_err_95": 25.0}
+        self.assertEqual(choose_extras_sprt(lost, lost), "none")
+
+    def test_tie_keeps_extras_on(self) -> None:
+        same = {"elo_a_minus_b": 0.0, "elo_err_95": 20.0}
+        self.assertEqual(choose_extras_sprt(same, same), "on")
+
+    def test_missing_extras_off_keeps_surviving_on(self) -> None:
+        on = {"elo_a_minus_b": 5.0, "elo_err_95": 20.0}
+        self.assertEqual(choose_extras_sprt(on, None), "on")
+        self.assertEqual(choose_extras_sprt(None, None), "none")
 
     def test_sprt_h1_mapping(self) -> None:
         self.assertTrue(sprt_is_h1({"sprt_decision": "H1"}))

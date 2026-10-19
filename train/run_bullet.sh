@@ -173,6 +173,11 @@ python3 "$ROOT/tools/write_per1_uci.py" --eval-file "$CAND_REL" --extras true -o
 python3 "$ROOT/tools/write_per1_uci.py" --eval-file "$CAND_REL" --extras false -o "$OFF_CFG"
 python3 "$ROOT/tools/per1_float_ref.py" --net "$CAND_NET" --engine "$ENGINE" --n 10000
 echo "float-ref passed."
+if [[ "$GRAPH" == mlp ]]; then
+  python3 "$ROOT/tools/per1_pair_stats.py" --net "$CAND_NET" --checkpoints "$CKPT_DIR" \
+    --fens "$ROOT/tools/openings_balanced.epd" --n 256 \
+    || echo "warn: pair stats failed" >&2
+fi
 if [[ -d "$ROOT/build" ]]; then
   cmake --build "$ROOT/build" -j2 --target nsce || echo "warn: could not rebuild build/nsce" >&2
 fi
@@ -236,24 +241,40 @@ if [[ -z "${NSCE_SKIP_SCREEN:-}" ]]; then
   run_screen "$CAND_CFG" "nsceper1_gen${GEN}" "$SCREEN_DIR" \
     "NSCEPER1 gen${GEN} 100 ms screen (EvalFile only, extras on). Do not promote without SPRT H1."
   json=$(ls -t "$SCREEN_DIR"/match_*.json 2>/dev/null | head -1 || true)
+  off_json=""
+  # Same packed weights, UseExtras flipped. Always, including when extras-on
+  # is not a clear loss: a surviving extras-on screen can still be the worse
+  # of the two.
+  if [[ -z "${NSCE_SKIP_EXTRAS_OFF:-}" ]]; then
+    echo "same weights with UseExtras=false"
+    OFF_DIR="${NSCE_EXTRAS_OFF_OUT:-$ROOT/experiments/$(date +%Y%m%d)_nsceper1_gen${GEN}_extras_off_screen}"
+    run_screen "$OFF_CFG" "nsceper1_gen${GEN}_extras_off" "$OFF_DIR" \
+      "NSCEPER1 gen${GEN} extras-off 100 ms screen, same EvalFile as extras-on. Do not promote without SPRT H1."
+    off_json=$(ls -t "$OFF_DIR"/match_*.json 2>/dev/null | head -1 || true)
+  fi
+  choice=$(python3 - "$ROOT" "$json" "$off_json" <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / "tools"))
+from eval_contract import choose_extras_sprt
+
+def load(path: str):
+    return json.load(open(path)) if path else None
+
+print(choose_extras_sprt(load(sys.argv[2]), load(sys.argv[3])))
+PY
+)
   sprt_cfg="$CAND_CFG"
   sprt_name="nsceper1_gen${GEN}"
   do_sprt=0
-  if [[ -n "$json" ]] && screen_clear_loss "$json"; then
-    echo "extras-on screen is a clear loss; measuring UseExtras=false (do not assume extras can drop)."
-    OFF_DIR="${NSCE_EXTRAS_OFF_OUT:-$ROOT/experiments/$(date +%Y%m%d)_nsceper1_gen${GEN}_extras_off_screen}"
-    run_screen "$OFF_CFG" "nsceper1_gen${GEN}_extras_off" "$OFF_DIR" \
-      "NSCEPER1 gen${GEN} extras-off 100 ms screen after extras-on clear loss. Do not promote without SPRT H1."
-    off_json=$(ls -t "$OFF_DIR"/match_*.json 2>/dev/null | head -1 || true)
-    if [[ -n "$off_json" ]] && ! screen_clear_loss "$off_json"; then
-      sprt_cfg="$OFF_CFG"
-      sprt_name="nsceper1_gen${GEN}_extras_off"
-      do_sprt=1
-    else
-      echo "both 100 ms screens are clear losses; skip SPRT."
-    fi
-  elif [[ -n "$json" ]]; then
+  if [[ "$choice" == on ]]; then
     do_sprt=1
+  elif [[ "$choice" == off ]]; then
+    sprt_cfg="$OFF_CFG"
+    sprt_name="nsceper1_gen${GEN}_extras_off"
+    do_sprt=1
+  else
+    echo "no UseExtras screen survived; skip SPRT."
   fi
   if [[ "$do_sprt" == 1 && -z "${NSCE_SKIP_SPRT:-}" ]]; then
     SPRT_DIR="${NSCE_SPRT_OUT:-$ROOT/experiments/$(date +%Y%m%d)_${sprt_name}_sprt}"

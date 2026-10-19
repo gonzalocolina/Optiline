@@ -115,6 +115,27 @@ def extras_contract_errors(eval_file: str, use_extras: str | bool, root: Path | 
     return []
 
 
+def choose_extras_sprt(on: dict | None, off: dict | None) -> str:
+    """Pick the SPRT candidate after both UseExtras screens.
+
+    Returns ``on``, ``off``, or ``none``. A clear loss against the baseline is
+    dropped. If both survive, the lower ``elo_a_minus_b`` wins; a tie keeps
+    extras on. Missing summaries are ignored, so skipping the extras-off
+    screen leaves the previous extras-on decision.
+    """
+    ranked: list[tuple[str, float]] = []
+    for name, summary in (("on", on), ("off", off)):
+        if not summary:
+            continue
+        if screen_is_clear_loss(summary):
+            continue
+        ranked.append((name, float(summary.get("elo_a_minus_b") or 0.0)))
+    if not ranked:
+        return "none"
+    ranked.sort(key=lambda item: (item[1], 0 if item[0] == "on" else 1))
+    return ranked[0][0]
+
+
 def screen_is_clear_loss(summary: dict, margin: float = 20.0) -> bool:
     """True if baseline (A) is ahead of candidate (B) by more than the 95% CI plus margin.
 

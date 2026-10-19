@@ -13,8 +13,10 @@ namespace nsce {
 // `ChessBoard` (32 bytes: occ u64, pcs[16] nibbles, score i16 stm-relative,
 // result u8 stm-relative 0/1/2, ksq, opp_ksq, extra[3]) after the game result
 // is known, so bullet can train on the file directly. Positions in check, with
-// a capturing/promoting best move, or with a mate score are skipped; that is
-// the usual filter and keeps the label a quiet static-eval target.
+// a capturing/promoting best move, or with a mate score are skipped. The stored
+// score is still the fixed-node search score, not evaluate(). Leaves use
+// UseExtras when that option is on, so a net trained on the score already sees
+// searches that included those terms.
 struct DatagenOptions {
   std::string output;             // .bin (bulletformat) or .txt (`fen | score | wdl`)
   std::string eval_file;          // EvalFile for the playing engine; "internal" for HCE init
