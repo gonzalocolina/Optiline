@@ -6,8 +6,8 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/ci.yml?branch=master&label=CI)](https://github.com/gonzalocolina/optiline/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/release.yml?label=Release)](https://github.com/gonzalocolina/optiline/actions/workflows/release.yml)
-[![GitHub release](https://img.shields.io/github/v/release/gonzalocolina/optiline?include_prereleases&label=github%20release)](https://github.com/gonzalocolina/optiline/releases)
-[![Version](https://img.shields.io/badge/engine-v0.11.0-blue)](CMakeLists.txt)
+[![GitHub release](https://img.shields.io/github/v/release/gonzalocolina/optiline?label=github%20release)](https://github.com/gonzalocolina/optiline/releases/latest)
+[![Version](https://img.shields.io/badge/engine-v0.12.0--dev-blue)](CMakeLists.txt)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-%E2%89%A53.16-064F8C?logo=cmake)](CMakeLists.txt)
 [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?logo=python&logoColor=white)](train)
@@ -55,7 +55,7 @@ The repository contains two tightly integrated halves:
 
 The engine is explicitly engineered for **constrained hardware** — laptops and mobile-class machines — not for TCEC-style unlimited compute. The north star is pinned Stockfish builds at equal time per move; every strength claim in this repository is backed by an immutable experiment artifact under [`experiments/`](experiments).
 
-**Current release: v0.11.** This is the promoted engine line: rewritten search (stable history, full-precision TT, node-based time management) plus the Zen-2 speedup that accepted H1 at +125 ± 26 Elo vs the previous binary ([report](experiments/20261018_search_speed_sprt/report.md)). **Development toward the next release targets v0.12** — network, search, and training improvements land there; do not treat them as part of 0.11.
+**Current GitHub Release: [v0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0)** — precompiled Linux AVX2 and Windows binaries of the promoted engine line (rewritten search with stable history, full-precision TT, node-based time management, plus the Zen-2 speedup that accepted H1 at +125 ± 26 Elo vs the previous binary; [report](experiments/20261018_search_speed_sprt/report.md)). **This tree is v0.12 development** (`project(nsce VERSION 0.12.0)`). Network, search, and training work lands here; do not treat HEAD as 0.11.
 
 **Current promoted baseline** ([`tools/configs/baseline.uci`](tools/configs/baseline.uci)): the `nnue_search_leaves40k_rw0` network defeats pinned Stockfish 18 limited to Elo 2200 by **+38 ± 36 Elo** over 200 games at 100 ms/move (95% CI lower bound **+2**), and the Elo 2000 rung by **+168 ± 114**. Unrestricted Stockfish is out of scope by design — and measured honestly (see [Results](#results--metrics)).
 
@@ -228,7 +228,7 @@ This produces `build/nsce` (UCI engine), `build/nsce_tests`, `build/nsce_bench*`
 ```text
 $ ./build/nsce
 uci
-id name NSCE 0.11.0
+id name NSCE 0.12.0
 ...
 uciok
 setoption name Threads value 4
@@ -330,12 +330,12 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the full matrix
 
 ## GitHub Releases
 
-Pushing a version tag publishes precompiled UCI binaries (Linux AVX2 tarball + statically linked Windows zip), the promoted networks, `configs/baseline.uci`, and `SHA256SUMS`.
+The latest published binaries are **[NSCE 0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0)** (`nsce-0.11.0-linux-x86_64-avx2.tar.gz`, `nsce-0.11.0-windows-x86_64.zip`, `SHA256SUMS`).
 
-`project(nsce VERSION X.Y.Z)` in [`CMakeLists.txt`](CMakeLists.txt) is the source of truth — the UCI `id name` string is injected from that value at build time. The tag must match:
+Pushing a version tag publishes a new release with those same artifact types. `project(nsce VERSION X.Y.Z)` in [`CMakeLists.txt`](CMakeLists.txt) is the source of truth — the UCI `id name` string is injected from that value at build time. The tag must match:
 
 ```bash
-# after bumping project(nsce VERSION 0.12.0)
+# when this development line is ready (currently 0.12.0)
 git tag -a v0.12.0 -m "NSCE 0.12.0"
 git push origin v0.12.0
 ```
