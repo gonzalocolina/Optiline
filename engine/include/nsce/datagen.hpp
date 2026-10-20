@@ -9,7 +9,9 @@ namespace nsce {
 //
 // Each thread owns a Search (private TT) and plays games from `random_plies`
 // uniformly random legal moves out of the start position, then `go nodes N`
-// for both sides. TT and history persist across games on that thread. Every searched position is written in bulletformat
+// for both sides. Each game clears the search state and is seeded only by
+// (seed, game index), then written in game-index order, so the same options
+// reproduce the file. Every searched position is written in bulletformat
 // `ChessBoard` (32 bytes: occ u64, pcs[16] nibbles, score i16 stm-relative,
 // result u8 stm-relative 0/1/2, ksq, opp_ksq, extra[3] little-endian game id)
 // after the game result is known, so bullet can train on the file directly.

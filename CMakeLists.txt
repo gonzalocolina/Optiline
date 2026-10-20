@@ -122,6 +122,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     engine/tests/test_search.cpp
     engine/tests/test_see.cpp
     engine/tests/test_tt.cpp
+    engine/tests/test_datagen.cpp
   )
   target_link_libraries(nsce_tests PRIVATE nsce_engine GTest::gtest_main)
   include(GoogleTest)
