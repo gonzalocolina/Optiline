@@ -32,8 +32,47 @@ fn env_f32(name: &str, default: f32) -> f32 {
         .unwrap_or(default)
 }
 
+fn file_sha256(path: &Path) -> String {
+    let output = std::process::Command::new("sha256sum").arg(path).output().unwrap_or_else(|err| {
+        eprintln!("sha256sum failed for {}: {err}", path.display());
+        std::process::exit(1);
+    });
+    if !output.status.success() {
+        eprintln!(
+            "sha256sum {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        std::process::exit(1);
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let Some(hash) = text.split_whitespace().next() else {
+        eprintln!("sha256sum produced no hash for {}", path.display());
+        std::process::exit(1);
+    };
+    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        eprintln!("sha256sum produced {hash:?} for {}", path.display());
+        std::process::exit(1);
+    }
+    hash.to_string()
+}
+
+fn training_source_sha256() -> String {
+    let configured = std::env::var("NSCE_GRAPH_SOURCE").unwrap_or_else(|_| "examples/nsce.rs".to_string());
+    let path = PathBuf::from(configured);
+    if !path.is_file() {
+        eprintln!(
+            "training source {} is missing; set NSCE_GRAPH_SOURCE to the graph file that was compiled",
+            path.display()
+        );
+        std::process::exit(1);
+    }
+    file_sha256(&path)
+}
+
 fn ensure_graph_dir(dir: &Path, graph_id: &str) {
     let path = dir.join("graph_id");
+    let accept_unmarked = std::env::var("NSCE_ACCEPT_UNMARKED").ok().as_deref() == Some("1");
     match std::fs::read_to_string(&path) {
         Ok(existing) => {
             let existing = existing.trim();
@@ -46,9 +85,16 @@ fn ensure_graph_dir(dir: &Path, graph_id: &str) {
             }
         }
         Err(_) => {
+            if latest_checkpoint(dir).is_some() && !accept_unmarked {
+                eprintln!(
+                    "refusing to resume {}: checkpoints exist but graph_id is missing. Provenance was not recorded. Use a new NSCE_CHECKPOINT_DIR, or set NSCE_ACCEPT_UNMARKED=1 only after checking that these checkpoints were trained with this exact source.",
+                    dir.display()
+                );
+                std::process::exit(1);
+            }
             if latest_checkpoint(dir).is_some() {
                 eprintln!(
-                    "warning: {} has checkpoints and no graph_id; stamping {graph_id:?}.",
+                    "NSCE_ACCEPT_UNMARKED=1: writing graph_id {graph_id:?} into {}. This asserts provenance; it does not prove it.",
                     dir.display()
                 );
             }
@@ -59,7 +105,6 @@ fn ensure_graph_dir(dir: &Path, graph_id: &str) {
         }
     }
 }
-
 fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
     let mut best: Option<(usize, PathBuf)> = None;
     let rd = std::fs::read_dir(dir).ok()?;
@@ -146,8 +191,9 @@ fn main() {
         }
     });
     std::fs::create_dir_all(&output_directory).ok();
+    let graph_sha = training_source_sha256();
     let graph_id = format!(
-        "mlp l1={l1} l2={l2} l3={l3} buckets={NUM_OUTPUT_BUCKETS} pair=crelu*crelu skip=1 wdl={wdl_proportion:.4}"
+        "mlp l1={l1} l2={l2} l3={l3} buckets={NUM_OUTPUT_BUCKETS} pair=crelu*crelu skip=1 wdl={wdl_proportion:.4} sha256={graph_sha}"
     );
     ensure_graph_dir(Path::new(&output_directory), &graph_id);
 
