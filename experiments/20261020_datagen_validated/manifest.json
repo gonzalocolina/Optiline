@@ -1,0 +1,72 @@
+{
+  "cost": {
+    "elapsed_sec": 65.00976599400019,
+    "games_per_sec": 18.25879514947876,
+    "hours_for_target_games": 18.25604212131429,
+    "hours_for_target_positions": 17.438503902955674,
+    "positions_per_game": 87.24010109519797,
+    "positions_per_sec": 1592.8991347170377,
+    "sec_per_million_positions": 627.7861405064043,
+    "target_games": 1200000,
+    "target_positions": 100000000,
+    "threads": 4
+  },
+  "datagen_log": "datagen done: 1187 games (W 417 D 140 L 630, discarded 13), 103554 positions, 1592 pos/s, 65 s",
+  "generator": {
+    "binary": "build-datagen/nsce_datagen",
+    "binary_sha256": "3df50f43d6cf35f3fca94e3c76d8bd34287a019bb99535d48c403d075231326a",
+    "build": "Release -DNSCE_LTO=OFF -DNSCE_NATIVE=ON -DNSCE_AVX2=ON",
+    "eval_file": "nets/nnue_search_leaves40k_rw0.bin",
+    "eval_file_sha256": "06e342b8ddf128ce7c8b5b9c9c2ce4b45f555871d1dab7e853a6b09bc6bd1b54",
+    "games_requested": 1200,
+    "hash_mb": 16,
+    "nodes": 5000,
+    "seed": 20261020,
+    "threads": 4,
+    "use_extras": true
+  },
+  "kind": "validated_datagen",
+  "scale_cost": {
+    "elapsed_sec": 20.004247073999977,
+    "games_per_sec": 3.949161380968859,
+    "hours_for_target_games": 84.40610579746826,
+    "hours_for_target_positions": 82.54211673103575,
+    "positions_per_game": 85.21518987341773,
+    "positions_per_sec": 336.5285369200298,
+    "sec_per_million_positions": 2971.5162023172875,
+    "target_games": 1200000,
+    "target_positions": 100000000,
+    "threads": 1
+  },
+  "schema_version": 2,
+  "source": {
+    "bytes": 3313728,
+    "games": 1187,
+    "path": "train/data/validated/gen_seed20261020.bin",
+    "positions": 103554,
+    "positions_per_game_max": 362,
+    "positions_per_game_min": 5,
+    "sha256": "a38ad2307b49578ac088a584046a80d5f5c87c97fba16b4896837cb127c2c6f3"
+  },
+  "split_counts": {
+    "games": 1187,
+    "test_games": 59,
+    "test_positions": 5077,
+    "train_positions": 98477
+  },
+  "test": {
+    "fraction_requested": 0.05,
+    "game_relation": "disjoint",
+    "games": 59,
+    "path": "train/data/validated/gen_seed20261020.test.bin",
+    "positions": 5077,
+    "sha256": "3a386627b0215be2763e880b6284a5754aca1ca6e2ae6071f03fff07c0dee669",
+    "split_seed": 20261020
+  },
+  "train": {
+    "games": 1128,
+    "path": "train/data/validated/gen_seed20261020.train.bin",
+    "positions": 98477,
+    "sha256": "167db82f99671fe129e72e76b80cdc00a9e5e2c2e1b852536156d9b33bca468b"
+  }
+}

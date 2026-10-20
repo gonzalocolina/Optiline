@@ -18,7 +18,9 @@ nets/*
 !nets/nsceper1_hl_lichess.metrics.json
 !nets/nsceper1_hl_full.bin
 !nets/nsceper1_hl_full.metrics.json
-train/data/
+train/data/*
+!train/data/validated/
+!train/data/validated/**
 train/checkpoints/
 train/bullet_checkpoints*/
 train/candidates/

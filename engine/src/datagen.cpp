@@ -16,6 +16,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <random>
 #include <string>
@@ -112,22 +113,28 @@ struct Shared {
   std::atomic<uint64_t> positions{0};
   std::atomic<uint64_t> discarded{0};
   std::atomic<uint64_t> wins{0}, draws{0}, losses{0};
-  std::atomic<uint64_t> next_game{0};
   std::atomic<bool> stop{false};
+  std::map<uint64_t, std::vector<char>> ready;
+  uint64_t next_write = 0;
 };
 
 void flush_locked(Shared& shared) { shared.out.flush(); }
 
-void write_records(Shared& shared, std::vector<char>& buf, bool force) {
-  if (buf.empty() || (!force && buf.size() < kWriteBufBytes)) return;
+void commit_game(Shared& shared, uint64_t game_index, std::vector<char> payload) {
   std::lock_guard<std::mutex> lock(shared.out_mutex);
-  shared.out.write(buf.data(), static_cast<std::streamsize>(buf.size()));
-  shared.out.flush();
-  buf.clear();
+  shared.ready.emplace(game_index, std::move(payload));
+  while (true) {
+    auto found = shared.ready.find(shared.next_write);
+    if (found == shared.ready.end()) break;
+    if (!found->second.empty())
+      shared.out.write(found->second.data(), static_cast<std::streamsize>(found->second.size()));
+    shared.ready.erase(found);
+    ++shared.next_write;
+  }
 }
 
 void worker(int index, const DatagenOptions& opt, Shared& shared) {
-  std::mt19937_64 rng(opt.seed * 0x9E3779B97F4A7C15ULL + static_cast<uint64_t>(index) * 0xD1B54A32D192ED03ULL + 1);
+  (void)index;
   Search search;
   search.set_silent(true);
   search.set_hash_mb(static_cast<std::size_t>(opt.hash_mb));
@@ -138,9 +145,6 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
   pending.reserve(512);
   std::vector<char> bytes;
   bytes.reserve(1 << 16);
-  std::vector<char> write_buf;
-  write_buf.reserve(kWriteBufBytes);
-  auto last_force = std::chrono::steady_clock::now();
 
   while (!shared.stop.load(std::memory_order_relaxed)) {
     const uint64_t game_index = shared.games.fetch_add(1, std::memory_order_relaxed);
@@ -150,8 +154,11 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
     pos.set_startpos();
     pos.set_use_extras(opt.use_extras);
     pending.clear();
-    // Keep TT and history across games. Clearing 16 MB every game was measurable
-    // and empty history made the next 5k-node search colder. go() still ages.
+    // Each game is independent of which thread draws it. A shared TT or a
+    // thread-local RNG would make the same seed produce a different file.
+    search.clear_search_state();
+    std::mt19937_64 rng(opt.seed * 0x9E3779B97F4A7C15ULL ^
+                        (game_index + 1) * 0xD1B54A32D192ED03ULL);
 
     // Random opening.
     bool aborted = false;
@@ -168,6 +175,7 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
     }
     if (aborted) {
       shared.discarded.fetch_add(1, std::memory_order_relaxed);
+      commit_game(shared, game_index, {});
       continue;
     }
 
@@ -235,16 +243,17 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
     if (end == GameEnd::None) end = GameEnd::Draw;  // max_plies
     if (end == GameEnd::Discard || pending.empty()) {
       shared.discarded.fetch_add(1, std::memory_order_relaxed);
+      commit_game(shared, game_index, {});
       continue;
     }
 
-    const uint64_t game_id64 = shared.next_game.fetch_add(1, std::memory_order_relaxed);
-    if (game_id64 > 0xFFFFFFu) {
+    if (game_index > 0xFFFFFFu) {
       std::cerr << "datagen: game id does not fit in extra[3]\n";
       shared.stop.store(true, std::memory_order_relaxed);
+      commit_game(shared, game_index, {});
       break;
     }
-    const uint32_t game_id = static_cast<uint32_t>(game_id64);
+    const uint32_t game_id = static_cast<uint32_t>(game_index);
     const float result_white = end == GameEnd::WhiteWins ? 1.0f : end == GameEnd::BlackWins ? 0.0f : 0.5f;
     if (end == GameEnd::WhiteWins) shared.wins.fetch_add(1, std::memory_order_relaxed);
     else if (end == GameEnd::BlackWins) shared.losses.fetch_add(1, std::memory_order_relaxed);
@@ -269,14 +278,9 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
         std::memcpy(bytes.data() + i * sizeof(BulletChessBoard), &board, sizeof(board));
       }
     }
-    write_buf.insert(write_buf.end(), bytes.begin(), bytes.end());
-    const auto now = std::chrono::steady_clock::now();
-    const bool aged = now - last_force >= std::chrono::seconds(5);
-    write_records(shared, write_buf, aged);
-    if (aged) last_force = now;
+    commit_game(shared, game_index, std::move(bytes));
     shared.positions.fetch_add(pending.size(), std::memory_order_relaxed);
   }
-  write_records(shared, write_buf, true);
 }
 
 }  // namespace
