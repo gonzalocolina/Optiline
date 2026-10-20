@@ -65,17 +65,40 @@ def write_sidecar(source: Path, sidecar: Path) -> dict:
     return payload
 
 
-def expected_graph_id(graph: str, wdl: str) -> str:
+def expected_graph_id(graph: str, wdl: str, source_sha256: str) -> str:
+    digest = source_sha256.strip().lower()
+    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        raise ValueError("training source sha256 must be 64 hex characters")
     proportion = f"{float(wdl):.4f}"
     if graph == "simple":
-        return f"simple hidden=512 buckets=0 screlu=1 wdl={proportion}"
-    if graph == "hl":
-        return f"hl ft=512 hl=32 buckets=0 screlu=2 wdl={proportion}"
-    if graph != "mlp":
+        base = f"simple hidden=512 buckets=0 screlu=1 wdl={proportion}"
+    elif graph == "hl":
+        base = f"hl ft=512 hl=32 buckets=0 screlu=2 wdl={proportion}"
+    elif graph == "mlp":
+        base = f"mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl={proportion}"
+    else:
         raise ValueError(f"unknown graph {graph}")
-    return (
-        f"mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl={proportion}"
-    )
+    return f"{base} sha256={digest}"
+
+
+def resume_decision(
+    has_checkpoints: bool,
+    existing_graph_id: str | None,
+    current_graph_id: str,
+    accept_unmarked: bool,
+) -> str:
+    """How a checkpoint directory may be used.
+
+    ``resume`` means the recorded identity matches this source.
+    ``create`` means the directory has no checkpoints yet.
+    ``migrate`` means the user explicitly accepted checkpoints that have no
+    ``graph_id``. ``refuse`` means the directory must not be reused.
+    """
+    if existing_graph_id is not None:
+        return "resume" if existing_graph_id.strip() == current_graph_id else "refuse"
+    if has_checkpoints:
+        return "migrate" if accept_unmarked else "refuse"
+    return "create"
 
 
 def effective_parameters(graph: str, env: dict[str, str] | None = None) -> dict[str, str]:
@@ -188,7 +211,7 @@ def build_train_manifest(
             "name": graph,
             "source": str(graph_source.resolve()),
             "sha256": sha256_file(graph_source),
-            "graph_id": expected_graph_id(graph, wdl),
+            "graph_id": expected_graph_id(graph, wdl, sha256_file(graph_source)),
         },
         "checkpoint_dir": str(checkpoint_dir),
         "validation": {

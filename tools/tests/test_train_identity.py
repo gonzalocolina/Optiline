@@ -14,10 +14,14 @@ from train_identity import (  # noqa: E402
     build_train_manifest,
     expected_graph_id,
     game_relation,
+    resume_decision,
     shuffle_decision,
     split_games,
     write_sidecar,
 )
+
+SHA_A = "a" * 64
+SHA_B = "b" * 64
 
 
 def _record(game: int) -> bytes:
@@ -54,13 +58,50 @@ class ShuffleIdentityTest(unittest.TestCase):
 class GraphAndGamesTest(unittest.TestCase):
     def test_graph_id_matches_the_rust_format(self) -> None:
         self.assertEqual(
-            expected_graph_id("mlp", "0"),
-            "mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl=0.0000",
+            expected_graph_id("mlp", "0", SHA_A),
+            "mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl=0.0000 "
+            f"sha256={SHA_A}",
         )
         self.assertEqual(
-            expected_graph_id("mlp", "0.75"),
-            "mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl=0.7500",
+            expected_graph_id("mlp", "0.75", SHA_B),
+            "mlp l1=512 l2=32 l3=32 buckets=8 pair=crelu*crelu skip=1 wdl=0.7500 "
+            f"sha256={SHA_B}",
         )
+
+    def test_source_hash_change_refuses_automatic_resume(self) -> None:
+        old = expected_graph_id("mlp", "0.0", SHA_A)
+        new = expected_graph_id("mlp", "0.0", SHA_B)
+        self.assertNotEqual(old, new)
+        self.assertEqual(resume_decision(True, old, new, False), "refuse")
+        self.assertEqual(resume_decision(True, old, new, True), "refuse")
+        self.assertEqual(resume_decision(True, new, new, False), "resume")
+
+    def test_unmarked_checkpoints_are_refused_unless_migration_is_explicit(self) -> None:
+        current = expected_graph_id("hl", "0.5", SHA_A)
+        self.assertEqual(resume_decision(True, None, current, False), "refuse")
+        self.assertEqual(resume_decision(True, None, current, True), "migrate")
+        self.assertEqual(resume_decision(False, None, current, False), "create")
+
+    def test_trainers_reject_unmarked_checkpoints_and_record_source_hash(self) -> None:
+        root = Path(__file__).resolve().parents[2] / "train"
+        required = (
+            "refusing to resume",
+            "NSCE_ACCEPT_UNMARKED",
+            "sha256={graph_sha}",
+            "training_source_sha256()",
+        )
+        forbidden = "stamping {graph_id:?}"
+        bodies = []
+        for name in ("bullet_nsce.rs", "bullet_nsce_hl.rs", "bullet_nsce_simple.rs"):
+            text = (root / name).read_text(encoding="utf-8")
+            for snippet in required:
+                self.assertIn(snippet, text, name)
+            self.assertNotIn(forbidden, text, name)
+            start = text.index("fn ensure_graph_dir")
+            end = text.index("fn latest_checkpoint")
+            bodies.append(text[start:end])
+        self.assertEqual(bodies[0], bodies[1])
+        self.assertEqual(bodies[1], bodies[2])
 
     def test_split_holds_out_whole_games(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -108,7 +149,10 @@ class GraphAndGamesTest(unittest.TestCase):
             self.assertEqual(manifest["graph"]["sha256"], sha256_file(graph))
             self.assertEqual(manifest["validation"]["game_relation"], "disjoint")
             self.assertIn("wdl", manifest["parameters"])
-            self.assertEqual(manifest["graph"]["graph_id"], expected_graph_id("mlp", manifest["parameters"]["wdl"]))
+            self.assertEqual(
+                manifest["graph"]["graph_id"],
+                expected_graph_id("mlp", manifest["parameters"]["wdl"], manifest["graph"]["sha256"]),
+            )
 
 
 if __name__ == "__main__":

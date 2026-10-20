@@ -101,7 +101,7 @@ elif [[ -n "${NSCE_REQUIRE_TEST:-}" ]]; then
   echo "NSCE_REQUIRE_TEST is set and NSCE_TEST_SET is empty" >&2
   exit 1
 else
-  echo "warning: no validation set. Hold out whole games with tools/train_identity.py split; do not sample positions from the training games." >&2
+  echo "warning: no validation set. Hold out whole games with tools/train_identity.py split; do not sample positions from the training games. The confirmatory MLP run must set NSCE_REQUIRE_TEST=1." >&2
 fi
 GRAPH="${NSCE_GRAPH:-mlp}"
 if [[ "$GRAPH" == simple ]]; then
@@ -118,6 +118,7 @@ CKPT_DIR="${NSCE_CHECKPOINT_DIR:-$DEFAULT_CKPT}"
 mkdir -p "$CKPT_DIR"
 export NSCE_CHECKPOINT_DIR="$CKPT_DIR"
 cp -f "$TRAIN_SRC" "$BULLET/examples/nsce.rs"
+export NSCE_GRAPH_SOURCE="$BULLET/examples/nsce.rs"
 MANIFEST_DIR="${NSCE_MANIFEST_DIR:-$ROOT/experiments/$(date +%Y%m%d)_bullet_gen${NSCE_GEN:-0}}"
 mkdir -p "$MANIFEST_DIR"
 python3 "$ROOT/tools/train_identity.py" manifest \
