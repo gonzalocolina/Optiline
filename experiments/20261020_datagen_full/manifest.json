@@ -1,0 +1,66 @@
+{
+  "cost": {
+    "elapsed_sec": 67165.022453486,
+    "games_per_sec": 18.460575977007604,
+    "hours_for_target_games": 18.056496923416443,
+    "hours_for_target_positions": 17.29227799502165,
+    "positions_per_game": 87.01618591746949,
+    "positions_per_sec": 1606.3689113588646,
+    "sec_per_million_positions": 622.5220078207794,
+    "target_games": 1200000,
+    "target_positions": 100000000,
+    "threads": 4
+  },
+  "datagen_log": "datagen done: 1239905 games (W 443462 D 153236 L 643207, discarded 10095), 107891804 positions, 1606 pos/s, 67165 s",
+  "generator": {
+    "binary": "build-datagen/nsce_datagen",
+    "binary_sha256": "3df50f43d6cf35f3fca94e3c76d8bd34287a019bb99535d48c403d075231326a",
+    "build": "Release -DNSCE_LTO=OFF -DNSCE_NATIVE=ON -DNSCE_AVX2=ON",
+    "eval_file": "nets/nnue_search_leaves40k_rw0.bin",
+    "eval_file_sha256": "06e342b8ddf128ce7c8b5b9c9c2ce4b45f555871d1dab7e853a6b09bc6bd1b54",
+    "games_requested": 1250000,
+    "hash_mb": 16,
+    "nodes": 5000,
+    "seed": 20261020,
+    "threads": 4,
+    "use_extras": true
+  },
+  "kind": "validated_datagen",
+  "scale_cost": null,
+  "schema_version": 2,
+  "source": {
+    "bytes": 3452537728,
+    "games": 1239905,
+    "path": "train/data/full/gen_seed20261020.bin",
+    "positions": 107891804,
+    "positions_per_game_max": 393,
+    "positions_per_game_min": 1,
+    "sha256": "29e6750578b75ed60a4d9cbe54ba33035161a9e4fd4f41cdac6681103cd1999a"
+  },
+  "split_counts": {
+    "games": 1239905,
+    "test_games": 61995,
+    "test_positions": 5372146,
+    "train_positions": 102519658
+  },
+  "test": {
+    "fraction_requested": 0.05,
+    "game_relation": "disjoint",
+    "games": 61995,
+    "path": "train/data/full/gen_seed20261020.test.bin",
+    "positions": 5372146,
+    "sha256": "1ffeecc9b805dfbfde580e0844681e28394e3991649ea37c0e83d404031ab31a",
+    "split_seed": 20261020
+  },
+  "train": {
+    "games": 1177910,
+    "path": "train/data/full/gen_seed20261020.train.bin",
+    "positions": 102519658,
+    "sha256": "ce5cbacc0e6be3eced544850764ddb9c1445afe35376caa9ae4d4990d53d5633"
+  },
+  "train_gate": {
+    "min_positions": 100000000,
+    "ok": true,
+    "positions": 102519658
+  }
+}
