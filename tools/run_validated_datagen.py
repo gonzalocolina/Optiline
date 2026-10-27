@@ -47,12 +47,15 @@ def _run_datagen(binary: Path, out: Path, games: int, nodes: int, threads: int, 
         "--hash",
         str(hash_mb),
     ]
+    log_path = out.with_suffix(".log")
     started = time.perf_counter()
-    proc = subprocess.run(cmd, cwd=ROOT, text=True, stderr=subprocess.PIPE)
+    with log_path.open("w", encoding="utf-8") as err:
+        proc = subprocess.run(cmd, cwd=ROOT, stderr=err)
     elapsed = time.perf_counter() - started
+    log = log_path.read_text(encoding="utf-8", errors="replace")
     if proc.returncode != 0:
-        raise SystemExit(proc.stderr or f"datagen exited {proc.returncode}")
-    return elapsed, proc.stderr
+        raise SystemExit(log or f"datagen exited {proc.returncode}")
+    return elapsed, log
 
 
 def _done_counts(log: str) -> tuple[int, int]:
@@ -157,6 +160,12 @@ def produce(args: argparse.Namespace) -> dict:
         "scale_cost": scale_summary,
         "datagen_log": log.strip().splitlines()[-1] if log.strip() else "",
     }
+    train_positions = dossier["train"]["positions"]
+    dossier["train_gate"] = {
+        "min_positions": args.min_train_positions,
+        "positions": train_positions,
+        "ok": args.min_train_positions <= 0 or train_positions >= args.min_train_positions,
+    }
     manifest_path = Path(args.manifest)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     write_manifest(manifest_path, dossier)
@@ -165,6 +174,10 @@ def produce(args: argparse.Namespace) -> dict:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report, encoding="utf-8")
     print(report)
+    if args.min_train_positions and train_positions < args.min_train_positions:
+        raise SystemExit(
+            f"training partition has {train_positions} positions; need >= {args.min_train_positions}"
+        )
     return dossier
 
 
@@ -219,10 +232,24 @@ def render_report(dossier: dict) -> str:
             f"- Source sha256 `{src['sha256']}`.",
             "- Game relation: disjoint. Every source game is in exactly one side.",
             "",
-            "Training should point `NSCE_DATASET` at the train file and `NSCE_TEST_SET` at the test file, with `NSCE_REQUIRE_TEST=1`.",
-            "This corpus is below the 100,000,000-position training gate. It is the format and cost check, not a substitute for that corpus.",
-            "",
-        ]
+        "Training should point `NSCE_DATASET` at the train file and `NSCE_TEST_SET` at the test file, with `NSCE_REQUIRE_TEST=1`.",
+        "",
+    ]
+    gate = dossier.get("train_gate") or {}
+    if gate.get("min_positions"):
+        if gate.get("ok"):
+            lines.append(
+                f"The training partition has {gate['positions']} positions, above the {gate['min_positions']} gate."
+            )
+        else:
+            lines.append(
+                f"The training partition has {gate['positions']} positions, below the {gate['min_positions']} gate."
+            )
+    else:
+        lines.append(
+            "This corpus is below the 100,000,000-position training gate. It is the format and cost check, not a substitute for that corpus."
+        )
+    lines.append("")
     )
     return "\n".join(lines)
 
@@ -241,6 +268,7 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=20261020)
     parser.add_argument("--fraction", type=float, default=0.05)
     parser.add_argument("--scale-games", type=int, default=80)
+    parser.add_argument("--min-train-positions", type=int, default=0)
     parser.add_argument("--scale-threads", type=int, default=1)
     args = parser.parse_args()
     produce(args)

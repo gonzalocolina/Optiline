@@ -16,9 +16,11 @@ if (( bytes % 32 != 0 )); then
   exit 1
 fi
 file_pos=$(( bytes / 32 ))
+# Counts records in NSCE_DATASET. After a whole-game holdout that file is the
+# training partition, so the raw corpus has to be larger than MIN_POS.
 MIN_POS="${MIN_POS:-100000000}"
 if (( file_pos < MIN_POS )); then
-  echo "$BIN has $file_pos positions; need ≥$MIN_POS" >&2
+  echo "$BIN has $file_pos positions; need ≥$MIN_POS in the training file" >&2
   exit 1
 fi
 if [[ ! -d "$BULLET" ]]; then

@@ -264,8 +264,11 @@ Beyond the standard protocol, NSCE exposes diagnostic commands used by the pipel
 ./build/nsce_bench 8 1 1 internal        # search bench harness
 ./build/nsce_bench_nnue 100000 internal  # NNUE inference latency
 
-# Self-play data generation (bulletformat, multi-threaded, adjudicated):
-./build/nsce_datagen --out train/data/gen0.bin --games 1200000 --nodes 5000 \
+# Self-play data generation (bulletformat, multi-threaded, adjudicated).
+# Request 1.25e6 games, not 1.2e6. run_bullet.sh requires 1e8 positions in the
+# training file after a whole-game holdout, and a 5% holdout of 1.2e6 games
+# can fall short of that gate.
+./build/nsce_datagen --out train/data/gen0.bin --games 1250000 --nodes 5000 \
   --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
 ```
 
