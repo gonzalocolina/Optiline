@@ -26,7 +26,8 @@ struct DatagenOptions {
   std::string output;             // .bin (bulletformat) or .txt (`fen | score | wdl`)
   std::string eval_file;          // EvalFile for the playing engine; "internal" for HCE init
   int games = 1000;
-  int nodes = 5000;               // per move
+  int nodes = 5000;               // per move (hard cap when soft_nodes is set)
+  int soft_nodes = 0;             // finish the iteration that reaches this count; 0 = hard limit only
   int threads = 1;
   int random_plies = 8;           // random moves before search starts
   int hash_mb = 16;
