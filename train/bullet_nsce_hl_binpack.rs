@@ -1,0 +1,275 @@
+//! Same HL graph as bullet_nsce_hl.rs, fed from Stockfish-format binpacks
+//! (NSCE_BINPACKS, comma separated) instead of a bulletformat file.
+//! (768→512)×2 SCReLU → 32 SCReLU → 1. No material buckets.
+//! The bucketed 512/32/32 MLP collapsed to a constant inside each bucket.
+//! The 1-layer net learned chess and lost ~100 Elo (corr 0.44 vs 0.64).
+//! Copy to third_party/bullet/examples/nsce_binpack.rs.
+
+use bullet_lib::{
+    game::inputs::Chess768,
+    nn::{optimiser::AdamW, Affine, InitSettings},
+    trainer::{
+        save::SavedFormat,
+        schedule::{TrainingSchedule, TrainingSteps, lr, wdl},
+        settings::{LocalSettings, TestDataset},
+    },
+    value::{
+        ValueTrainerBuilder,
+        loader::sfbinpack::{MoveType, PieceType, SfBinpackLoader, TrainingDataEntry},
+    },
+};
+use std::path::{Path, PathBuf};
+
+const FT: usize = 512;
+const HL: usize = 32;
+
+fn env_usize(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_f32(name: &str, default: f32) -> f32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default)
+}
+
+fn file_sha256(path: &Path) -> String {
+    let output = std::process::Command::new("sha256sum").arg(path).output().unwrap_or_else(|err| {
+        eprintln!("sha256sum failed for {}: {err}", path.display());
+        std::process::exit(1);
+    });
+    if !output.status.success() {
+        eprintln!(
+            "sha256sum {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        std::process::exit(1);
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let Some(hash) = text.split_whitespace().next() else {
+        eprintln!("sha256sum produced no hash for {}", path.display());
+        std::process::exit(1);
+    };
+    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        eprintln!("sha256sum produced {hash:?} for {}", path.display());
+        std::process::exit(1);
+    }
+    hash.to_string()
+}
+
+fn training_source_sha256() -> String {
+    let configured = std::env::var("NSCE_GRAPH_SOURCE").unwrap_or_else(|_| "examples/nsce.rs".to_string());
+    let path = PathBuf::from(configured);
+    if !path.is_file() {
+        eprintln!(
+            "training source {} is missing; set NSCE_GRAPH_SOURCE to the graph file that was compiled",
+            path.display()
+        );
+        std::process::exit(1);
+    }
+    file_sha256(&path)
+}
+
+fn ensure_graph_dir(dir: &Path, graph_id: &str) {
+    let path = dir.join("graph_id");
+    let accept_unmarked = std::env::var("NSCE_ACCEPT_UNMARKED").ok().as_deref() == Some("1");
+    match std::fs::read_to_string(&path) {
+        Ok(existing) => {
+            let existing = existing.trim();
+            if existing != graph_id {
+                eprintln!(
+                    "refusing to train in {}: graph_id is {existing:?}, this run is {graph_id:?}. Use a new NSCE_CHECKPOINT_DIR.",
+                    dir.display()
+                );
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            if latest_checkpoint(dir).is_some() && !accept_unmarked {
+                eprintln!(
+                    "refusing to resume {}: checkpoints exist but graph_id is missing. Provenance was not recorded. Use a new NSCE_CHECKPOINT_DIR, or set NSCE_ACCEPT_UNMARKED=1 only after checking that these checkpoints were trained with this exact source.",
+                    dir.display()
+                );
+                std::process::exit(1);
+            }
+            if latest_checkpoint(dir).is_some() {
+                eprintln!(
+                    "NSCE_ACCEPT_UNMARKED=1: writing graph_id {graph_id:?} into {}. This asserts provenance; it does not prove it.",
+                    dir.display()
+                );
+            }
+            if let Err(err) = std::fs::write(&path, format!("{graph_id}\n")) {
+                eprintln!("cannot write {}: {err}", path.display());
+                std::process::exit(1);
+            }
+        }
+    }
+}
+fn latest_checkpoint(dir: &Path) -> Option<(usize, PathBuf)> {
+    let mut best: Option<(usize, PathBuf)> = None;
+    let rd = std::fs::read_dir(dir).ok()?;
+    for entry in rd.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else { continue };
+        let Some(num) = name.strip_prefix("nsce-") else { continue };
+        let Ok(n) = num.parse::<usize>() else { continue };
+        if !path.join("optimiser_state").exists() {
+            continue;
+        }
+        if best.as_ref().map(|(m, _)| *m).unwrap_or(0) < n {
+            best = Some((n, path));
+        }
+    }
+    best
+}
+
+fn main() {
+    let binpacks = std::env::var("NSCE_BINPACKS").expect("NSCE_BINPACKS: comma-separated .binpack paths");
+    let binpack_paths: Vec<&str> = binpacks.split(',').collect();
+    let smoke = std::env::var("NSCE_SMOKE").is_ok();
+    let initial_lr = env_f32("NSCE_LR", 0.0002);
+    let final_lr = initial_lr * 0.3f32.powi(5);
+    let batch_size = env_usize("NSCE_BATCH", 8_192);
+    let batches_per_superbatch = env_usize("NSCE_BATCHES", if smoke { 2 } else { 12_208 });
+    let superbatches = env_usize("NSCE_SUPERBATCHES", if smoke { 1 } else { 320 });
+    let loader_threads = env_usize("NSCE_THREADS", if smoke { 2 } else { 8 });
+    let batch_queue_size = env_usize("NSCE_QUEUE", if smoke { 2 } else { 64 });
+    let wdl_proportion = env_f32("NSCE_WDL", 0.0);
+    println!("wdl_proportion={wdl_proportion}");
+    println!("binpacks={binpacks}");
+    println!(
+        "graph=hl hidden={FT} hl={HL} buckets=0 lr={initial_lr} ft_bias=0.15 l1_bias=0.4 l1_std_div=4"
+    );
+
+    let mut trainer = ValueTrainerBuilder::default()
+        .dual_perspective()
+        .optimiser(AdamW)
+        .inputs(Chess768)
+        .save_format(&[
+            SavedFormat::id("l0w").round().quantise::<i16>(255),
+            SavedFormat::id("l0b").round().quantise::<i16>(255),
+            SavedFormat::id("l1w").round().quantise::<i16>(64).transpose(),
+            SavedFormat::id("l1b").round().quantise::<i16>(255 * 64),
+            SavedFormat::id("l2w").round().quantise::<i16>(64),
+            SavedFormat::id("l2b").round().quantise::<i16>(255 * 64),
+        ])
+        // sigmoid MSE goes flat on this width while centipawn error is still
+        // large. train/train_hl_cpu.py fits Huber(cp/400) instead. bullet's
+        // loss_fn only sees the probability target, so a GPU run of this file
+        // is not the CP objective.
+        .loss_fn(|output, target| output.sigmoid().squared_error(target))
+        .build(|builder, stm_inputs, ntm_inputs| {
+            // Bias 0.5 on both SCReLU layers saturated 31/32 hidden units by nsce-10:
+            // the FT outputs got large and the 1024-wide dot left (0, 1).
+            // Keep a small FT lift, and shrink the hidden weights so that dot stays inside.
+            let l0w = builder.new_weights(
+                "l0w",
+                (FT, 768),
+                InitSettings::Normal { mean: 0.0, stdev: (2.0 / 768.0_f32).sqrt() },
+            );
+            let l0b = builder.new_weights(
+                "l0b",
+                (FT, 1),
+                InitSettings::Normal { mean: 0.15, stdev: 0.02 },
+            );
+            let l0 = Affine { weights: l0w, bias: l0b };
+            let l1_stdev = (2.0 / (2 * FT) as f32).sqrt() / 4.0;
+            let l1w = builder.new_weights(
+                "l1w",
+                (HL, 2 * FT),
+                InitSettings::Normal { mean: 0.0, stdev: l1_stdev },
+            );
+            let l1b = builder.new_weights(
+                "l1b",
+                (HL, 1),
+                InitSettings::Normal { mean: 0.4, stdev: 0.05 },
+            );
+            let l1 = Affine { weights: l1w, bias: l1b };
+            let l2 = builder.new_affine("l2", HL, 1);
+            let stm = l0.forward(stm_inputs).screlu();
+            let ntm = l0.forward(ntm_inputs).screlu();
+            l2.forward(l1.forward(stm.concat(ntm)).screlu())
+        });
+
+    let output_directory = std::env::var("NSCE_CHECKPOINT_DIR").unwrap_or_else(|_| {
+        if smoke {
+            "../../tmp/bullet_smoke_hl_binpack".to_string()
+        } else {
+            "../../train/bullet_checkpoints_hl_binpack".to_string()
+        }
+    });
+    std::fs::create_dir_all(&output_directory).ok();
+    let graph_sha = training_source_sha256();
+    let graph_id = format!(
+        "hl ft={FT} hl={HL} buckets=0 screlu=2 wdl={wdl_proportion:.4} sha256={graph_sha}"
+    );
+    ensure_graph_dir(Path::new(&output_directory), &graph_id);
+
+    let resume = std::env::var("NSCE_RESUME").ok().as_deref() != Some("0");
+    let mut start_superbatch = env_usize("NSCE_START", 1);
+    if resume && start_superbatch == 1 {
+        if let Some((n, path)) = latest_checkpoint(Path::new(&output_directory)) {
+            println!("resume checkpoint {} (superbatch {})", path.display(), n);
+            trainer.load_from_checkpoint(path.to_str().expect("checkpoint path"));
+            start_superbatch = n + 1;
+        }
+    } else if start_superbatch > 1 {
+        let path = format!("{output_directory}/nsce-{}", start_superbatch - 1);
+        println!("resume checkpoint {path}");
+        trainer.load_from_checkpoint(&path);
+    }
+    if start_superbatch > superbatches {
+        println!("already trained through superbatch {superbatches}; skip");
+        return;
+    }
+
+    let schedule = TrainingSchedule {
+        net_id: "nsce".to_string(),
+        eval_scale: 400.0,
+        steps: TrainingSteps {
+            batch_size,
+            batches_per_superbatch,
+            start_superbatch,
+            end_superbatch: superbatches,
+        },
+        wdl_scheduler: wdl::ConstantWDL { value: wdl_proportion },
+        lr_scheduler: lr::CosineDecayLR {
+            initial_lr,
+            final_lr,
+            final_superbatch: superbatches,
+        },
+        save_rate: env_usize("NSCE_SAVE_RATE", if smoke { 1 } else { 10 }),
+    };
+
+    let test_set_path = std::env::var("NSCE_TEST_SET").ok().filter(|p| !p.is_empty());
+    let test_freq = env_usize("NSCE_TEST_FREQ", 32);
+    if let Some(path) = test_set_path.as_deref() {
+        println!("test_set={path} freq={test_freq}");
+    }
+    let test_set = test_set_path
+        .as_deref()
+        .map(|path| TestDataset { path, freq: test_freq });
+    let settings = LocalSettings {
+        threads: loader_threads,
+        test_set,
+        output_directory: output_directory.as_str(),
+        batch_queue_size,
+    };
+    // bullet's own filter for these files: skip the opening, checks, captures,
+    // promotions and decided scores.
+    fn filter(entry: &TrainingDataEntry) -> bool {
+        entry.ply >= 16
+            && !entry.pos.is_checked(entry.pos.side_to_move())
+            && entry.score.unsigned_abs() <= 10000
+            && entry.mv.mtype() == MoveType::Normal
+            && entry.pos.piece_at(entry.mv.to()).piece_type() == PieceType::None
+    }
+    let buffer_mb = env_usize("NSCE_BUFFER_MB", 4096);
+    let dataloader = SfBinpackLoader::new_concat_multiple(&binpack_paths, buffer_mb, loader_threads, filter);
+    trainer.run(&schedule, &settings, &dataloader);
+}
