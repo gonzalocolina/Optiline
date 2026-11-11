@@ -197,6 +197,7 @@ void worker(int index, const DatagenOptions& opt, Shared& shared) {
       search.set_position(pos);
       SearchLimits limits;
       limits.nodes = opt.nodes;
+      limits.soft_nodes = opt.soft_nodes;
       const SearchInfo info = search.go(limits);
       Move best = info.best_move;
       if (!best) best = legal.moves[0];

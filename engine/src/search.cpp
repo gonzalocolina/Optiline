@@ -1237,6 +1237,7 @@ void Search::iterative_deepening(SearchWorker& w, bool is_main, int max_depth) {
     if (!is_main) continue;
 
     report_iteration(w, depth, score);
+    if (soft_nodes_limit_ > 0 && w.nodes >= static_cast<uint64_t>(soft_nodes_limit_)) break;
     if (w.best_move == last_best)
       ++stable_iterations;
     else
@@ -1271,6 +1272,7 @@ SearchInfo Search::go_prepared(const SearchLimits& limits) {
   maximum_ms_ = 0;
   use_soft_time_ = false;
   nodes_limit_ = limits.nodes;
+  soft_nodes_limit_ = limits.soft_nodes;
   root_moves_ = limits.searchmoves;
   if (!limits.infinite && limits.movetime_ms > 0) {
     optimum_ms_ = maximum_ms_ = std::max(1, limits.movetime_ms - move_overhead_ms_);

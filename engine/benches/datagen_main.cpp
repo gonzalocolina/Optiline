@@ -31,6 +31,7 @@ int main(int argc, char** argv) {
     else if (arg == "--eval-file") opt.eval_file = next("--eval-file");
     else if (arg == "--games") opt.games = std::atoi(next("--games").c_str());
     else if (arg == "--nodes") opt.nodes = std::atoi(next("--nodes").c_str());
+    else if (arg == "--soft-nodes") opt.soft_nodes = std::atoi(next("--soft-nodes").c_str());
     else if (arg == "--threads") opt.threads = std::atoi(next("--threads").c_str());
     else if (arg == "--random-plies") opt.random_plies = std::atoi(next("--random-plies").c_str());
     else if (arg == "--hash") opt.hash_mb = std::atoi(next("--hash").c_str());
@@ -46,7 +47,7 @@ int main(int argc, char** argv) {
     else if (arg == "--text") opt.text = true;
     else if (arg == "--help" || arg == "-h") {
       std::cout
-          << "nsce_datagen --out FILE [--eval-file NET|internal] [--games N] [--nodes N] [--threads T]\n"
+          << "nsce_datagen --out FILE [--eval-file NET|internal] [--games N] [--nodes N] [--soft-nodes N] [--threads T]\n"
              "             [--random-plies N] [--hash MB] [--seed S] [--resign-cp CP] [--resign-plies N]\n"
              "             [--draw-min-ply N] [--draw-cp CP] [--draw-plies N] [--max-plies N]\n"
              "             [--max-start-imbalance CP] [--no-extras] [--text]\n";
