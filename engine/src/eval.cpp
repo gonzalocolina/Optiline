@@ -141,7 +141,8 @@ int cached_pawn_structure(const Position& pos, Bitboard wp, Bitboard bp) {
 }
 
 int extras_structure(const Position& pos) {
-  int score = 10;  // tempo for the side that will move, applied in white-POV then flipped
+  // Tempo for the side that will move. The caller flips white-POV to that side.
+  int score = pos.side_to_move() == WHITE ? 10 : -10;
 
   const Bitboard wp = pos.pieces(WHITE, PAWN);
   const Bitboard bp = pos.pieces(BLACK, PAWN);
