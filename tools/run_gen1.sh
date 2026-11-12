@@ -79,7 +79,7 @@ fi
 while true; do
   cmd=(
     "$DATAGEN_EXE" --out "$OUT" --games "$games" --nodes 5000
-    --threads "${DATAGEN_THREADS:-14}" --eval-file "$NET" --seed "$seed"
+    --threads "${DATAGEN_THREADS:-$(nproc)}" --eval-file "$NET" --seed "$seed"
   )
   if [[ "$no_extras" == 1 ]]; then
     cmd+=(--no-extras)

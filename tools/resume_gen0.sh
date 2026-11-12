@@ -12,7 +12,7 @@ LOCK="$EXP/datagen.lock"
 SEED_FILE="$EXP/next_seed"
 MIN_POS="${MIN_POS:-100000000}"
 EVAL_FILE="${EVAL_FILE:-$ROOT/nets/nnue_search_leaves40k_rw0.bin}"
-THREADS="${DATAGEN_THREADS:-14}"
+THREADS="${DATAGEN_THREADS:-$(nproc)}"
 mkdir -p "$EXP"
 exec 8>"$LOCK"
 if ! flock -n 8; then

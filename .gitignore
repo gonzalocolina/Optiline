@@ -59,3 +59,4 @@ experiments/profiles/
 !experiments/**/elo_ladder.json
 !experiments/**/report.md
 !experiments/**/kpi_weekly.md
+third_party/rocm-shim/
