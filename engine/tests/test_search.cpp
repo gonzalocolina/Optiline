@@ -222,6 +222,36 @@ TEST(SearchTest, HonorsSearchMovesAndNodeLimit) {
   EXPECT_LE(info.nodes, 2080U);
 }
 
+// A soft node limit lets the running iteration finish, so the score is the one
+// a plain depth-limited search reports for that depth.
+TEST(SearchTest, SoftNodeLimitStopsOnACompletedIteration) {
+  init_bitboards();
+  Zobrist::init();
+  Nnue::instance().load_default_from_hce();
+  Position pos;
+  pos.set_startpos();
+
+  Search soft;
+  soft.set_position(pos);
+  soft.set_silent(true);
+  SearchLimits limits;
+  limits.soft_nodes = 1000;
+  limits.nodes = 200000;
+  const SearchInfo stopped = soft.go(limits);
+  EXPECT_GE(stopped.nodes, 1000U);
+  EXPECT_LT(stopped.nodes, 200000U);
+
+  Search fixed;
+  fixed.set_position(pos);
+  fixed.set_silent(true);
+  SearchLimits by_depth;
+  by_depth.depth = stopped.depth;
+  const SearchInfo reference = fixed.go(by_depth);
+  EXPECT_EQ(stopped.score, reference.score);
+  EXPECT_EQ(stopped.best_move, reference.best_move);
+  EXPECT_EQ(stopped.nodes, reference.nodes);
+}
+
 TEST(SearchTest, TimeLimitStopsWithinBound) {
   init_bitboards();
   Zobrist::init();

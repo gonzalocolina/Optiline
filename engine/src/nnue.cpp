@@ -415,11 +415,19 @@ void Nnue::add_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
     add_piece_for(acc, BLACK, pc, sq);
     return;
   }
+  // One-sided 768: the output weights are all positive behind a ReLU, so one
+  // pass can only say "white is ahead". Keep a second accumulator for the
+  // colour-flipped board; evaluate() subtracts the two passes.
   const auto& col = net_.w0[nnue_feature(pc, sq)];
+  const auto& flipped = net_.w0[per1_feature(BLACK, pc, sq)];
 #if defined(__AVX2__)
   acc_add_avx(acc.v.data(), col.data());
+  acc_add_avx(acc.half[BLACK].data(), flipped.data());
 #else
-  for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = clamp_i16(acc.v[h] + col[h]);
+  for (int h = 0; h < NnueNet::kHidden; ++h) {
+    acc.v[h] = clamp_i16(acc.v[h] + col[h]);
+    acc.half[BLACK][h] = clamp_i16(acc.half[BLACK][h] + flipped[h]);
+  }
 #endif
 }
 
@@ -446,10 +454,15 @@ void Nnue::remove_piece(NnueAccumulator& acc, Piece pc, Square sq) const {
     return;
   }
   const auto& col = net_.w0[nnue_feature(pc, sq)];
+  const auto& flipped = net_.w0[per1_feature(BLACK, pc, sq)];
 #if defined(__AVX2__)
   acc_sub_avx(acc.v.data(), col.data());
+  acc_sub_avx(acc.half[BLACK].data(), flipped.data());
 #else
-  for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = clamp_i16(acc.v[h] - col[h]);
+  for (int h = 0; h < NnueNet::kHidden; ++h) {
+    acc.v[h] = clamp_i16(acc.v[h] - col[h]);
+    acc.half[BLACK][h] = clamp_i16(acc.half[BLACK][h] - flipped[h]);
+  }
 #endif
 }
 
@@ -501,8 +514,8 @@ void Nnue::refresh(const Position& pos, NnueAccumulator& acc) const {
     }
     return;
   }
-  acc.v.fill(0);
-  for (int h = 0; h < NnueNet::kHidden; ++h) acc.v[h] = net_.b0[h];
+  acc.v = net_.b0;
+  acc.half[BLACK] = net_.b0;
   Bitboard occ = pos.occupied();
   while (occ) {
     const Square sq = pop_lsb(occ);
@@ -661,18 +674,21 @@ int Nnue::evaluate(const NnueAccumulator& acc, Color stm) const {
 #endif
     return static_cast<int>(sum / (NnueNet::kWeightScale * NnueNet::kWeightScale));
   }
-  int32_t sum = net_.b1;
+  // White's pass minus the same net on the colour-flipped board. The output
+  // bias cancels, and swapping colours negates the score exactly.
 #if defined(__AVX2__)
-  sum = affine_avx(acc.v.data(), net_.w1.data(), net_.b1);
+  const int32_t sum = affine_avx(acc.v.data(), net_.w1.data(), 0) -
+                      affine_avx(acc.half[BLACK].data(), net_.w1.data(), 0);
 #else
+  const int kMax = 127 * NnueNet::kWeightScale;
+  int32_t sum = 0;
   for (int h = 0; h < NnueNet::kHidden; ++h) {
-    int16_t x = acc.v[h];
-    if (x < 0) x = 0;
-    if (x > 127 * NnueNet::kWeightScale) x = static_cast<int16_t>(127 * NnueNet::kWeightScale);
-    sum += static_cast<int32_t>(x) * net_.w1[h];
+    const int white = std::clamp(static_cast<int>(acc.v[h]), 0, kMax);
+    const int black = std::clamp(static_cast<int>(acc.half[BLACK][h]), 0, kMax);
+    sum += (white - black) * net_.w1[h];
   }
 #endif
-  int score = static_cast<int>(sum / (NnueNet::kWeightScale * NnueNet::kWeightScale));
+  const int score = static_cast<int>(sum / (NnueNet::kWeightScale * NnueNet::kWeightScale));
   return (stm == WHITE) ? score : -score;
 }
 

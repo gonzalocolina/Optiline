@@ -120,12 +120,14 @@ TEST(NnueTest, IncrementalAccumulatorSurvivesAQuietAndTacticalSequence) {
     NnueAccumulator refreshed;
     Nnue::instance().refresh(pos, refreshed);
     EXPECT_EQ(pos.nnue_acc().v, refreshed.v) << "after ply " << ply;
+    EXPECT_EQ(pos.nnue_acc().half[BLACK], refreshed.half[BLACK]) << "flipped, after ply " << ply;
   }
   for (int ply = static_cast<int>(moves.size()) - 1; ply >= 0; --ply) {
     pos.undo_move(moves[ply], states[ply]);
     NnueAccumulator refreshed;
     Nnue::instance().refresh(pos, refreshed);
     EXPECT_EQ(pos.nnue_acc().v, refreshed.v) << "after undo ply " << ply;
+    EXPECT_EQ(pos.nnue_acc().half[BLACK], refreshed.half[BLACK]) << "flipped, after undo ply " << ply;
   }
 }
 
@@ -142,6 +144,45 @@ TEST(NnueTest, EvalFinite) {
   EXPECT_EQ(evaluate(pos), Nnue::instance().evaluate(pos));
   pos.set_use_extras(true);
   EXPECT_NE(evaluate(pos), Nnue::instance().evaluate(pos));
+}
+
+// Each pair is the same position with colours swapped and the board flipped.
+// The side to move must get the same score in both.
+TEST(NnueTest, OneSidedNetScoresColourFlippedPositionsEqually) {
+  init_bitboards();
+  Zobrist::init();
+  ASSERT_TRUE(Nnue::instance().load_default_from_hce());
+  const char* pairs[][2] = {
+      {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1",
+       "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1"},
+      {"8/5pk1/6p1/8/8/6P1/5PK1/3R4 w - - 0 40", "3r4/5pk1/6p1/8/8/6P1/5PK1/8 b - - 0 40"},
+      {"8/5pk1/6p1/8/8/6P1/5PK1/3R4 b - - 0 40", "3r4/5pk1/6p1/8/8/6P1/5PK1/8 w - - 0 40"},
+      {"r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/8/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+       "rnbqk2r/pppp1ppp/8/2b1p3/2B1P3/2N5/PPPP1PPP/R1BQK1NR b KQkq - 4 4"},
+  };
+  for (const auto& pair : pairs) {
+    Position a;
+    Position b;
+    a.set_fen(pair[0]);
+    b.set_fen(pair[1]);
+    EXPECT_EQ(Nnue::instance().evaluate(a), Nnue::instance().evaluate(b)) << pair[0];
+    EXPECT_EQ(evaluate(a), evaluate(b)) << pair[0];
+  }
+}
+
+// One pass of this net is a sum of ReLUs with positive output weights, so it
+// floors near zero. The side that is a queen or a rook down must see it.
+TEST(NnueTest, OneSidedNetSeesMaterialDeficitForEitherColour) {
+  init_bitboards();
+  Zobrist::init();
+  ASSERT_TRUE(Nnue::instance().load_default_from_hce());
+  Position pos;
+  pos.set_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1");
+  EXPECT_LT(Nnue::instance().evaluate(pos), -700);
+  pos.set_fen("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  EXPECT_GT(Nnue::instance().evaluate(pos), 700);
+  pos.set_fen("3r4/5pk1/6p1/8/8/6P1/5PK1/8 w - - 0 40");
+  EXPECT_LT(Nnue::instance().evaluate(pos), -350);
 }
 
 TEST(NnueTest, InternalNetworkSerializationReconstructsExactly) {
