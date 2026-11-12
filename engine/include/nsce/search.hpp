@@ -43,6 +43,8 @@ inline int raw_eval_from_tt(bool found, const TTEntry& tte) {
 struct SearchLimits {
   int depth = 0;
   int64_t nodes = 0;
+  // Stop once an iteration finishes at or past this count. `nodes` stays the hard cap.
+  int64_t soft_nodes = 0;
   int movetime_ms = 0;
   int wtime = 0;
   int btime = 0;
@@ -236,6 +238,7 @@ class Search {
   int move_overhead_ms_ = 10;
   bool use_soft_time_ = false;
   int64_t nodes_limit_ = 0;
+  int64_t soft_nodes_limit_ = 0;
   int threads_ = 1;
   bool use_tt_ = true;
   bool use_see_ = true;
