@@ -9,14 +9,18 @@ if [[ ! -x "$DATAGEN" ]]; then
   echo "missing $DATAGEN" >&2
   exit 1
 fi
-OUT_DIR="$ROOT/train/data/full"
-EXP="$ROOT/experiments/20261020_datagen_full"
+# The output does not depend on the thread count (test_datagen locks this), so
+# THREADS only changes wall time. EXP defaults to the recorded 20261020 run;
+# point it at a new directory to reproduce that corpus without overwriting it.
+THREADS="${DATAGEN_THREADS:-$(nproc)}"
+OUT_DIR="${NSCE_CORPUS_DIR:-$ROOT/train/data/full}"
+EXP="${NSCE_CORPUS_EXP:-$ROOT/experiments/20261020_datagen_full}"
 mkdir -p "$OUT_DIR" "$EXP"
 python3 "$ROOT/tools/run_validated_datagen.py" \
   --datagen "$DATAGEN" \
   --games 1250000 \
   --nodes 5000 \
-  --threads 4 \
+  --threads "$THREADS" \
   --seed 20261020 \
   --scale-games 0 \
   --fraction 0.05 \

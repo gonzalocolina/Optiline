@@ -13,5 +13,7 @@ if ! grep -q 'name = "nsce"' "$TOML"; then
   printf '\n[[example]]\nname = "nsce"\npath = "../../examples/nsce.rs"\n' >> "$TOML"
 fi
 echo "bullet ready. Train after shuffle (cwd is third_party/bullet):"
-echo "  (cd third_party/bullet && cargo r -r --example nsce --features cuda)"
+echo "  (cd third_party/bullet && cargo r -r --example nsce --features cuda)   # NVIDIA"
+echo "  (source tools/rocm_env.sh; cd third_party/bullet && cargo r -r --example nsce --features rocm)   # AMD"
+echo "  train/run_bullet.sh picks the backend itself (NSCE_GPU_BACKEND=cuda|rocm to force one)."
 echo "  dataset default: ../../train/data/gen0.bin  (override with NSCE_DATASET)"

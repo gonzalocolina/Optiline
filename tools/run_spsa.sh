@@ -41,6 +41,9 @@ mkdir -p "$TUNER"
 cp -f "$ENGINE" "$TUNER/engine"
 cp -f "$ROOT/tools/openings_uho.epd" "$TUNER/book.epd"
 cp -f "$ROOT/tools/configs/spsa.json" "$WF/config.json"
+# weather-factory runs this many concurrent games: one per physical core, minus one.
+SPSA_THREADS="${NSCE_CONCURRENCY:-$(( $(lscpu -p=core,socket | grep -v "^#" | sort -u | wc -l) - 1 ))}"
+(( SPSA_THREADS < 1 )) && SPSA_THREADS=1
 cat >"$WF/cutechess.json" <<EOF
 {
   "engine": "engine",
@@ -48,7 +51,7 @@ cat >"$WF/cutechess.json" <<EOF
   "games": 16,
   "tc": 8,
   "hash": 16,
-  "threads": 8,
+  "threads": $SPSA_THREADS,
   "save_rate": 10,
   "pgnout": "tuner/games.pgn",
   "use_fastchess": true

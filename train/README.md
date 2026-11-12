@@ -16,13 +16,32 @@ Evaluator export still has to clone: quantized C++ must match the frozen
 
 ```bash
 ./build/nsce_datagen --out train/data/gen0.bin --games 1200000 --nodes 5000 \
-  --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
+  --threads "$(nproc)" --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
 ```
 
 Shuffle with bullet-utils before training. Example: `train/bullet_nsce.rs`
 (`bash tools/setup_bullet.sh`). Runtime loads `NSCEPER1`; pack a quantised
 checkpoint with `python3 tools/pack_nsceper1.py`. Do not start the Python
 self-play path for a new generation.
+
+## Bullet on an AMD GPU (ROCm)
+
+`train/run_bullet.sh` picks CUDA when `nvidia-smi` works and ROCm when
+`rocminfo` lists a `gfx` agent; `NSCE_GPU_BACKEND=cuda|rocm` forces one.
+On Debian 13 the ROCm path needs `hipcc libamdhip64-dev libhipblas-dev
+librocblas-dev rocminfo` and the user in the `render` group.
+[`tools/rocm_env.sh`](../tools/rocm_env.sh) builds the `HIP_PATH` shim and sets
+`HSA_OVERRIDE_GFX_VERSION=10.3.0` for RDNA2 iGPUs such as the Radeon 680M.
+Measured speed and the full smoke path:
+[20261112_bullet_rocm_smoke](../experiments/20261112_bullet_rocm_smoke/report.md).
+
+```bash
+bash tools/setup_bullet.sh
+# Regenerate the confirmatory corpus (thread count does not change the bytes),
+# then train once its hashes match the recorded 20261020 run.
+NSCE_CORPUS_EXP=experiments/$(date +%Y%m%d)_datagen_full bash tools/run_full_corpus.sh
+NSCE_CORPUS_EXP=experiments/$(date +%Y%m%d)_datagen_full bash tools/train_after_corpus.sh
+```
 
 ## 1. Clone the frozen arbiter (export check)
 

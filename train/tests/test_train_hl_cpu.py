@@ -70,10 +70,14 @@ class TrainHlCpuTest(unittest.TestCase):
         params = init_params(np.random.default_rng(2))
         loss, grads = loss_and_grads(params, stm, ntm, scores, window=0.0)
         eps = 1e-3
+        # Central difference: a forward difference carries O(eps) error, which sits
+        # right at places=3 and fails with some NumPy builds.
         params["l2b"][0] += eps
-        shifted, _ = loss_and_grads(params, stm, ntm, scores, window=0.0)
-        params["l2b"][0] -= eps
-        self.assertAlmostEqual((shifted - loss) / eps, float(grads["l2b"][0]), places=3)
+        up, _ = loss_and_grads(params, stm, ntm, scores, window=0.0)
+        params["l2b"][0] -= 2 * eps
+        down, _ = loss_and_grads(params, stm, ntm, scores, window=0.0)
+        params["l2b"][0] += eps
+        self.assertAlmostEqual((up - down) / (2 * eps), float(grads["l2b"][0]), places=3)
         # A positive label must push the logit up when the net still outputs ~0.
         self.assertLess(float(grads["l2b"][0]), 0.0)
 
