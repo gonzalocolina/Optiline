@@ -232,9 +232,10 @@ def render_report(dossier: dict) -> str:
             f"- Source sha256 `{src['sha256']}`.",
             "- Game relation: disjoint. Every source game is in exactly one side.",
             "",
-        "Training should point `NSCE_DATASET` at the train file and `NSCE_TEST_SET` at the test file, with `NSCE_REQUIRE_TEST=1`.",
-        "",
-    ]
+            "Training should point `NSCE_DATASET` at the train file and `NSCE_TEST_SET` at the test file, with `NSCE_REQUIRE_TEST=1`.",
+            "",
+        ]
+    )
     gate = dossier.get("train_gate") or {}
     if gate.get("min_positions"):
         if gate.get("ok"):
@@ -250,7 +251,6 @@ def render_report(dossier: dict) -> str:
             "This corpus is below the 100,000,000-position training gate. It is the format and cost check, not a substitute for that corpus."
         )
     lines.append("")
-    )
     return "\n".join(lines)
 
 

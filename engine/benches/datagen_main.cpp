@@ -1,7 +1,7 @@
 // nsce_datagen: fixed-node self-play → bulletformat ChessBoard records.
 //
 //   ./build/nsce_datagen --out train/data/gen0.bin --games 20000 --nodes 5000 \
-//       --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
+//       --threads 12 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
 //
 // Positions written = quiet, non-check, non-mate positions of finished games,
 // labelled with the stm-relative search score and the game result.
