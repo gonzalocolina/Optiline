@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -43,6 +44,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from experiment_common import attach_frozen_targets, build_manifest, config_options, sha256_file, write_manifest  # noqa: E402
 
 FASTCHESS = ROOT / "third_party" / "fastchess" / "fastchess"
+
+
+def physical_cores() -> int:
+    """Distinct (package, core) pairs, so SMT siblings count once."""
+    cores = set()
+    for topo in Path("/sys/devices/system/cpu").glob("cpu[0-9]*/topology"):
+        try:
+            pkg = (topo / "physical_package_id").read_text().strip()
+            core = (topo / "core_id").read_text().strip()
+        except OSError:
+            continue
+        cores.add((pkg, core))
+    return len(cores) or max(1, (os.cpu_count() or 2) // 2)
+
+
+def default_concurrency() -> int:
+    """One game per physical core, minus one core for fastchess and the OS.
+
+    Each game has one engine thinking at a time with Threads=1. Running more
+    games than cores makes time-control results depend on load, not strength.
+    NSCE_CONCURRENCY overrides it.
+    """
+    env = os.environ.get("NSCE_CONCURRENCY", "").strip()
+    if env:
+        return max(1, int(env))
+    return max(1, physical_cores() - 1)
 
 
 def engine_args(name: str, cmd: Path, cfg: Path, tc: str, st_ms: int, nodes: int, cwd: Path) -> list[str]:
@@ -132,7 +159,7 @@ def main() -> int:
     ap.add_argument("--st", type=int, default=0, help="fixed movetime in ms (overrides --tc)")
     ap.add_argument("--nodes", type=int, default=0, help="fixed nodes per move (overrides --tc/--st)")
     ap.add_argument("--rounds", type=int, default=250, help="opening pairs (games = 2 * rounds)")
-    ap.add_argument("--concurrency", type=int, default=14)
+    ap.add_argument("--concurrency", type=int, default=default_concurrency())
     ap.add_argument("--sprt", nargs=2, type=float, metavar=("ELO0", "ELO1"), default=None)
     ap.add_argument("--sprt-model", choices=("normalized", "logistic"), default="normalized")
     ap.add_argument("--openings", default=str(ROOT / "tools/openings_uho.epd"))

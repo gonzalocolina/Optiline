@@ -27,16 +27,63 @@ if [[ ! -d "$BULLET" ]]; then
   echo "run bash tools/setup_bullet.sh first" >&2
   exit 1
 fi
-# shellcheck source=cuda_env.sh
-source "$ROOT/tools/cuda_env.sh"
-if [[ ! -x "${CUDA_PATH}/bin/nvcc" ]]; then
-  echo "nvcc missing. Run bash tools/setup_cuda_local.sh" >&2
+[[ -d "$HOME/.cargo/bin" ]] && export PATH="$HOME/.cargo/bin:$PATH"
+# NSCE_GPU_BACKEND=cuda|rocm. auto picks CUDA when nvidia-smi works, else ROCm
+# when rocminfo lists a GPU agent. Bullet has no CPU trainer; never fall back.
+BACKEND="${NSCE_GPU_BACKEND:-auto}"
+# Capture first: under pipefail, grep -q closing the pipe early SIGPIPEs
+# rocminfo and fails the whole test even when a GPU agent is listed.
+rocm_has_gpu() {
+  local out
+  out=$(rocminfo 2>/dev/null || true)
+  grep -q -E 'Name: +gfx' <<<"$out"
+}
+if [[ "$BACKEND" == auto ]]; then
+  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+    BACKEND=cuda
+  elif command -v rocminfo >/dev/null 2>&1 && rocm_has_gpu; then
+    BACKEND=rocm
+  else
+    echo "no usable GPU: nvidia-smi failed and rocminfo lists no gfx agent." >&2
+    if [[ -e /dev/kfd && ! -w /dev/kfd ]]; then
+      echo "/dev/kfd is not writable: add $(id -un) to the render group and log in again." >&2
+    fi
+    exit 1
+  fi
+fi
+if [[ "$BACKEND" == cuda ]]; then
+  # shellcheck source=cuda_env.sh
+  source "$ROOT/tools/cuda_env.sh"
+  if [[ ! -x "${CUDA_PATH}/bin/nvcc" ]]; then
+    echo "nvcc missing. Run bash tools/setup_cuda_local.sh" >&2
+    exit 1
+  fi
+  if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
+    echo "GPU not usable (nvidia-smi failed)." >&2
+    exit 1
+  fi
+elif [[ "$BACKEND" == rocm ]]; then
+  # shellcheck source=../tools/rocm_env.sh
+  source "$ROOT/tools/rocm_env.sh"
+  for lib in amdhip64 hipblas hiprtc rocblas; do
+    if [[ ! -e "$HIP_PATH/lib/lib$lib.so" ]]; then
+      echo "lib$lib.so missing under HIP_PATH=$HIP_PATH. Install hipcc libhipblas-dev librocblas-dev." >&2
+      exit 1
+    fi
+  done
+  if [[ ! -w /dev/kfd ]]; then
+    echo "/dev/kfd is not writable: add $(id -un) to the render group and log in again." >&2
+    exit 1
+  fi
+  if ! rocm_has_gpu; then
+    echo "GPU not usable (rocminfo lists no gfx agent)." >&2
+    exit 1
+  fi
+else
+  echo "NSCE_GPU_BACKEND must be cuda, rocm or auto, not $BACKEND" >&2
   exit 1
 fi
-if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
-  echo "GPU not usable (nvidia-smi failed). Do not train without the GTX 1650." >&2
-  exit 1
-fi
+echo "GPU backend $BACKEND"
 need_bytes=$(( $(stat -c%s "$BIN") * 2 + 2 * 1024 * 1024 * 1024 ))
 avail_bytes=$(df -B1 --output=avail "$ROOT" | tail -1 | tr -d ' ')
 if (( avail_bytes < need_bytes )); then
@@ -134,9 +181,13 @@ python3 "$ROOT/tools/train_identity.py" manifest \
 echo "train manifest $MANIFEST_DIR/manifest.json"
 NSCE_EX="$BULLET/target/release/examples/nsce"
 # Checkpoint path in nsce.rs is relative to third_party/bullet cwd.
-if [[ ! -x "$NSCE_EX" || "$TRAIN_SRC" -nt "$NSCE_EX" ]]; then
-  echo "rebuild CUDA nsce example ($GRAPH)"
-  (cd "$BULLET" && CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}" cargo b -r --example nsce --features cuda)
+# The same example path serves both backends; the stamp forces a rebuild when
+# the backend changes, since the source mtime alone does not.
+BACKEND_STAMP="$NSCE_EX.backend"
+if [[ ! -x "$NSCE_EX" || "$TRAIN_SRC" -nt "$NSCE_EX" || "$(cat "$BACKEND_STAMP" 2>/dev/null)" != "$BACKEND" ]]; then
+  echo "rebuild $BACKEND nsce example ($GRAPH)"
+  (cd "$BULLET" && CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}" cargo b -r --example nsce --features "$BACKEND")
+  echo "$BACKEND" > "$BACKEND_STAMP"
 fi
 echo "train $NSCE_EX"
 TRAIN_LOG="${NSCE_TRAIN_LOG:-$ROOT/experiments/$(date +%Y%m%d)_bullet_gen${NSCE_GEN:-0}.log}"
@@ -248,7 +299,7 @@ run_screen() {
     --engine "$ENGINE" \
     --cfg-b "$cfg" \
     --name-b "$name" \
-    --st 100 --rounds 500 --concurrency 14 \
+    --st 100 --rounds 500 \
     --outdir "$dir"
   local json
   json=$(ls -t "$dir"/match_*.json 2>/dev/null | head -1 || true)
@@ -275,7 +326,7 @@ run_sprt() {
     --engine "$ENGINE" \
     --cfg-b "$cfg" \
     --name-b "$name" \
-    --tc 8+0.08 --sprt 0 5 --rounds 3000 --concurrency 14 \
+    --tc 8+0.08 --sprt 0 5 --rounds 3000 \
     --outdir "$dir"
   local json
   json=$(ls -t "$dir"/match_*.json 2>/dev/null | head -1 || true)
@@ -337,7 +388,7 @@ PY
       --cfg-b "$OFF_CFG" \
       --name-a "nsceper1_gen${GEN}_extras_on" \
       --name-b "nsceper1_gen${GEN}_extras_off" \
-      --st 100 --rounds 500 --concurrency 14 \
+      --st 100 --rounds 500 \
       --outdir "$PAIR_DIR"
     pair_json=$(ls -t "$PAIR_DIR"/match_*.json 2>/dev/null | head -1 || true)
     if [[ -n "$pair_json" ]]; then

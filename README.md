@@ -114,7 +114,7 @@ flowchart TD
     LEGACY["selfplay.py · collect_leaves.py<br/>(legacy leaf corpus)"] --> DATA
     EXT["import_lichess_evals.py<br/>external teacher labels"] --> DATA
     DATA --> TRAIN["train_nnue.py · train_halfkp.py · train_kat.py<br/>QAT · sparse batches · group splits · WDL targets"]
-    DATAGEN --> BULLET["bullet trainer (CUDA)<br/>train/bullet_nsce.rs → NSCEPER1"]
+    DATAGEN --> BULLET["bullet trainer (CUDA / ROCm)<br/>train/bullet_nsce.rs → NSCEPER1"]
     TRAIN --> EXPORT["quantized export<br/>NSCENNUE / NSCEHFKP / NSCEKAT1"]
     BULLET --> PACK["tools/pack_nsceper1.py"]
     EXPORT --> VALIDATE["validate_nnue.py<br/>quantized C++ matches float reference"]
@@ -132,7 +132,7 @@ flowchart TD
 - **Frozen topology under contract.** The promoted 768×128×1 net is treated as an export contract: the quantized C++ forward pass must reproduce the frozen reference scores through [`train/validate_nnue.py`](train/validate_nnue.py) before any Elo gate runs.
 - **Full games over truncated probes.** Legacy 60-ply ablation matches were demoted to telemetry after ~90% of games ended as adjudicated draws that couldn't resolve real strength; the gate is full-game fastchess with resign/draw adjudication.
 - **Determinism of evidence.** Every experiment freezes engine hash, config hash, opening-book hash, and seed; Stockfish reference binaries are pinned by SHA-256, never copied into the tree.
-- **CPU-first.** No GPU is required to build, play, test, or run the NumPy trainer. CUDA appears exactly once — as an optional local toolchain for the bullet trainer path ([`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh)).
+- **CPU-first.** No GPU is required to build, play, test, or run the NumPy trainer. A GPU appears only on the bullet trainer path, through CUDA ([`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh)) or ROCm ([`tools/rocm_env.sh`](tools/rocm_env.sh)).
 
 ## Directory Structure
 
@@ -189,7 +189,7 @@ optiline/
 | C++ compiler | GCC or Clang with C++20 | Engine (`-std=c++20`, `-O3`, LTO, `-march=native`) |
 | Python | ≥ 3.10 (+ `numpy`) | Training pipeline, match runners, web board |
 | make / ninja | any | Parallel builds |
-| *(optional)* Rust + CUDA 12.2 | — | bullet trainer path for `NSCEPER1` ([`tools/setup_bullet.sh`](tools/setup_bullet.sh), [`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh)) |
+| *(optional)* Rust + CUDA 12.2 **or** ROCm/HIP | — | bullet trainer path for `NSCEPER1` ([`tools/setup_bullet.sh`](tools/setup_bullet.sh); NVIDIA: [`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh); AMD: Debian `hipcc libhipblas-dev librocblas-dev rocminfo`, user in the `render` group, [`tools/rocm_env.sh`](tools/rocm_env.sh)) |
 | *(optional)* llvm-mingw | — | Cross-compile a portable Windows AVX2+BMI2 binary via [`cmake/mingw-w64-x86_64.cmake`](cmake/mingw-w64-x86_64.cmake) |
 
 **Build (Release, native optimizations, AVX2 NNUE kernels, LTO):**
@@ -269,7 +269,7 @@ Beyond the standard protocol, NSCE exposes diagnostic commands used by the pipel
 # training file after a whole-game holdout, and a 5% holdout of 1.2e6 games
 # can fall short of that gate.
 ./build/nsce_datagen --out train/data/gen0.bin --games 1250000 --nodes 5000 \
-  --threads 14 --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
+  --threads "$(nproc)" --eval-file nets/nnue_search_leaves40k_rw0.bin --seed 1
 ```
 
 ### Training a Network
