@@ -47,7 +47,11 @@ class Position {
   int fullmove_number() const { return fullmove_; }
   Key key() const { return key_; }
   Key pawn_key() const { return pawn_key_; }
-  Key nonpawn_key() const { return nonpawn_key_; }
+  // Every non-pawn piece of one colour, king included.
+  Key nonpawn_key(Color c) const { return nonpawn_keys_[c]; }
+  // Knights and bishops, or rooks and queens, of both colours. Both hold the kings.
+  Key minor_key() const { return minor_key_; }
+  Key major_key() const { return major_key_; }
   Bitboard checkers() const { return checkers_; }
   Bitboard blockers_for_king() const;
   Square king_square(Color c) const { return lsb(pieces(c, KING)); }
@@ -76,6 +80,7 @@ class Position {
   void clear();
   bool is_fifty_or_material_draw() const;
   void update_checkers();
+  void toggle_structure_keys(Piece pc, Key k);
   Key compute_key() const;
   void refresh_nnue();
   Bitboard compute_blockers_for_king() const;
@@ -92,7 +97,9 @@ class Position {
   int fullmove_ = 1;
   Key key_ = 0;
   Key pawn_key_ = 0;
-  Key nonpawn_key_ = 0;
+  std::array<Key, COLOR_NB> nonpawn_keys_{};
+  Key minor_key_ = 0;
+  Key major_key_ = 0;
   Bitboard checkers_ = 0;
   mutable Bitboard blockers_for_king_ = 0;
   mutable bool blockers_valid_ = false;

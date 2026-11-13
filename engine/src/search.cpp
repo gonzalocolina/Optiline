@@ -270,6 +270,8 @@ void SearchWorker::reset_search_state() {
   std::memset(continuation, 0, sizeof(continuation));
   std::memset(pawn_corr, 0, sizeof(pawn_corr));
   std::memset(nonpawn_corr, 0, sizeof(nonpawn_corr));
+  std::memset(minor_corr, 0, sizeof(minor_corr));
+  std::memset(major_corr, 0, sizeof(major_corr));
   std::memset(cont_corr, 0, sizeof(cont_corr));
   std::memset(killers, 0, sizeof(killers));
   std::memset(countermove, 0, sizeof(countermove));
@@ -498,16 +500,22 @@ int Search::evaluate_for_search(const Position& pos) const {
 
 int Search::correction(const SearchWorker& w, const Position& pos, const SearchStack* ss) const {
   const Color stm = pos.side_to_move();
-  int sum = 2 * w.pawn_corr[stm][corr_index(pos.pawn_key())] + 2 * w.nonpawn_corr[stm][corr_index(pos.nonpawn_key())];
+  int sum = 2 * w.pawn_corr[stm][corr_index(pos.pawn_key())] +
+            2 * w.nonpawn_corr[stm][WHITE][corr_index(pos.nonpawn_key(WHITE))] +
+            2 * w.nonpawn_corr[stm][BLACK][corr_index(pos.nonpawn_key(BLACK))] +
+            w.minor_corr[stm][corr_index(pos.minor_key())] + w.major_corr[stm][corr_index(pos.major_key())];
   const SearchStack* prev = ss - 1;
   if (prev->current_move && prev->moved_piece != NO_PIECE) sum += w.cont_corr[prev->moved_piece][prev->current_move.to()];
-  return std::clamp(sum / (4 * kCorrGrain), -200, 200);
+  return std::clamp(sum / (6 * kCorrGrain), -200, 200);
 }
 
 void Search::update_correction(SearchWorker& w, const Position& pos, const SearchStack* ss, int diff, int depth) {
   const Color stm = pos.side_to_move();
   corr_update(w.pawn_corr[stm][corr_index(pos.pawn_key())], diff, depth);
-  corr_update(w.nonpawn_corr[stm][corr_index(pos.nonpawn_key())], diff, depth);
+  corr_update(w.nonpawn_corr[stm][WHITE][corr_index(pos.nonpawn_key(WHITE))], diff, depth);
+  corr_update(w.nonpawn_corr[stm][BLACK][corr_index(pos.nonpawn_key(BLACK))], diff, depth);
+  corr_update(w.minor_corr[stm][corr_index(pos.minor_key())], diff, depth);
+  corr_update(w.major_corr[stm][corr_index(pos.major_key())], diff, depth);
   const SearchStack* prev = ss - 1;
   if (prev->current_move && prev->moved_piece != NO_PIECE)
     corr_update(w.cont_corr[prev->moved_piece][prev->current_move.to()], diff, depth);

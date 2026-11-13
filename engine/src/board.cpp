@@ -81,7 +81,9 @@ void Position::clear() {
   fullmove_ = 1;
   key_ = 0;
   pawn_key_ = 0;
-  nonpawn_key_ = 0;
+  nonpawn_keys_.fill(0);
+  minor_key_ = 0;
+  major_key_ = 0;
   checkers_ = 0;
   blockers_for_king_ = 0;
   blockers_valid_ = false;
@@ -94,6 +96,17 @@ void Position::clear() {
   nnue_acc_ = {};
 }
 
+void Position::toggle_structure_keys(Piece pc, Key k) {
+  const PieceType pt = type_of(pc);
+  if (pt == PAWN) {
+    pawn_key_ ^= k;
+    return;
+  }
+  nonpawn_keys_[color_of(pc)] ^= k;
+  if (pt != ROOK && pt != QUEEN) minor_key_ ^= k;
+  if (pt != KNIGHT && pt != BISHOP) major_key_ ^= k;
+}
+
 void Position::put_piece(Piece pc, Square s) {
   attacks_valid_ = false;
   nnue_acc_.threats_valid = false;
@@ -103,9 +116,7 @@ void Position::put_piece(Piece pc, Square s) {
   by_type_[type_of(pc)] |= b;
   ++piece_counts_[color_of(pc)][type_of(pc)];
   occupied_ |= b;
-  const PieceType pt = type_of(pc);
-  if (pt == PAWN) pawn_key_ ^= Zobrist::psq[pc][s];
-  else if (pt != KING) nonpawn_key_ ^= Zobrist::psq[pc][s];
+  toggle_structure_keys(pc, Zobrist::psq[pc][s]);
   if (nnue_live_ && nnue_ && nnue_->is_enabled()) nnue_->add_piece(nnue_acc_, pc, s);
 }
 
@@ -121,8 +132,7 @@ void Position::remove_piece(Square s) {
   if (pc != NO_PIECE) {
     const PieceType pt = type_of(pc);
     --piece_counts_[color_of(pc)][pt];
-    if (pt == PAWN) pawn_key_ ^= Zobrist::psq[pc][s];
-    else if (pt != KING) nonpawn_key_ ^= Zobrist::psq[pc][s];
+    toggle_structure_keys(pc, Zobrist::psq[pc][s]);
   }
   if (nnue_live_ && nnue_ && nnue_->is_enabled() && pc != NO_PIECE)
     nnue_->remove_piece(nnue_acc_, pc, s);
@@ -139,10 +149,7 @@ void Position::move_piece(Square from, Square to) {
     nnue_->remove_piece(nnue_acc_, pc, from);
     nnue_->add_piece(nnue_acc_, pc, to);
   }
-  if (pt == PAWN)
-    pawn_key_ ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
-  else if (pt != KING)
-    nonpawn_key_ ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
+  toggle_structure_keys(pc, Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to]);
   Bitboard from_to = square_bb(from) | square_bb(to);
   by_color_[color_of(pc)] ^= from_to;
   by_type_[type_of(pc)] ^= from_to;

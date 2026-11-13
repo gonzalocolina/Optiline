@@ -145,7 +145,9 @@ struct SearchWorker {
   int16_t capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
   PieceToHistory continuation[12][SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
-  int nonpawn_corr[COLOR_NB][kCorrSize]{};
+  int nonpawn_corr[COLOR_NB][COLOR_NB][kCorrSize]{};  // [side to move][piece colour][key]
+  int minor_corr[COLOR_NB][kCorrSize]{};
+  int major_corr[COLOR_NB][kCorrSize]{};
   int cont_corr[12][SQUARE_NB]{};
   Move killers[kMaxPly][2]{};
   Move countermove[12][SQUARE_NB]{};
