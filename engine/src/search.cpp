@@ -83,6 +83,10 @@ void corr_update(int& entry, int diff, int depth) {
 
 int corr_index(Key key) { return static_cast<int>(key & (SearchWorker::kCorrSize - 1)); }
 
+int pawn_hist_index(const Position& pos) {
+  return static_cast<int>(pos.pawn_key() & (SearchWorker::kPawnHistSize - 1));
+}
+
 ThreatMap threats_against(const Position& pos, Color us) {
   const Color them = ~us;
   const Bitboard occ = pos.occupied();
@@ -267,6 +271,7 @@ SearchStats& SearchStats::operator+=(const SearchStats& other) {
 void SearchWorker::reset_search_state() {
   std::memset(main_history, 0, sizeof(main_history));
   std::memset(capture_history, 0, sizeof(capture_history));
+  std::memset(pawn_history, 0, sizeof(pawn_history));
   std::memset(continuation, 0, sizeof(continuation));
   std::memset(pawn_corr, 0, sizeof(pawn_corr));
   std::memset(nonpawn_corr, 0, sizeof(nonpawn_corr));
@@ -527,6 +532,7 @@ int Search::quiet_score(const SearchWorker& w, const Position& pos, const Search
   const ThreatMap& t = ss->threats;
   int s = 2 * main_hist(w, pos.side_to_move(), t.all, m);
   if (pc != NO_PIECE) {
+    s += 2 * w.pawn_history[pawn_hist_index(pos)][pc][to];
     if ((ss - 1)->cont_hist) s += 2 * (*(ss - 1)->cont_hist)[pc][to];
     if ((ss - 2)->cont_hist) s += (*(ss - 2)->cont_hist)[pc][to];
     if ((ss - 4)->cont_hist) s += (*(ss - 4)->cont_hist)[pc][to];
@@ -563,7 +569,9 @@ void Search::update_continuation(SearchStack* ss, Piece pc, Square to, int bonus
 
 void Search::update_quiet_histories(SearchWorker& w, const Position& pos, SearchStack* ss, Move m, int bonus) {
   history_update(main_hist(w, pos.side_to_move(), ss->threats.all, m), bonus);
-  update_continuation(ss, pos.piece_on(m.from()), m.to(), bonus);
+  const Piece pc = pos.piece_on(m.from());
+  if (pc != NO_PIECE) history_update(w.pawn_history[pawn_hist_index(pos)][pc][m.to()], bonus);
+  update_continuation(ss, pc, m.to(), bonus);
 }
 
 void Search::update_capture_history(SearchWorker& w, const Position& pos, Move m, int bonus) {

@@ -139,10 +139,12 @@ struct SearchWorker {
   static constexpr int kStackPad = 7;
   static constexpr int kCorrSize = 16384;
   static constexpr int kHistoryMax = 16384;
+  static constexpr int kPawnHistSize = 512;
 
   // [side][origin attacked][target attacked][from * 64 + to]
   int16_t main_history[COLOR_NB][2][2][SQUARE_NB * SQUARE_NB]{};
   int16_t capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
+  int16_t pawn_history[kPawnHistSize][12][SQUARE_NB]{};  // [pawn structure][piece][to]
   PieceToHistory continuation[12][SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
   int nonpawn_corr[COLOR_NB][COLOR_NB][kCorrSize]{};  // [side to move][piece colour][key]
