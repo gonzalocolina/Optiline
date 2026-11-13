@@ -748,6 +748,10 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     if (raw_eval == VALUE_NONE) {
       NSCE_STAT_INC(w, evaluations);
       raw_eval = evaluate_for_search(pos);
+      // Nodes that return before the move loop (reverse futility, null move,
+      // razoring) never reach the store at the bottom. Keep their eval so the
+      // next visit does not pay for the network again.
+      if (use_tt_ && !tt_hit) tt_.store(pos.key(), 0, 0, BOUND_NONE, Move{}, ply, raw_eval, ss->tt_pv);
     }
     const int corr = correction(w, pos, ss);
     int static_eval = std::clamp(raw_eval + corr, -kMateBound + 1, kMateBound - 1);
