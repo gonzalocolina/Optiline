@@ -898,7 +898,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     }
   }
 
-  if (!excluded && !tt_move && depth >= tune_.iir_depth) {
+  if (!excluded && !tt_move && depth >= tune_.iir_depth && (pv_node || cut_node)) {
     NSCE_STAT_INC(w, iir_reductions);
     depth -= 1;
   }
