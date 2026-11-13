@@ -159,6 +159,7 @@ struct MovePicker {
   int end = 0;
   int bad_count = 0;
   int bad_index = 0;
+  int see_div = 36;
   bool quiets_done = false;
 
   template <typename ScoreFn>
@@ -188,7 +189,7 @@ struct MovePicker {
         }
         const int s = scores[index];
         const Move m = list.moves[index++];
-        if (lazy_see && s >= kGoodNoisyScore && s < kTTMoveScore && !see_ge(pos, m, -(s - kGoodNoisyScore) / 36)) {
+        if (lazy_see && s >= kGoodNoisyScore && s < kTTMoveScore && !see_ge(pos, m, -(s - kGoodNoisyScore) / see_div)) {
           bad[bad_count++] = m.raw;
           continue;
         }
@@ -528,7 +529,7 @@ int Search::quiet_score(const SearchWorker& w, const Position& pos, const Search
     const PieceType pt = type_of(pc);
     const Bitboard lesser = pt == QUEEN ? t.rook : pt == ROOK ? t.minor : (pt == KNIGHT || pt == BISHOP) ? t.pawn : 0;
     if (lesser) {
-      const int weight = pt == QUEEN ? 360 : pt == ROOK ? 180 : 100;
+      const int weight = (pt == QUEEN ? 360 : pt == ROOK ? 180 : 100) * tune_.threat_order_scale / 100;
       if (lesser & square_bb(to))
         s -= 95 * weight;
       else if (lesser & square_bb(m.from()))
@@ -665,7 +666,7 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
       if (in_check && !capture && move_count > 2) continue;
       if (use_see_) {
         NSCE_STAT_INC(w, see_prune_calls);
-        if (!see_ge(pos, m, -80)) {
+        if (!see_ge(pos, m, -tune_.qs_see_margin)) {
           NSCE_STAT_INC(w, see_prunes);
           continue;
         }
@@ -851,7 +852,8 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     }
 
     if (use_null_move_ && !pv_node && (ss - 1)->current_move && eval >= beta &&
-        ss->static_eval >= beta - 20 * depth + 160 && depth >= tune_.nmp_min_depth && ply >= w.nmp_min_ply &&
+        ss->static_eval >= beta - tune_.nmp_eval_depth_mul * depth + tune_.nmp_eval_base &&
+        depth >= tune_.nmp_min_depth && ply >= w.nmp_min_ply &&
         beta > -kMateBound && non_pawn_material(pos, us) > 0) {
       NSCE_STAT_INC(w, null_attempts);
       const int R = tune_.nmp_base + depth / std::max(1, tune_.nmp_depth_div) +
@@ -925,6 +927,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   ss->threats = threats_against(pos, us);
 
   MovePicker mp;
+  mp.see_div = std::max(1, tune_.see_order_div);
   generate_legal(pos, mp.list);
   if (root_node && !root_moves_.empty()) {
     int kept = 0;
@@ -1020,9 +1023,10 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
           NSCE_STAT_INC(w, lmp_prunes);
           continue;
         }
-        lmr_depth += hist / 3600;
+        lmr_depth += hist / std::max(1, tune_.futility_hist_div);
         if (use_futility_ && !in_check && lmr_depth < tune_.futility_max_depth &&
-            ss->static_eval + tune_.futility_base + (best_move ? 0 : 60) + tune_.futility_per_depth * lmr_depth <=
+            ss->static_eval + tune_.futility_base + (best_move ? 0 : tune_.futility_no_best) +
+                    tune_.futility_per_depth * lmr_depth <=
                 alpha) {
           NSCE_STAT_INC(w, futility_prunes);
           continue;
@@ -1040,7 +1044,8 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
         depth >= tune_.se_min_depth + static_cast<int>(ss->tt_pv) && tt_score != VALUE_NONE &&
         !is_mate_score(tt_score) && (tt_bound & BOUND_LOWER) && tt_depth >= depth - tune_.se_tt_depth_sub) {
       NSCE_STAT_INC(w, singular_attempts);
-      const int sbeta = tt_score - (tune_.se_margin + 64 * static_cast<int>(ss->tt_pv && !pv_node)) * depth / 64;
+      const int sbeta =
+          tt_score - (tune_.se_margin + tune_.se_tt_pv_margin * static_cast<int>(ss->tt_pv && !pv_node)) * depth / 64;
       ss->excluded = m;
       const int sscore = search(pos, w, ss, new_depth / 2, sbeta - 1, sbeta, cut_node);
       ss->excluded = Move{};
@@ -1074,14 +1079,14 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     if (use_lmr_ && depth >= 2 && move_count > 1 + static_cast<int>(root_node)) {
       NSCE_STAT_INC(w, lmr_attempts);
       int r = base_r;
-      if (!improving) r += 512;
-      if (ss->tt_pv) r -= 1024;
-      if (cut_node) r += 2048;
-      if (tt_capture && quiet) r += 1024;
-      if ((ss + 1)->cutoff_count > 3) r += 1024;
-      if (check) r -= 1024;
-      if (m == killer0 || m == killer1 || m == counter) r -= 512;
-      ss->stat_score = quiet ? hist - 4000 : hist;
+      if (!improving) r += tune_.lmr_not_improving;
+      if (ss->tt_pv) r -= tune_.lmr_tt_pv;
+      if (cut_node) r += tune_.lmr_cut_node;
+      if (tt_capture && quiet) r += tune_.lmr_tt_capture;
+      if ((ss + 1)->cutoff_count > 3) r += tune_.lmr_cutoff_count;
+      if (check) r -= tune_.lmr_check;
+      if (m == killer0 || m == killer1 || m == counter) r -= tune_.lmr_killer;
+      ss->stat_score = quiet ? hist - tune_.lmr_hist_offset : hist;
       r -= ss->stat_score * 1024 / std::max(1, tune_.lmr_hist_div);
       if (controller_on) {
         const int see_sign = quiet ? 0 : 1;
@@ -1092,8 +1097,8 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
       score = -search(pos, w, ss + 1, reduced, -alpha - 1, -alpha, true);
       bool researched = false;
       if (score > alpha && reduced < new_depth) {
-        const bool deeper = score > best_score + 40 + 2 * new_depth;
-        const bool shallower = score < best_score + 10;
+        const bool deeper = score > best_score + tune_.lmr_deeper_base + 2 * new_depth;
+        const bool shallower = score < best_score + tune_.lmr_shallower;
         new_depth += static_cast<int>(deeper) - static_cast<int>(shallower);
         if (new_depth > reduced) {
           NSCE_STAT_INC(w, lmr_researches);
