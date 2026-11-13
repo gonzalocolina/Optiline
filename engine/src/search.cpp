@@ -1274,12 +1274,15 @@ void Search::iterative_deepening(SearchWorker& w, bool is_main, int max_depth) {
     }
 
     int score = -VALUE_INFINITE;
+    int fail_highs = 0;
     while (true) {
       for (int i = 0; i < kStackSize; ++i) {
         stack[i] = SearchStack{};
         stack[i].ply = i - SearchWorker::kStackPad;
       }
-      score = search(pos, w, root_ss, depth, alpha, beta, false);
+      // A fail high already names the move. Confirm it one ply shallower per
+      // repeat rather than paying full depth for each wider window.
+      score = search(pos, w, root_ss, std::max(1, depth - fail_highs), alpha, beta, false);
       if (w.pv_len[0] > 0) {
         w.best_move = w.pv[0][0];
         w.root_pv_len = w.pv_len[0];
@@ -1289,8 +1292,10 @@ void Search::iterative_deepening(SearchWorker& w, bool is_main, int max_depth) {
       if (score <= alpha) {
         beta = (alpha + beta) / 2;
         alpha = std::max(-VALUE_INFINITE, score - delta);
+        fail_highs = 0;
       } else if (score >= beta) {
         beta = std::min(VALUE_INFINITE, score + delta);
+        ++fail_highs;
       } else {
         break;
       }
