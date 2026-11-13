@@ -86,16 +86,68 @@ TEST(BoardTest, PawnAndNonpawnKeysSurviveUndo) {
   Position pos;
   pos.set_startpos();
   const Key pawn0 = pos.pawn_key();
-  const Key nonpawn0 = pos.nonpawn_key();
+  const Key white0 = pos.nonpawn_key(WHITE);
+  const Key black0 = pos.nonpawn_key(BLACK);
+  const Key minor0 = pos.minor_key();
+  const Key major0 = pos.major_key();
   Move move = parse_uci_move(pos, "e2e4");
   ASSERT_TRUE(move);
   StateInfo st;
   pos.do_move(move, st);
   EXPECT_NE(pos.pawn_key(), pawn0);
-  EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
+  EXPECT_EQ(pos.nonpawn_key(WHITE), white0);
+  EXPECT_EQ(pos.nonpawn_key(BLACK), black0);
+  EXPECT_EQ(pos.minor_key(), minor0);
+  EXPECT_EQ(pos.major_key(), major0);
   pos.undo_move(move, st);
   EXPECT_EQ(pos.pawn_key(), pawn0);
-  EXPECT_EQ(pos.nonpawn_key(), nonpawn0);
+  EXPECT_EQ(pos.nonpawn_key(WHITE), white0);
+  EXPECT_EQ(pos.nonpawn_key(BLACK), black0);
+
+  // A knight move touches only its own colour and the minor key.
+  move = parse_uci_move(pos, "g1f3");
+  ASSERT_TRUE(move);
+  pos.do_move(move, st);
+  EXPECT_EQ(pos.pawn_key(), pawn0);
+  EXPECT_NE(pos.nonpawn_key(WHITE), white0);
+  EXPECT_EQ(pos.nonpawn_key(BLACK), black0);
+  EXPECT_NE(pos.minor_key(), minor0);
+  EXPECT_EQ(pos.major_key(), major0);
+  pos.undo_move(move, st);
+  EXPECT_EQ(pos.nonpawn_key(WHITE), white0);
+  EXPECT_EQ(pos.minor_key(), minor0);
+}
+
+// En passant, both castlings and a capturing promotion: after every move the
+// incremental keys must equal the keys of the same position set up from its FEN.
+TEST(BoardTest, StructureKeysMatchAFreshPosition) {
+  const auto expect_fresh = [](const Position& pos) {
+    Position fresh;
+    fresh.set_fen(pos.fen());
+    EXPECT_EQ(pos.pawn_key(), fresh.pawn_key()) << pos.fen();
+    EXPECT_EQ(pos.nonpawn_key(WHITE), fresh.nonpawn_key(WHITE)) << pos.fen();
+    EXPECT_EQ(pos.nonpawn_key(BLACK), fresh.nonpawn_key(BLACK)) << pos.fen();
+    EXPECT_EQ(pos.minor_key(), fresh.minor_key()) << pos.fen();
+    EXPECT_EQ(pos.major_key(), fresh.major_key()) << pos.fen();
+  };
+  Position pos;
+  pos.set_fen("r3k2r/1P3ppp/2n5/3pP3/8/5N2/5PPP/R3K2R w KQkq d6 0 1");
+  const std::string start = pos.fen();
+  const char* line[] = {"e5d6", "e8g8", "b7a8q", "c6b4", "e1c1", "f8a8", "f3e5", "b4a2"};
+  constexpr int kLen = static_cast<int>(sizeof(line) / sizeof(line[0]));
+  Move moves[kLen];
+  StateInfo states[kLen];
+  for (int i = 0; i < kLen; ++i) {
+    moves[i] = parse_uci_move(pos, line[i]);
+    ASSERT_TRUE(moves[i]) << line[i];
+    pos.do_move(moves[i], states[i]);
+    expect_fresh(pos);
+  }
+  for (int i = kLen - 1; i >= 0; --i) {
+    pos.undo_move(moves[i], states[i]);
+    expect_fresh(pos);
+  }
+  EXPECT_EQ(pos.fen(), start);
 }
 
 TEST(BoardTest, NullMoveDoesNotAdvanceGameDrawState) {
