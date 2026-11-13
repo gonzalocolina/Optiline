@@ -52,6 +52,24 @@ struct SearchTune {
   int asp_delta_base = 14;
   int tm_moves_to_go = 20;
   int check_ext = 1;
+  int lmr_not_improving = 512;
+  int lmr_tt_pv = 1024;
+  int lmr_cut_node = 2048;
+  int lmr_tt_capture = 1024;
+  int lmr_cutoff_count = 1024;
+  int lmr_check = 1024;
+  int lmr_killer = 512;
+  int lmr_hist_offset = 4000;
+  int lmr_deeper_base = 40;
+  int lmr_shallower = 10;
+  int nmp_eval_depth_mul = 20;
+  int nmp_eval_base = 160;
+  int futility_no_best = 60;
+  int futility_hist_div = 3600;
+  int se_tt_pv_margin = 64;
+  int qs_see_margin = 80;
+  int see_order_div = 36;
+  int threat_order_scale = 100;
 };
 
 struct TuneSpec {
@@ -104,6 +122,24 @@ inline constexpr TuneSpec kTuneSpecs[] = {
     {"AspDeltaBase", &SearchTune::asp_delta_base, 5, 60, 3},
     {"TmMovesToGo", &SearchTune::tm_moves_to_go, 10, 50, 2},
     {"CheckExt", &SearchTune::check_ext, 0, 1, 1},
+    {"LmrNotImproving", &SearchTune::lmr_not_improving, 0, 2048, 128},
+    {"LmrTtPv", &SearchTune::lmr_tt_pv, 0, 3072, 160},
+    {"LmrCutNode", &SearchTune::lmr_cut_node, 0, 4096, 200},
+    {"LmrTtCapture", &SearchTune::lmr_tt_capture, 0, 3072, 160},
+    {"LmrCutoffCount", &SearchTune::lmr_cutoff_count, 0, 3072, 160},
+    {"LmrCheck", &SearchTune::lmr_check, 0, 3072, 160},
+    {"LmrKiller", &SearchTune::lmr_killer, 0, 2048, 128},
+    {"LmrHistOffset", &SearchTune::lmr_hist_offset, 0, 12000, 500},
+    {"LmrDeeperBase", &SearchTune::lmr_deeper_base, 0, 150, 8},
+    {"LmrShallower", &SearchTune::lmr_shallower, 0, 60, 4},
+    {"NmpEvalDepthMul", &SearchTune::nmp_eval_depth_mul, 0, 60, 4},
+    {"NmpEvalBase", &SearchTune::nmp_eval_base, 0, 400, 20},
+    {"FutilityNoBest", &SearchTune::futility_no_best, 0, 200, 12},
+    {"FutilityHistDiv", &SearchTune::futility_hist_div, 1000, 12000, 300},
+    {"SeTtPvMargin", &SearchTune::se_tt_pv_margin, 0, 160, 8},
+    {"QsSeeMargin", &SearchTune::qs_see_margin, 0, 300, 12},
+    {"SeeOrderDiv", &SearchTune::see_order_div, 8, 128, 4},
+    {"ThreatOrderScale", &SearchTune::threat_order_scale, 0, 300, 12},
 };
 
 inline bool set_tune_field(SearchTune& tune, std::string_view name, int value) {
