@@ -192,7 +192,9 @@ struct MovePicker {
         }
         const int s = scores[index];
         const Move m = list.moves[index++];
-        if (lazy_see && s >= kGoodNoisyScore && s < kTTMoveScore && !see_ge(pos, m, -(s - kGoodNoisyScore) / 36)) {
+        // Every noisy move sits above the killer band, including a capture whose
+        // history pulled it below kGoodNoisyScore. Those need the exchange test most.
+        if (lazy_see && s > kKillerScore + 2 && s < kTTMoveScore && !see_ge(pos, m, -(s - kGoodNoisyScore) / 36)) {
           bad[bad_count++] = m.raw;
           continue;
         }
