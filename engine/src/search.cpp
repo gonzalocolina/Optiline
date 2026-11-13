@@ -83,6 +83,33 @@ void corr_update(int& entry, int diff, int depth) {
 
 int corr_index(Key key) { return static_cast<int>(key & (SearchWorker::kCorrSize - 1)); }
 
+ThreatMap threats_against(const Position& pos, Color us) {
+  const Color them = ~us;
+  const Bitboard occ = pos.occupied();
+  ThreatMap t;
+  const Bitboard pawns = pos.pieces(them, PAWN);
+  t.pawn = them == WHITE ? (shift_ne(pawns) | shift_nw(pawns)) : (shift_se(pawns) | shift_sw(pawns));
+  t.minor = t.pawn;
+  for (Bitboard b = pos.pieces(them, KNIGHT); b;) t.minor |= knight_attacks_bb(pop_lsb(b));
+  for (Bitboard b = pos.pieces(them, BISHOP); b;) t.minor |= bishop_attacks_bb(pop_lsb(b), occ);
+  t.rook = t.minor;
+  for (Bitboard b = pos.pieces(them, ROOK); b;) t.rook |= rook_attacks_bb(pop_lsb(b), occ);
+  t.all = t.rook;
+  for (Bitboard b = pos.pieces(them, QUEEN); b;) t.all |= queen_attacks_bb(pop_lsb(b), occ);
+  t.all |= king_attacks_bb(pos.king_square(them));
+  return t;
+}
+
+int16_t& main_hist(SearchWorker& w, Color c, Bitboard threats, Move m) {
+  return w.main_history[c][(threats >> static_cast<int>(m.from())) & 1][(threats >> static_cast<int>(m.to())) & 1]
+                       [from_to(m)];
+}
+
+int main_hist(const SearchWorker& w, Color c, Bitboard threats, Move m) {
+  return w.main_history[c][(threats >> static_cast<int>(m.from())) & 1][(threats >> static_cast<int>(m.to())) & 1]
+                       [from_to(m)];
+}
+
 // Direct and discovered checks; castling checks are ignored (only used for pruning exemptions).
 bool gives_check(const Position& pos, Move m) {
   if (m.is_castle()) return false;
@@ -489,12 +516,24 @@ void Search::update_correction(SearchWorker& w, const Position& pos, const Searc
 int Search::quiet_score(const SearchWorker& w, const Position& pos, const SearchStack* ss, Move m) const {
   const Piece pc = pos.piece_on(m.from());
   const Square to = m.to();
-  int s = 2 * w.main_history[pos.side_to_move()][from_to(m)];
+  const ThreatMap& t = ss->threats;
+  int s = 2 * main_hist(w, pos.side_to_move(), t.all, m);
   if (pc != NO_PIECE) {
     if ((ss - 1)->cont_hist) s += 2 * (*(ss - 1)->cont_hist)[pc][to];
     if ((ss - 2)->cont_hist) s += (*(ss - 2)->cont_hist)[pc][to];
     if ((ss - 4)->cont_hist) s += (*(ss - 4)->cont_hist)[pc][to];
     if ((ss - 6)->cont_hist) s += (*(ss - 6)->cont_hist)[pc][to] / 2;
+    // A piece that a cheaper one attacks should leave, and should not step
+    // onto a square a cheaper one covers.
+    const PieceType pt = type_of(pc);
+    const Bitboard lesser = pt == QUEEN ? t.rook : pt == ROOK ? t.minor : (pt == KNIGHT || pt == BISHOP) ? t.pawn : 0;
+    if (lesser) {
+      const int weight = pt == QUEEN ? 360 : pt == ROOK ? 180 : 100;
+      if (lesser & square_bb(to))
+        s -= 95 * weight;
+      else if (lesser & square_bb(m.from()))
+        s += 100 * weight;
+    }
   }
   if (policy_ && policy_->is_enabled()) s += policy_->score_move(pos, m) * 32;
   return s;
@@ -515,7 +554,7 @@ void Search::update_continuation(SearchStack* ss, Piece pc, Square to, int bonus
 }
 
 void Search::update_quiet_histories(SearchWorker& w, const Position& pos, SearchStack* ss, Move m, int bonus) {
-  history_update(w.main_history[pos.side_to_move()][from_to(m)], bonus);
+  history_update(main_hist(w, pos.side_to_move(), ss->threats.all, m), bonus);
   update_continuation(ss, pos.piece_on(m.from()), m.to(), bonus);
 }
 
@@ -587,10 +626,12 @@ int Search::quiescence(Position& pos, SearchWorker& w, SearchStack* ss, int alph
   }
 
   MovePicker mp;
-  if (in_check)
+  if (in_check) {
     generate_legal_evasions(pos, mp.list);
-  else
+    ss->threats = threats_against(pos, pos.side_to_move());
+  } else {
     generate_legal_noisy(pos, mp.list);
+  }
   if (in_check && mp.list.size == 0) return mated_in(ply);
   NSCE_STAT_ADD(w, generated_moves, mp.list.size);
   mp.prescore([&](Move m, int& s) {
@@ -728,9 +769,11 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
 
   if (!pv_node && !excluded && tt_score != VALUE_NONE && tt_depth >= depth && pos.halfmove_clock() < 90 &&
       (tt_bound & (tt_score >= beta ? BOUND_LOWER : BOUND_UPPER))) {
-    if (tt_move_sane && tt_score >= beta && !is_noisy(tt_move))
+    if (tt_move_sane && tt_score >= beta && !is_noisy(tt_move)) {
+      ss->threats = threats_against(pos, us);
       update_quiet_histories(w, pos, ss, tt_move, std::min(tune_.hist_bonus_mul * depth - tune_.hist_bonus_sub,
                                                            tune_.hist_bonus_cap));
+    }
     NSCE_STAT_INC(w, tt_cutoffs);
     return tt_score;
   }
@@ -772,7 +815,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     const Move prev = (ss - 1)->current_move;
     if (prev && !is_noisy(prev) && !(ss - 1)->in_check && (ss - 1)->static_eval != VALUE_NONE) {
       const int bonus = std::clamp(-10 * ((ss - 1)->static_eval + ss->static_eval), -1600, 1400) + 600;
-      history_update(w.main_history[~us][from_to(prev)], bonus);
+      history_update(main_hist(w, ~us, (ss - 1)->threats.all, prev), bonus);
     }
   }
 
@@ -877,6 +920,10 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     }
   }
 
+  // Only the move loop and its history updates read the threat map, so nodes
+  // that return above never build it.
+  ss->threats = threats_against(pos, us);
+
   MovePicker mp;
   generate_legal(pos, mp.list);
   if (root_node && !root_moves_.empty()) {
@@ -941,7 +988,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
     if (quiet) {
       if ((ss - 1)->cont_hist) cont_hist += (*(ss - 1)->cont_hist)[moving][to];
       if ((ss - 2)->cont_hist) cont_hist += (*(ss - 2)->cont_hist)[moving][to];
-      hist = cont_hist + 2 * w.main_history[us][from_to(m)];
+      hist = cont_hist + 2 * main_hist(w, us, ss->threats.all, m);
     } else {
       hist = w.capture_history[moving][to][captured_type(pos, m)];
     }
@@ -1130,7 +1177,7 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
   } else if (!best_move && prev && !is_noisy(prev) && (ss - 1)->moved_piece != NO_PIECE) {
     const int bonus = std::min(tune_.hist_bonus_mul * depth - tune_.hist_bonus_sub, tune_.hist_bonus_cap);
     update_continuation(ss - 1, (ss - 1)->moved_piece, prev.to(), bonus);
-    history_update(w.main_history[~us][from_to(prev)], bonus / 2);
+    history_update(main_hist(w, ~us, (ss - 1)->threats.all, prev), bonus / 2);
   }
 
   if (best_score >= beta && !pv_node && !is_mate_score(best_score) && !is_mate_score(beta))

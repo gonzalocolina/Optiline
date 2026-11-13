@@ -108,10 +108,20 @@ struct SearchStats {
 
 using PieceToHistory = int16_t[12][SQUARE_NB];
 
+// Squares the opponent attacks, split by the cheapest attacker: `pawn` by pawns,
+// `minor` by pawns or minors, `rook` by anything up to a rook, `all` by anything.
+struct ThreatMap {
+  Bitboard pawn = 0;
+  Bitboard minor = 0;
+  Bitboard rook = 0;
+  Bitboard all = 0;
+};
+
 struct SearchStack {
   PieceToHistory* cont_hist = nullptr;
   Move current_move{};
   Move excluded{};
+  ThreatMap threats{};
   int static_eval = VALUE_NONE;
   int stat_score = 0;
   int move_count = 0;
@@ -130,7 +140,8 @@ struct SearchWorker {
   static constexpr int kCorrSize = 16384;
   static constexpr int kHistoryMax = 16384;
 
-  int16_t main_history[COLOR_NB][SQUARE_NB * SQUARE_NB]{};
+  // [side][origin attacked][target attacked][from * 64 + to]
+  int16_t main_history[COLOR_NB][2][2][SQUARE_NB * SQUARE_NB]{};
   int16_t capture_history[12][SQUARE_NB][PIECE_TYPE_NB]{};
   PieceToHistory continuation[12][SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
