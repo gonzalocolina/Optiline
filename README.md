@@ -92,7 +92,7 @@ flowchart LR
 - Late Move Reductions (separate quiet/capture tables, rebuilt on tune), Late Move Pruning
 - Null-move pruning with verification depth, razoring, reverse futility pruning, futility pruning
 - ProbCut, SEE-based pruning and move ordering, singular extensions (incl. double extensions), internal iterative reductions
-- Killers, history, capture history, continuation history, countermoves
+- Killers, threat-indexed history, capture history, continuation history, countermoves
 - Quiescence search; parallel root splitting across a helper-thread pool (`Threads`, 1–64); pondering
 
 **Evaluation** ([`engine/src/eval.cpp`](engine/src/eval.cpp), [`engine/src/nnue.cpp`](engine/src/nnue.cpp)) is NNUE-first with optional classical *extras* on top (`UseExtras`), clamped strictly outside the mate band. Four network formats are loaded from a single runtime:
