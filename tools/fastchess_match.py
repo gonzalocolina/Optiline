@@ -131,11 +131,19 @@ def parse_summary(text: str) -> dict:
             if m:
                 out["pentanomial"] = [int(m.group(i)) for i in range(1, 6)]
         elif line.startswith("LLR:"):
-            m = re.search(r"LLR:\s*([-+]?\d+\.?\d*)\s*\(([-+]?\d+\.?\d*),\s*([-+]?\d+\.?\d*)\)\s*(.*)$", line)
+            # fastchess prints "LLR: 2.96 (100.4%) (-2.94, 2.94) [0.00, 5.00]".
+            m = re.search(
+                r"LLR:\s*([-+]?\d+\.?\d*)\s*(?:\([-+]?\d+\.?\d*%\)\s*)?"
+                r"\(([-+]?\d+\.?\d*),\s*([-+]?\d+\.?\d*)\)\s*(.*)$",
+                line,
+            )
             if m:
                 out["llr"] = float(m.group(1))
                 out["llr_bounds"] = [float(m.group(2)), float(m.group(3))]
-                out["sprt_hypothesis"] = m.group(4).strip()
+                out.setdefault("sprt_hypothesis", m.group(4).strip())
+        elif line.startswith("SPRT") and "accepted" in line:
+            # "SPRT ([0.00, 5.00]) completed - H1 was accepted"; H1 means engine A is stronger.
+            out["sprt_hypothesis"] = line
     if "sprt_hypothesis" in out:
         h = out["sprt_hypothesis"]
         out["sprt_decision"] = "H1" if "H1" in h else "H0" if "H0" in h else "inconclusive"
