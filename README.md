@@ -7,11 +7,11 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/ci.yml?branch=master&label=CI)](https://github.com/gonzalocolina/optiline/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/gonzalocolina/optiline/release.yml?label=Release)](https://github.com/gonzalocolina/optiline/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/gonzalocolina/optiline?label=github%20release)](https://github.com/gonzalocolina/optiline/releases/latest)
-[![Version](https://img.shields.io/badge/engine-v0.12.0--dev-blue)](CMakeLists.txt)
+[![Version](https://img.shields.io/badge/engine-v0.12.0-blue)](https://github.com/gonzalocolina/Optiline/releases/tag/v0.12.0)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-%E2%89%A53.16-064F8C?logo=cmake)](CMakeLists.txt)
 [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?logo=python&logoColor=white)](train)
-[![Strength](https://img.shields.io/badge/%2B125%20%C2%B1%2043%20Elo-vs%20SF18%20Elo%202900-brightgreen)](experiments/20261114_simple1024_test80_elo/report.md)
+[![Strength](https://img.shields.io/badge/~3100%20%C2%B1%2035%20Elo-SF18%20UCI__Elo%20scale%2C%20100%20ms-brightgreen)](experiments/20261114_simple1024_test80_elo/report.md)
 [![License](https://img.shields.io/badge/license-GPL--3.0-red)](LICENSE)
 
 </div>
@@ -55,7 +55,7 @@ The repository contains two tightly integrated halves:
 
 The engine is explicitly engineered for **constrained hardware** — laptops and mobile-class machines — not for TCEC-style unlimited compute. The north star is pinned Stockfish builds at equal time per move; every strength claim in this repository is backed by an immutable experiment artifact under [`experiments/`](experiments).
 
-**Current GitHub Release: [v0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0)** — precompiled Linux AVX2 and Windows binaries of the promoted engine line (rewritten search with stable history, full-precision TT, node-based time management, plus the Zen-2 speedup that accepted H1 at +125 ± 26 Elo vs the previous binary; [report](experiments/20261018_search_speed_sprt/report.md)). **This tree is v0.12 development** (`project(nsce VERSION 0.12.0)`). Network, search, and training work lands here; do not treat HEAD as 0.11.
+**Current GitHub Release: [v0.12.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.12.0), estimated ~3100 ± 35 Elo** on Stockfish 18's `UCI_Elo` scale at 100 ms/move ([evidence](experiments/20261114_simple1024_test80_elo/report.md); [`tools/release_strength.json`](tools/release_strength.json)). It ships precompiled Linux AVX2 and Windows binaries with the `nsceper1_simple1024_test80` network, which was trained on public Stockfish binpacks and evaluated with 16-bit SCReLU AVX2 kernels. The search constants come from two SPSA rounds, and quiet history is indexed by threats. The previous release, [v0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0), shipped the 768×128 net. With the current search, that net plays at about 2400 on the same scale.
 
 **Current promoted baseline** ([`tools/configs/baseline.uci`](tools/configs/baseline.uci), since 2026-11-14): the `nsceper1_simple1024_test80` network, (768→1024)×2 SCReLU → 8 material buckets, trained on 8 G public Stockfish binpack positions. It beats pinned Stockfish 18 limited to Elo 2900 by **+125 ± 43 Elo** and loses to the maximum rung, Elo 3190, by **−40 ± 37** (200 games each at 100 ms/move). Against the previous 768×128 baseline it accepted the [0, 5] SPRT at 8+0.08 with 293 wins, 1 draw and no losses. Unrestricted Stockfish 18 still wins, 1–25–74 over 100 games (see [Results](#results--metrics)).
 
@@ -333,9 +333,9 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the full matrix
 
 ## GitHub Releases
 
-The latest published binaries are **[NSCE 0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0)** (`nsce-0.11.0-linux-x86_64-avx2.tar.gz`, `nsce-0.11.0-windows-x86_64.zip`, `SHA256SUMS`).
+The latest published binaries are **[NSCE 0.12.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.12.0)** (`nsce-0.12.0-linux-x86_64-avx2.tar.gz`, `nsce-0.12.0-windows-x86_64.zip`, `SHA256SUMS`), estimated ~3100 ± 35 Elo (SF18 `UCI_Elo` scale, 100 ms).
 
-Pushing a version tag publishes a new release with those same artifact types. `project(nsce VERSION X.Y.Z)` in [`CMakeLists.txt`](CMakeLists.txt) is the source of truth — the UCI `id name` string is injected from that value at build time. The tag must match:
+Pushing a version tag publishes a new release with those same artifact types. When [`tools/release_strength.json`](tools/release_strength.json) records a measured strength for that version, it goes in the release title (`NSCE X.Y.Z — ~Elo`) and in a Strength section of the notes. `project(nsce VERSION X.Y.Z)` in [`CMakeLists.txt`](CMakeLists.txt) is the source of truth — the UCI `id name` string is injected from that value at build time. The tag must match:
 
 ```bash
 # when this development line is ready (currently 0.12.0)

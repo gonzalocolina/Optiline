@@ -26,6 +26,7 @@ jobs:
       tag: ${{ steps.meta.outputs.tag }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
       archive_stem: ${{ steps.meta.outputs.archive_stem }}
+      title: ${{ steps.meta.outputs.title }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,6 +136,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.meta.outputs.tag }}
           VERSION: ${{ needs.meta.outputs.version }}
+          TITLE: ${{ needs.meta.outputs.title }}
           PRERELEASE: ${{ needs.meta.outputs.prerelease }}
         run: |
           set -euo pipefail
@@ -150,7 +152,7 @@ jobs:
             gh release upload "${TAG}" dist/* --clobber
           else
             gh release create "${TAG}" dist/* \
-              --title "NSCE ${VERSION}" \
+              --title "${TITLE}" \
               --notes-file "${NOTES}" \
               "${extra[@]}"
           fi

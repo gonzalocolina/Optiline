@@ -1,0 +1,17 @@
+{
+  "version": "0.12.0",
+  "elo": 3100,
+  "elo_err_95": 35,
+  "scale": "Stockfish 18 UCI_Elo",
+  "tc": "100 ms",
+  "conditions": "100 ms/move, 1 thread, Hash 16, fastchess full games, balanced openings",
+  "method": "maximum-likelihood fit of the UCI_Elo 2600, 2900 and 3190 rungs (600 games)",
+  "net": "nets/nsceper1_simple1024_test80.bin",
+  "rungs": [
+    {"opponent": "SF18 UCI_Elo=2600", "games": 200, "wdl": "192-4-4", "elo": "+603.9 ± 155.7"},
+    {"opponent": "SF18 UCI_Elo=2900", "games": 200, "wdl": "109-51-40", "elo": "+125.0 ± 42.9"},
+    {"opponent": "SF18 UCI_Elo=3190", "games": 200, "wdl": "52-73-75", "elo": "-40.1 ± 37.3"},
+    {"opponent": "SF18 unlimited", "games": 100, "wdl": "1-25-74", "elo": "-322.7 ± 64.4"}
+  ],
+  "evidence": "experiments/20261114_simple1024_test80_elo/report.md"
+}

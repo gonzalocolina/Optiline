@@ -43,6 +43,8 @@ RELEASE_NETS = (
     Path("nets/nsceper1_simple1024_test80.bin"),
 )
 RELEASE_CONFIG = Path("tools/configs/baseline.uci")
+# Measured strength of the version being released; it names the release.
+RELEASE_STRENGTH = Path("tools/release_strength.json")
 
 WINDOWS_PLATFORMS = {"windows-x86_64"}
 
@@ -123,6 +125,29 @@ def _append_github_output(path: Path, values: dict[str, str]) -> None:
             handle.write(f"{key}={value}\n")
 
 
+def release_strength(version: str, root: Path = ROOT) -> dict | None:
+    """The measured strength for this version, or None if none is recorded for it."""
+    path = root / RELEASE_STRENGTH
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("version") != version:
+        return None
+    for key in ("elo", "elo_err_95", "scale", "conditions", "evidence"):
+        if key not in data:
+            raise ReleaseError(f"{RELEASE_STRENGTH} is missing {key!r}")
+    return data
+
+
+def release_title(version: str, root: Path = ROOT) -> str:
+    strength = release_strength(version, root)
+    if strength is None:
+        return f"NSCE {version}"
+    tc = strength.get("tc")
+    scale = f"{strength['scale']}, {tc}" if tc else strength["scale"]
+    return f"NSCE {version} — ~{strength['elo']} Elo ({scale})"
+
+
 def meta(ref: str | None, root: Path = ROOT) -> dict[str, str]:
     version = cmake_version(root)
     tag = ""
@@ -151,6 +176,7 @@ def meta(ref: str | None, root: Path = ROOT) -> dict[str, str]:
         "prerelease": prerelease,
         "archive_stem": stem,
         "uci_name": f"NSCE {version}",
+        "title": release_title(version, root),
     }
 
 
@@ -249,7 +275,25 @@ def write_checksums(outdir: Path) -> Path:
     return checksums
 
 
-def release_notes(version: str, generated: str = "") -> str:
+def strength_section(strength: dict) -> str:
+    lines = [
+        "## Strength",
+        "",
+        f"Estimated **{strength['elo']} ± {strength['elo_err_95']} Elo** on the {strength['scale']} scale, "
+        f"{strength['conditions']}. Method: {strength.get('method', 'see the evidence')}. "
+        "`UCI_Elo` is Stockfish's own limited-strength scale, not a CCRL rating.",
+        "",
+    ]
+    rungs = strength.get("rungs") or []
+    if rungs:
+        lines += ["| Opponent | Games | W-D-L | Elo |", "| --- | ---: | ---: | ---: |"]
+        lines += [f"| {r['opponent']} | {r['games']} | {r['wdl']} | {r['elo']} |" for r in rungs]
+        lines.append("")
+    lines.append(f"Evidence: `{strength['evidence']}`.")
+    return "\n".join(lines) + "\n"
+
+
+def release_notes(version: str, generated: str = "", root: Path = ROOT) -> str:
     stem = f"nsce-{version}"
     body = (
         f"Precompiled UCI binaries for NSCE {version}.\n"
@@ -263,6 +307,9 @@ def release_notes(version: str, generated: str = "") -> str:
         "`EvalFile` to `nets/nsceper1_simple1024_test80.bin` (paths are relative to the "
         "working directory). Verify downloads with `SHA256SUMS`.\n"
     )
+    strength = release_strength(version, root)
+    if strength is not None:
+        body += "\n" + strength_section(strength)
     generated = generated.strip()
     if generated:
         body += "\n" + generated + "\n"
@@ -305,7 +352,7 @@ def _cmd_meta(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(info, indent=2, sort_keys=True))
     else:
-        for key in ("version", "tag", "prerelease", "archive_stem", "uci_name"):
+        for key in ("version", "tag", "prerelease", "archive_stem", "uci_name", "title"):
             print(f"{key}={info[key]}")
     return 0
 
