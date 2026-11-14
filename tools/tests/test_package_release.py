@@ -178,6 +178,27 @@ class PackArchiveTest(unittest.TestCase):
 
 
 class WorkflowContractTest(unittest.TestCase):
+    def test_recorded_strength_names_the_release(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "CMakeLists.txt").write_text("project(nsce VERSION 1.2.3 LANGUAGES CXX)\n")
+            self.assertEqual(rel.release_title("1.2.3", root=root), "NSCE 1.2.3")
+            strength = {
+                "version": "1.2.3", "elo": 3100, "elo_err_95": 35, "scale": "SF18 UCI_Elo",
+                "tc": "100 ms", "conditions": "1 thread", "evidence": "experiments/x/report.md",
+                "rungs": [{"opponent": "SF18 UCI_Elo=2900", "games": 200, "wdl": "109-51-40", "elo": "+125"}],
+            }
+            (root / "tools/release_strength.json").write_text(json.dumps(strength))
+            info = rel.meta("refs/tags/v1.2.3", root=root)
+            self.assertEqual(info["title"], "NSCE 1.2.3 — ~3100 Elo (SF18 UCI_Elo, 100 ms)")
+            notes = rel.release_notes("1.2.3", root=root)
+            self.assertIn("**3100 ± 35 Elo**", notes)
+            self.assertIn("| SF18 UCI_Elo=2900 | 200 | 109-51-40 | +125 |", notes)
+            # A strength measured for another version does not label this one.
+            self.assertEqual(rel.release_title("1.2.4", root=root), "NSCE 1.2.4")
+            self.assertNotIn("## Strength", rel.release_notes("1.2.4", root=root))
+
     def test_release_workflow_is_tag_driven(self) -> None:
         text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         self.assertIn("name: Release", text)
@@ -187,6 +208,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("cmake/mingw-w64-x86_64.cmake", text)
         self.assertIn("contents: write", text)
         self.assertIn("gh release create", text)
+        self.assertIn('--title "${TITLE}"', text)
 
 
 if __name__ == "__main__":
