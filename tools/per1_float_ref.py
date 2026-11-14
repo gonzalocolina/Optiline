@@ -114,7 +114,8 @@ class Per1Net:
         self.qb = qb
         self.scale = scale
         self.hidden = hidden
-        self.simple = buckets == 0 and l2 == 0 and l3 == 0
+        self.simple = buckets in (0, BUCKETS) and l2 == 0 and l3 == 0
+        self.out_buckets = buckets if self.simple else 0
         self.hl = buckets == 0 and l2 == HL and l3 == 1
         offset = 8 + 32
         n_w0 = features * hidden
@@ -123,11 +124,13 @@ class Per1Net:
         self.b0 = list(struct.unpack_from(f"<{hidden}h", data, offset))
         offset += hidden * 2
         if self.simple:
-            if (hidden, features) != (SIMPLE_HIDDEN, FEATURES):
-                raise ValueError(f"{path} simple header {(hidden, features)} != {(SIMPLE_HIDDEN, FEATURES)}")
-            self.l1w_flat = list(struct.unpack_from(f"<{2 * hidden}h", data, offset))
-            offset += 2 * hidden * 2
-            (self.l1b_simple,) = struct.unpack_from("<i", data, offset)
+            if features != FEATURES or hidden <= 0 or hidden % 16 or hidden > 1024:
+                raise ValueError(f"{path} simple header {(hidden, features)} is not a 768-input net")
+            outputs = max(buckets, 1)
+            # [output][2 * hidden]; a net without buckets is the single row.
+            self.l1w_flat = list(struct.unpack_from(f"<{outputs * 2 * hidden}h", data, offset))
+            offset += outputs * 2 * hidden * 2
+            self.l1b_simple = list(struct.unpack_from(f"<{outputs}i", data, offset))
             return
         if self.hl:
             if (hidden, features) != (SIMPLE_HIDDEN, FEATURES):
@@ -212,17 +215,23 @@ class Per1Net:
             pre[j] = s + self.l1b[bucket][j]
         return pre
 
-    def _simple_int(self, stm_acc: list[int], nstm_acc: list[int]) -> int:
+    def _simple_row(self, piece_count: int) -> tuple[int, int]:
+        """Offset of the output row for this position, and its bias."""
+        bucket = per1_bucket(piece_count) if self.out_buckets else 0
+        return bucket * 2 * self.hidden, self.l1b_simple[bucket]
+
+    def _simple_int(self, stm_acc: list[int], nstm_acc: list[int], piece_count: int) -> int:
         qa, qb = self.qa, self.qb
         act: list[int] = []
         for acc in (stm_acc, nstm_acc):
             for x in acc:
                 c = max(0, min(qa, x))
                 act.append(c * c)
+        base, bias = self._simple_row(piece_count)
         total = 0
         for i, a in enumerate(act):
-            total += a * self.l1w_flat[i]
-        total = trunc_div(total, qa) + self.l1b_simple
+            total += a * self.l1w_flat[base + i]
+        total = trunc_div(total, qa) + bias
         return trunc_div(total * self.scale, qa * qb)
 
     def _hl_act(self, stm_acc: list[int], nstm_acc: list[int]) -> list[int]:
@@ -359,7 +368,7 @@ class Per1Net:
         stm_acc = acc_w if stm == 0 else acc_b
         nstm_acc = acc_b if stm == 0 else acc_w
         if self.simple:
-            return self._simple_int(stm_acc, nstm_acc)
+            return self._simple_int(stm_acc, nstm_acc, len(pieces))
         if self.hl:
             return self._hl_int(stm_acc, nstm_acc)
         return self._mlp_int(stm_acc, nstm_acc, len(pieces))
@@ -377,8 +386,9 @@ class Per1Net:
                 for x in acc:
                     c = max(0.0, min(qa, float(x)))
                     act.append(c * c)
-            total = sum(a * w for a, w in zip(act, self.l1w_flat))
-            total = total / qa + self.l1b_simple
+            base, bias = self._simple_row(len(pieces))
+            total = sum(a * self.l1w_flat[base + i] for i, a in enumerate(act))
+            total = total / qa + bias
             return total * self.scale / (qa * qb)
         if self.hl:
             act = []

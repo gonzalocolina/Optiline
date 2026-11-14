@@ -20,8 +20,10 @@ class Position;
 //   MLP: Chess768 FT L1=512, pairwise CReLU, L2=32/L3=32 pair-act (CReLU∥SCReLU),
 //        skip = CReLU of last two L2 neurons. SF19-shaped, not a clone of SFNNv16 (no)
 //        L1=1024, HalfKA, PP_3Wide, or .nnue weights).
-//   Simple: (768→512)×2 SCReLU → 1 (header l2=l3=buckets=0).
-//   HL: (768→512)×2 SCReLU → 32 SCReLU → 1 (header buckets=0, l2=32, l3=1).
+//   Simple: (768→N)×2 SCReLU → 1 (header l2=l3=0). buckets=0 is one output;
+//        buckets=8 picks the output weights by piece count.
+//   HL: (768→N)×2 SCReLU → 32 SCReLU → 1 (header buckets=0, l2=32, l3=1).
+//   N is any multiple of 16 up to kPer1Acc.
 //   HalfKA / threats / pawn-pairs stay a later generation.
 struct NnueNet {
   static constexpr int kFeatures = 12 * 64;
@@ -35,7 +37,7 @@ struct NnueNet {
   static constexpr int kPer1Hidden = 512;
   static constexpr int kPer1SimpleHidden = 512;
   static constexpr int kPer1Hl = 32;
-  static constexpr int kPer1Acc = 512;
+  static constexpr int kPer1Acc = 1024;
   static constexpr int kPer1L2 = 32;
   static constexpr int kPer1L3 = 32;
   static constexpr int kPer1L2Act = 2 * kPer1L2;
@@ -65,8 +67,13 @@ struct NnueNet {
   int32_t b1 = 0;
   std::vector<int16_t> per1_w0{};
   alignas(32) std::array<int16_t, kPer1Acc> per1_b0{};
-  alignas(32) std::array<int16_t, 2 * kPer1SimpleHidden> per1_simple_w1{};
-  int32_t per1_simple_b1 = 0;
+  // Simple output layer: [per1_out_buckets][2 * per1_ft] weights, one bias each.
+  int per1_out_buckets = 1;
+  std::vector<int16_t> per1_simple_w1{};
+  std::array<int32_t, kPer1Buckets> per1_simple_b1{};
+  // True when x * w fits int16 for every SCReLU input x in [0, qa], so the
+  // AVX2 kernel can square in 16 bits. Bullet clips weights to ±1.98 (±127).
+  bool per1_fast = false;
   std::vector<int16_t> per1_hl_w1{};
   std::array<int32_t, kPer1Hl> per1_hl_b1{};
   std::array<int16_t, kPer1Hl> per1_hl_w2{};

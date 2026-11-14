@@ -16,6 +16,10 @@ MLP layout (little-endian), SF19-shaped 512/32/32:
 Simple (768→512)×2 layout: hidden=512, buckets=l2=l3=0, then
   i16 w0[768*512], i16 b0[512], i16 l1w[1024] (not transposed), i32 l1b.
 
+Bucketed simple (768→N)×2 layout: hidden=N, buckets=8, l2=l3=0, then
+  i16 w0[768*N], i16 b0[N], i16 l1w[8][2N] (transposed), i32 l1b[8].
+  Pack with --simple --buckets 8 --hidden N.
+
 HL layout: hidden=512, buckets=0, l2=32, l3=1, then
   i16 w0[768*512], i16 b0[512],
   i16 l1w[32][1024] (transposed), i32 l1b[32], i16 l2w[32], i32 l2b.
@@ -104,14 +108,15 @@ def write_per1(
         raise RuntimeError(f"{path} is {n} bytes, expected {expected_size()}")
 
 
-def expected_size_simple() -> int:
+def expected_size_simple(hidden: int = SIMPLE_HIDDEN, buckets: int = 0) -> int:
+    outputs = max(buckets, 1)
     return (
         8
         + 8 * 4
-        + FEATURES * SIMPLE_HIDDEN * 2
-        + SIMPLE_HIDDEN * 2
-        + 2 * SIMPLE_HIDDEN * 2
-        + 4
+        + FEATURES * hidden * 2
+        + hidden * 2
+        + outputs * 2 * hidden * 2
+        + outputs * 4
     )
 
 
@@ -225,6 +230,73 @@ def write_per1_simple(
         raise RuntimeError(f"{path} is {n} bytes, expected {expected_size_simple()}")
 
 
+def pack_from_quantised_simple_buckets(
+    quantised: bytes, hidden: int, buckets: int
+) -> tuple[bytes, bytes, bytes, bytes]:
+    """Split bullet_nsce_simple_binpack.rs quantised.bin.
+
+    l1w is already [bucket][2 * hidden] and l1b is already i32, so the blobs
+    go to the file as they are. Bullet pads the tail to 64 bytes.
+    """
+    parts = [
+        FEATURES * hidden * 2,
+        hidden * 2,
+        buckets * 2 * hidden * 2,
+        buckets * 4,
+    ]
+    need = sum(parts)
+    if not need <= len(quantised) < need + 64:
+        raise ValueError(
+            f"quantised.bin is {len(quantised)} bytes, a {hidden}-wide net with "
+            f"{buckets} buckets is {need} plus padding"
+        )
+    off = 0
+    blobs: list[bytes] = []
+    for n in parts:
+        blobs.append(quantised[off : off + n])
+        off += n
+    l0w, l0b, l1w, l1b = blobs
+    return l0w, l0b, l1w, l1b
+
+
+def write_per1_simple_buckets(
+    path: Path,
+    hidden: int,
+    buckets: int,
+    l0w: bytes,
+    l0b: bytes,
+    l1w: bytes,
+    l1b: bytes,
+    qa: int = QA,
+    qb: int = QB,
+    scale: int = SCALE,
+) -> None:
+    if hidden <= 0 or hidden % 16 or hidden > 1024:
+        raise ValueError(f"hidden {hidden}: the engine takes multiples of 16 up to 1024")
+    if buckets != BUCKETS:
+        raise ValueError(f"buckets {buckets}: the engine takes {BUCKETS}")
+    sizes = {
+        "l0w": (l0w, FEATURES * hidden * 2),
+        "l0b": (l0b, hidden * 2),
+        "l1w": (l1w, buckets * 2 * hidden * 2),
+        "l1b": (l1b, buckets * 4),
+    }
+    for name, (blob, n) in sizes.items():
+        if len(blob) != n:
+            raise ValueError(f"{name} is {len(blob)} bytes, expected {n}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as out:
+        out.write(b"NSCEPER1")
+        out.write(struct.pack("<8i", hidden, FEATURES, buckets, 0, 0, qa, qb, scale))
+        out.write(l0w)
+        out.write(l0b)
+        out.write(l1w)
+        out.write(l1b)
+    n = path.stat().st_size
+    if n != expected_size_simple(hidden, buckets):
+        raise RuntimeError(f"{path} is {n} bytes, expected {expected_size_simple(hidden, buckets)}")
+
+
 def pack_from_quantised(quantised: bytes) -> tuple[bytes, ...]:
     """Split bullet quantised.bin: l0 i16, l1/l2/l3 transposed i16 weights, i16 biases."""
     parts = [
@@ -290,6 +362,8 @@ def main() -> int:
     parser.add_argument("-o", "--output", type=Path, default=Path("nets/nsceper1.bin"))
     parser.add_argument("--simple", action="store_true")
     parser.add_argument("--hl", action="store_true")
+    parser.add_argument("--hidden", type=int, default=SIMPLE_HIDDEN, help="with --simple --buckets")
+    parser.add_argument("--buckets", type=int, default=0, help="output buckets of a --simple net")
     parser.add_argument("--qa", type=int, default=QA)
     parser.add_argument("--qb", type=int, default=QB)
     parser.add_argument("--scale", type=int, default=SCALE)
@@ -318,6 +392,17 @@ def main() -> int:
     )
     if args.hl and args.simple:
         parser.error("--hl and --simple are exclusive")
+    if args.buckets:
+        if not args.simple:
+            parser.error("--buckets needs --simple")
+        blobs = pack_from_quantised_simple_buckets(raw, args.hidden, args.buckets)
+        write_per1_simple_buckets(
+            args.output, args.hidden, args.buckets, *blobs, qa=args.qa, qb=args.qb, scale=args.scale
+        )
+        print(f"wrote {args.output} ({args.output.stat().st_size} bytes)")
+        return 0
+    if args.hidden != SIMPLE_HIDDEN:
+        parser.error("--hidden needs --simple --buckets")
     if args.hl:
         blobs = pack_from_quantised_hl(raw)
         write_per1_hl(args.output, *blobs, qa=args.qa, qb=args.qb, scale=args.scale)
