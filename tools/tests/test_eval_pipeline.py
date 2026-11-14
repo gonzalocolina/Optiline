@@ -8,6 +8,9 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1]
 ROOT = TOOLS.parent
+# The contract tests describe promotion from a 768 net with extras on, so they
+# read that config, not whatever baseline.uci holds today.
+BASE_768 = ROOT / "tools/configs/baseline_768.uci"
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(ROOT / "train"))
 
@@ -53,27 +56,27 @@ class ExtrasContractTest(unittest.TestCase):
 
 class OneChangeTest(unittest.TestCase):
     def test_nsceper1_uci_is_eval_file_only(self) -> None:
-        baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+        baseline = parse_uci_options(BASE_768)
         candidate = parse_uci_options(ROOT / "tools/configs/nsceper1.uci")
         self.assertEqual(set(changed_options(baseline, candidate)), {"EvalFile"})
         self.assertEqual(candidate["EvalFile"], "nets/nsceper1.bin")
         self.assertEqual(candidate["UseExtras"], "true")
 
     def test_nsceper1_extras_off_is_still_eval_group(self) -> None:
-        baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+        baseline = parse_uci_options(BASE_768)
         candidate = parse_uci_options(ROOT / "tools/configs/nsceper1_extras_off.uci")
         groups = change_groups(changed_options(baseline, candidate))
         self.assertEqual(groups, ["eval"])
         self.assertEqual(candidate["UseExtras"], "false")
         with tempfile.TemporaryDirectory() as tmp:
             net = _write_net(Path(tmp), b"NSCENNUE", "cand.bin")
-            baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+            baseline = parse_uci_options(BASE_768)
             candidate = dict(baseline)
             candidate["EvalFile"] = str(net)
             self.assertEqual(one_change_errors(baseline, candidate), [])
 
     def test_new_net_plus_evalscale_is_illegal(self) -> None:
-        baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+        baseline = parse_uci_options(BASE_768)
         candidate = dict(baseline)
         candidate["EvalFile"] = "nets/nnue_trained.bin"
         candidate["EvalScale"] = "1519"
@@ -81,7 +84,7 @@ class OneChangeTest(unittest.TestCase):
         self.assertTrue(any("more than one contract group" in error for error in errors))
 
     def test_search_retune_blocked_until_eval_wins(self) -> None:
-        baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+        baseline = parse_uci_options(BASE_768)
         candidate = dict(baseline)
         candidate["EvalScale"] = "1091"
         self.assertTrue(one_change_errors(baseline, candidate, allow_search_retune=False))
@@ -169,7 +172,7 @@ class PromoteEvalTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             net = Path(tmp) / "nsceper1.bin"
             net.write_bytes(b"NSCEPER1" + b"\x00" * 16)
-            baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+            baseline = parse_uci_options(BASE_768)
             candidate = dict(baseline)
             candidate["EvalFile"] = str(net)
             self.assertEqual(promote.promotion_updates(baseline, candidate), {"EvalFile": str(net)})
@@ -178,7 +181,7 @@ class PromoteEvalTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             net = Path(tmp) / "nsceper1.bin"
             net.write_bytes(b"NSCEPER1" + b"\x00" * 16)
-            baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+            baseline = parse_uci_options(BASE_768)
             candidate = dict(baseline)
             candidate["EvalFile"] = str(net)
             candidate["UseExtras"] = "false"
@@ -191,7 +194,7 @@ class PromoteEvalTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             net = Path(tmp) / "nsceper1.bin"
             net.write_bytes(b"NSCEPER1" + b"\x00" * 16)
-            baseline = parse_uci_options(ROOT / "tools/configs/baseline.uci")
+            baseline = parse_uci_options(BASE_768)
             candidate = dict(baseline)
             candidate["EvalFile"] = str(net)
             candidate["EvalScale"] = "926"
@@ -201,7 +204,7 @@ class PromoteEvalTest(unittest.TestCase):
     def test_rewrite_uci_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "base.uci"
-            path.write_text((ROOT / "tools/configs/baseline.uci").read_text())
+            path.write_text((BASE_768).read_text())
             promote.rewrite_uci(path, {"EvalFile": "nets/nsceper1.bin"})
             got = parse_uci_options(path)
             self.assertEqual(got["EvalFile"], "nets/nsceper1.bin")
@@ -218,7 +221,7 @@ class PromoteEvalTest(unittest.TestCase):
             gen0.write_bytes(b"NSCEPER1" + b"\x00" * 16)
             gen1.write_bytes(b"NSCEPER1" + b"\x00" * 16)
             promoted = tmp_path / "baseline.uci"
-            promoted.write_text((ROOT / "tools/configs/baseline.uci").read_text())
+            promoted.write_text((BASE_768).read_text())
             promote.rewrite_uci(promoted, {"EvalFile": str(gen0)})
             candidate = tmp_path / "cand.uci"
             write_uci.write_per1_uci(candidate, eval_file=str(gen1), extras=True, baseline=promoted)
@@ -301,7 +304,7 @@ class PromotionGateStageTest(unittest.TestCase):
                         "games": 100,
                         "st_ms": 100,
                         "sprt_decision": "inconclusive",
-                        "cfg_a": str(ROOT / "tools/configs/baseline.uci"),
+                        "cfg_a": str(BASE_768),
                         "cfg_b": str(ROOT / "tools/configs/nnue_search_leaves40k.uci"),
                         "pgn": str(pgn),
                     }

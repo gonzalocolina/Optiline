@@ -11,7 +11,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-%E2%89%A53.16-064F8C?logo=cmake)](CMakeLists.txt)
 [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?logo=python&logoColor=white)](train)
-[![Strength](https://img.shields.io/badge/%2B38%20%C2%B1%2036%20Elo-vs%20SF18%20Elo%202200-brightgreen)](experiments/20260909_sf18_2200_rw0_n200/report.md)
+[![Strength](https://img.shields.io/badge/%2B125%20%C2%B1%2043%20Elo-vs%20SF18%20Elo%202900-brightgreen)](experiments/20261114_simple1024_test80_elo/report.md)
 [![License](https://img.shields.io/badge/license-GPL--3.0-red)](LICENSE)
 
 </div>
@@ -57,7 +57,7 @@ The engine is explicitly engineered for **constrained hardware** — laptops and
 
 **Current GitHub Release: [v0.11.0](https://github.com/gonzalocolina/Optiline/releases/tag/v0.11.0)** — precompiled Linux AVX2 and Windows binaries of the promoted engine line (rewritten search with stable history, full-precision TT, node-based time management, plus the Zen-2 speedup that accepted H1 at +125 ± 26 Elo vs the previous binary; [report](experiments/20261018_search_speed_sprt/report.md)). **This tree is v0.12 development** (`project(nsce VERSION 0.12.0)`). Network, search, and training work lands here; do not treat HEAD as 0.11.
 
-**Current promoted baseline** ([`tools/configs/baseline.uci`](tools/configs/baseline.uci)): the `nnue_search_leaves40k_rw0` network defeats pinned Stockfish 18 limited to Elo 2200 by **+38 ± 36 Elo** over 200 games at 100 ms/move (95% CI lower bound **+2**), and the Elo 2000 rung by **+168 ± 114**. Unrestricted Stockfish is out of scope by design — and measured honestly (see [Results](#results--metrics)).
+**Current promoted baseline** ([`tools/configs/baseline.uci`](tools/configs/baseline.uci), since 2026-11-14): the `nsceper1_simple1024_test80` network, (768→1024)×2 SCReLU → 8 material buckets, trained on 8 G public Stockfish binpack positions. It beats pinned Stockfish 18 limited to Elo 2900 by **+125 ± 43 Elo** and loses to the maximum rung, Elo 3190, by **−40 ± 37** (200 games each at 100 ms/move). Against the previous 768×128 baseline it accepted the [0, 5] SPRT at 8+0.08 with 293 wins, 1 draw and no losses. Unrestricted Stockfish 18 still wins, 1–25–74 over 100 games (see [Results](#results--metrics)).
 
 ## Why This Project Stands Out
 
@@ -99,10 +99,10 @@ flowchart LR
 
 | Format | Topology | Notes |
 | --- | --- | --- |
-| `NSCENNUE` | 768 → 128 → 1, int16 | The frozen, promoted baseline topology |
+| `NSCENNUE` | 768 → 128 → 1, int16 | The frozen topology of the previous baseline |
 | `NSCEHFKP` | 16 king buckets × 768 | HalfKA-lite, dual accumulators |
 | `NSCEKAT1` | 32 mirrored king buckets × 768 + 12-dim threat residual | HalfKA-hm style research path |
-| `NSCEPER1` | Dual-perspective bullet nets: MLP (Chess768 FT L1=128 pairwise CReLU, L2=16 / L3=32 SCReLU, 8 output buckets) or Simple ((768→N)×2 SCReLU, N ≤ 1024, optionally 8 material output buckets), or HL ((768→512)×2 → 32 → 1) | Current Elo path via the bullet trainer; public binpacks via [`train/run_bullet_binpack.sh`](train/run_bullet_binpack.sh) |
+| `NSCEPER1` | Dual-perspective bullet nets: MLP (Chess768 FT L1=128 pairwise CReLU, L2=16 / L3=32 SCReLU, 8 output buckets) or Simple ((768→N)×2 SCReLU, N ≤ 1024, optionally 8 material output buckets), or HL ((768→512)×2 → 32 → 1) | Promoted baseline format since 2026-11-14 (simple 1024, 8 buckets); public binpacks via [`train/run_bullet_binpack.sh`](train/run_bullet_binpack.sh) |
 
 Two auxiliary learned components plug into the searcher: a compact **policy network** ([`policy.cpp`](engine/src/policy.cpp)) for move ordering, and a linear **search controller** ([`controller.cpp`](engine/src/controller.cpp)) fitted from LMR telemetry to suggest reduction deltas.
 
@@ -129,7 +129,7 @@ flowchart TD
 ### Design Trade-offs
 
 - **Int16 quantization everywhere.** AVX2 incremental accumulators trade a few centipawns of fidelity for the throughput that matters on laptop-class CPUs; training is quantization-aware (fake integer forward with straight-through gradients), and export is rejected if the conservative accumulator bound would overflow.
-- **Frozen topology under contract.** The promoted 768×128×1 net is treated as an export contract: the quantized C++ forward pass must reproduce the frozen reference scores through [`train/validate_nnue.py`](train/validate_nnue.py) before any Elo gate runs.
+- **Frozen topology under contract.** The 768×128×1 net (promoted until 2026-11-14) is treated as an export contract: the quantized C++ forward pass must reproduce the frozen reference scores through [`train/validate_nnue.py`](train/validate_nnue.py) before any Elo gate runs.
 - **Full games over truncated probes.** Legacy 60-ply ablation matches were demoted to telemetry after ~90% of games ended as adjudicated draws that couldn't resolve real strength; the gate is full-game fastchess with resign/draw adjudication.
 - **Determinism of evidence.** Every experiment freezes engine hash, config hash, opening-book hash, and seed; Stockfish reference binaries are pinned by SHA-256, never copied into the tree.
 - **CPU-first.** No GPU is required to build, play, test, or run the NumPy trainer. A GPU appears only on the bullet trainer path, through CUDA ([`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh)) or ROCm ([`tools/rocm_env.sh`](tools/rocm_env.sh)).
@@ -354,26 +354,20 @@ python3 tools/package_release.py pack \
 
 ## Results & Metrics
 
-**Strength ladder** — NSCE (promoted baseline, `Hash 16`, `Threads 1`) vs pinned Stockfish 18 at 100 ms/move, paired colors from [`openings_balanced.epd`](tools/openings_balanced.epd):
+**Strength ladder** — NSCE (promoted baseline, `Hash 16`, `Threads 1`) vs pinned Stockfish 18 at 100 ms/move, fastchess full games, paired colours from [`openings_balanced.epd`](tools/openings_balanced.epd):
 
-| Opponent | Games | W–D–L (NSCE) | Elo ± 95% | Evidence |
-| --- | ---: | ---: | ---: | --- |
-| SF18 `UCI_Elo=2000` | 40 | 25–8–7 | **+168 ± 114** | [report](experiments/20260903_sf18_2000_rw0/report.md) |
-| SF18 `UCI_Elo=2200` | 200 | 67–88–45 | **+38 ± 36** (lower bound +2) | [report](experiments/20260909_sf18_2200_rw0_n200/report.md) |
-| SF18 unlimited | 100 | 0–1–99 | out of scope — published anyway | [report](experiments/20260915_sf18_unlimited_100ms/report.md) |
-| *ablation:* prior handcrafted eval | 200 | 123–33–44 | **+145.1 ± 45.0** | [report](experiments/20260915_instrument_internal_full/report.md) |
-| *regression guard:* frozen binary (8+0.08) | 300 | 129–45–126 | +3.5 ± 20.7 | [report](experiments/20260916_kpi_frozen/report.md) |
+| NSCE | Opponent | Games | W–D–L (NSCE) | Elo ± 95% | Evidence |
+| --- | --- | ---: | ---: | ---: | --- |
+| `nsceper1_simple1024_test80` | SF18 `UCI_Elo=2600` | 200 | 192–4–4 | **+604 ± 156** | [report](experiments/20261114_simple1024_test80_elo/report.md) |
+| `nsceper1_simple1024_test80` | SF18 `UCI_Elo=2900` | 200 | 109–51–40 | **+125 ± 43** | [report](experiments/20261114_simple1024_test80_elo/report.md) |
+| `nsceper1_simple1024_test80` | SF18 `UCI_Elo=3190` (max) | 200 | 52–73–75 | **−40 ± 37** | [report](experiments/20261114_simple1024_test80_elo/report.md) |
+| `nsceper1_simple1024_test80` | SF18 unlimited | 100 | 1–25–74 | −323 ± 64 | [report](experiments/20261114_simple1024_test80_elo/report.md) |
+| previous 768×128 (`baseline_768.uci`) | SF18 `UCI_Elo=2200` | 200 | 152–3–45 | +208 ± 54 | [report](experiments/20261114_simple1024_test80_elo/report.md) |
+| previous 768×128 | SF18 unlimited | 100 | 0–1–99 | out of reach | [report](experiments/20260915_sf18_unlimited_100ms/report.md) |
 
-**Promoted network quality** — [`nets/nnue_search_leaves40k_rw0.bin`](nets/nnue_search_leaves40k_rw0.bin) (768×128×1, QAT, 79,999 samples, group-split holdout; quantized-int forward within 0.1 cp of the float reference):
+Older rungs (+38 ± 36 vs `UCI_Elo=2200`, [report](experiments/20260909_sf18_2200_rw0_n200/report.md)) used the legacy runner, which scored games still running at 120 plies as draws; they are not comparable with the table above.
 
-| Phase | MAE (cp) | Sign accuracy |
-| --- | ---: | ---: |
-| Opening | 72.2 | 71.7% |
-| Middlegame | 157.1 | 68.8% |
-| Endgame | 205.2 | 71.3% |
-| **Overall** | **146.1** | **70.0%** |
-
-Full metrics: [`nets/nnue_search_leaves40k_rw0.metrics.json`](nets/nnue_search_leaves40k_rw0.metrics.json). Promotion SPRT for this net: accepted H1 at 490 games, LLR +2.97, +23 ± 9 Elo ([report](experiments/20260903_search_leaves40k_rw0_sprt/report.md)).
+**Promoted network** — [`nets/nsceper1_simple1024_test80.bin`](nets/nsceper1_simple1024_test80.bin) (NSCEPER1 simple, 1.6 MB): bullet on ROCm, 80 superbatches × 100 M positions from `linrock/test80-2024` jan–apr, WDL 0, final loss 0.0092. The quantized C++ forward matches the integer reference exactly on 2000 positions and stays within 1.02 cp of the float net. Shape choice: [net shape probes](experiments/20261113_net_shape_probes/report.md); training: [run report](experiments/20261113_simple1024_test80/report.md); metrics: [`nets/nsceper1_simple1024_test80.metrics.json`](nets/nsceper1_simple1024_test80.metrics.json). The previous 768×128 net and its metrics remain in [`nets/nnue_search_leaves40k_rw0.metrics.json`](nets/nnue_search_leaves40k_rw0.metrics.json).
 
 ## License & Author
 

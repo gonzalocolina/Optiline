@@ -1,0 +1,32 @@
+{
+  "architecture": [768, 1024, 8],
+  "graph": "simple_screlu_material8",
+  "trainer": "train/bullet_nsce_simple_binpack.rs",
+  "runner": "train/run_bullet_binpack.sh",
+  "lr": 0.001,
+  "lr_schedule": "cosine to 0.001*0.3^5",
+  "batch": 16384,
+  "superbatches": 80,
+  "positions": 8000000000,
+  "wdl": 0.0,
+  "dataset": "linrock/test80-2024 01-jan 02-feb 03-mar 04-apr 2tb7p.min-v2.v6 (tools/fetch_test80.sh)",
+  "train_manifest": "experiments/20261113_simple1024_test80/manifest.json",
+  "final_loss": 0.0092,
+  "sha256": "1087969741e838f82b6fde8d6729908374d5cecb68203374656a323e387094fd",
+  "export": {"n": 2000, "int_mismatches": 0, "max_float_cp": 1.02},
+  "use_extras": false,
+  "promotion_sprt": {
+    "tc": "8+0.08",
+    "bounds_nelo": [0, 5],
+    "games": 294,
+    "wdl_candidate": "293-1-0",
+    "llr": 2.96,
+    "decision": "H1",
+    "report": "experiments/20261114_simple1024_test80_elo/report.md"
+  },
+  "sf18_100ms": {
+    "uci_elo_2900": "+125.0 ± 42.9 (200 games)",
+    "uci_elo_3190": "-40.1 ± 37.3 (200 games)",
+    "unlimited": "-322.7 ± 64.4 (100 games, 1-25-74)"
+  }
+}
