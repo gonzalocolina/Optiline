@@ -822,3 +822,257 @@ TEST(NnueTest, Per1SimpleIncrementalMatchesRefresh) {
   std::filesystem::remove(path);
 }
 
+
+// Any-width simple / HL nets written from flat vectors. `buckets` 0 is the
+// single-output simple net; `hl` writes the 32-unit hidden layer instead.
+struct Per1Flat {
+  int hidden = 0;
+  int buckets = 0;
+  bool hl = false;
+  std::vector<int16_t> w0, b0, w1;
+  std::vector<int32_t> b1;
+  std::vector<int16_t> w2;
+  int32_t b2 = 0;
+};
+
+static void write_per1_flat(const std::filesystem::path& path, const Per1Flat& net) {
+  std::ofstream out(path, std::ios::binary);
+  out.write("NSCEPER1", 8);
+  int32_t hdr[] = {net.hidden,       NnueNet::kFeatures, net.buckets,          net.hl ? NnueNet::kPer1Hl : 0,
+                   net.hl ? 1 : 0,   NnueNet::kPer1QA,   NnueNet::kPer1QB,     NnueNet::kPer1Scale};
+  out.write(reinterpret_cast<const char*>(hdr), sizeof(hdr));
+  out.write(reinterpret_cast<const char*>(net.w0.data()), static_cast<std::streamsize>(net.w0.size() * 2));
+  out.write(reinterpret_cast<const char*>(net.b0.data()), static_cast<std::streamsize>(net.b0.size() * 2));
+  out.write(reinterpret_cast<const char*>(net.w1.data()), static_cast<std::streamsize>(net.w1.size() * 2));
+  out.write(reinterpret_cast<const char*>(net.b1.data()), static_cast<std::streamsize>(net.b1.size() * 4));
+  if (net.hl) {
+    out.write(reinterpret_cast<const char*>(net.w2.data()), static_cast<std::streamsize>(net.w2.size() * 2));
+    out.write(reinterpret_cast<const char*>(&net.b2), 4);
+  }
+}
+
+// Deterministic weights. `w1_limit` bounds the SCReLU-layer weights: 127 keeps
+// the 16-bit kernel, anything larger must fall back to the wide path.
+static Per1Flat random_per1_flat(int hidden, int buckets, bool hl, int w1_limit, uint32_t seed) {
+  uint32_t state = seed;
+  auto next = [&](int limit) {
+    state = state * 1664525u + 1013904223u;
+    return static_cast<int>((state >> 8) % static_cast<uint32_t>(2 * limit + 1)) - limit;
+  };
+  Per1Flat net;
+  net.hidden = hidden;
+  net.buckets = buckets;
+  net.hl = hl;
+  net.w0.resize(static_cast<std::size_t>(NnueNet::kFeatures) * hidden);
+  // Up to 32 active features of ±40 around a bias of 100 reaches both clamps.
+  for (auto& w : net.w0) w = static_cast<int16_t>(next(40));
+  net.b0.resize(hidden);
+  for (auto& b : net.b0) b = static_cast<int16_t>(100 + next(60));
+  const int outputs = hl ? NnueNet::kPer1Hl : std::max(buckets, 1);
+  net.w1.resize(static_cast<std::size_t>(outputs) * 2 * hidden);
+  for (auto& w : net.w1) w = static_cast<int16_t>(next(w1_limit));
+  net.b1.resize(outputs);
+  for (auto& b : net.b1) b = next(4000);
+  if (hl) {
+    net.w2.resize(NnueNet::kPer1Hl);
+    for (auto& w : net.w2) w = static_cast<int16_t>(next(127));
+    net.b2 = next(4000);
+  }
+  return net;
+}
+
+// The published integer formula, one term at a time in 64 bits.
+static int per1_flat_reference(const Per1Flat& net, const NnueAccumulator& acc, Color stm) {
+  const int64_t qa = NnueNet::kPer1QA;
+  const int64_t qb = NnueNet::kPer1QB;
+  const int ft = net.hidden;
+  auto sq = [&](Color c, int i) {
+    const int64_t x = std::clamp<int64_t>(acc.per1[c][i], 0, qa);
+    return x * x;
+  };
+  auto dot = [&](const int16_t* w) {
+    int64_t s = 0;
+    for (int i = 0; i < ft; ++i) s += sq(stm, i) * w[i] + sq(~stm, i) * w[ft + i];
+    return s;
+  };
+  int64_t sum = 0;
+  if (net.hl) {
+    for (int j = 0; j < NnueNet::kPer1Hl; ++j) {
+      const int64_t pre = dot(net.w1.data() + static_cast<std::size_t>(j) * 2 * ft) / qa + net.b1[j];
+      const int64_t x = std::clamp<int64_t>(pre / qb, 0, qa);
+      sum += x * x * net.w2[j];
+    }
+    sum = sum / qa + net.b2;
+  } else {
+    const int bucket = net.buckets ? per1_output_bucket(acc.piece_count) : 0;
+    sum = dot(net.w1.data() + static_cast<std::size_t>(bucket) * 2 * ft) / qa + net.b1[bucket];
+  }
+  return static_cast<int>(sum * NnueNet::kPer1Scale / (qa * qb));
+}
+
+static const char* const kPer1Fens[] = {
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R b KQ - 4 8",
+    "8/5pk1/6p1/3R4/1r6/6P1/5PK1/8 w - - 0 40",
+    "8/8/4k3/8/8/3K4/4P3/8 b - - 0 60",
+    "4k3/8/8/8/8/8/8/4K3 w - - 0 80",
+};
+
+TEST(NnueTest, Per1SquareKernelMatchesTheWideFormula) {
+  init_bitboards();
+  Zobrist::init();
+  struct Case {
+    int hidden, buckets;
+    bool hl;
+    int w1_limit;
+    bool fast;
+  };
+  // 127 is the edge of the 16-bit kernel; 128 must take the wide path. 1024
+  // is the widest accumulator, where a 32-bit lane is closest to overflow.
+  const Case cases[] = {
+      {512, 0, false, 127, true},  {512, 8, false, 127, true},  {1024, 8, false, 127, true},
+      {768, 8, false, 127, true},  {512, 8, false, 128, false}, {512, 0, true, 127, true},
+      {1024, 0, true, 127, true},  {512, 0, true, 300, false},
+  };
+  uint32_t seed = 20261112;
+  for (const Case& c : cases) {
+    const Per1Flat flat = random_per1_flat(c.hidden, c.buckets, c.hl, c.w1_limit, seed++);
+    auto path = std::filesystem::temp_directory_path() / "nsce_per1_flat.bin";
+    write_per1_flat(path, flat);
+    Nnue nnue;
+    ASSERT_TRUE(nnue.load(path.string())) << c.hidden << "/" << c.buckets << "/" << c.hl;
+    EXPECT_EQ(nnue.net().per1_fast, c.fast);
+    EXPECT_EQ(nnue.net().per1_ft, c.hidden);
+    EXPECT_EQ(nnue.net().per1_hl, c.hl);
+    EXPECT_EQ(nnue.net().per1_out_buckets, c.buckets ? c.buckets : 1);
+    for (const char* fen : kPer1Fens) {
+      Position pos;
+      pos.set_nnue(&nnue);
+      pos.set_use_extras(false);
+      pos.set_fen(fen);
+      EXPECT_EQ(nnue.evaluate(pos), per1_flat_reference(flat, pos.nnue_acc(), pos.side_to_move()))
+          << fen << " hidden=" << c.hidden << " buckets=" << c.buckets << " hl=" << c.hl
+          << " limit=" << c.w1_limit;
+    }
+    std::filesystem::remove(path);
+  }
+}
+
+TEST(NnueTest, Per1SquareKernelSurvivesSaturatedInputs) {
+  init_bitboards();
+  Zobrist::init();
+  // Every activation at qa and every weight at +127: the largest sum the
+  // 32-bit lanes ever hold. Exact here means no lane wrapped.
+  for (const bool hl : {false, true}) {
+    Per1Flat flat;
+    flat.hidden = NnueNet::kPer1Acc;
+    flat.buckets = hl ? 0 : NnueNet::kPer1Buckets;
+    flat.hl = hl;
+    flat.w0.assign(static_cast<std::size_t>(NnueNet::kFeatures) * flat.hidden, 0);
+    flat.b0.assign(flat.hidden, 1000);
+    const int outputs = hl ? NnueNet::kPer1Hl : NnueNet::kPer1Buckets;
+    flat.w1.assign(static_cast<std::size_t>(outputs) * 2 * flat.hidden, 127);
+    flat.b1.assign(outputs, 0);
+    flat.w2.assign(NnueNet::kPer1Hl, 1);
+    auto path = std::filesystem::temp_directory_path() / "nsce_per1_saturated.bin";
+    write_per1_flat(path, flat);
+    Nnue nnue;
+    ASSERT_TRUE(nnue.load(path.string()));
+    ASSERT_TRUE(nnue.net().per1_fast);
+    Position pos;
+    pos.set_nnue(&nnue);
+    pos.set_use_extras(false);
+    pos.set_startpos();
+    EXPECT_EQ(nnue.evaluate(pos), per1_flat_reference(flat, pos.nnue_acc(), pos.side_to_move()));
+    std::filesystem::remove(path);
+  }
+}
+
+TEST(NnueTest, Per1SimpleOutputBucketFollowsPieceCount) {
+  init_bitboards();
+  Zobrist::init();
+  Per1Flat flat;
+  flat.hidden = 256;
+  flat.buckets = NnueNet::kPer1Buckets;
+  flat.w0.assign(static_cast<std::size_t>(NnueNet::kFeatures) * flat.hidden, 0);
+  flat.b0.assign(flat.hidden, 0);
+  flat.w1.assign(static_cast<std::size_t>(flat.buckets) * 2 * flat.hidden, 0);
+  // Bucket b answers (b + 1) pawns, so the score names the bucket that was read.
+  for (int b = 0; b < flat.buckets; ++b)
+    flat.b1.push_back((b + 1) * NnueNet::kPer1QA * NnueNet::kPer1QB / 4);
+  auto path = std::filesystem::temp_directory_path() / "nsce_per1_buckets.bin";
+  write_per1_flat(path, flat);
+  Nnue nnue;
+  ASSERT_TRUE(nnue.load(path.string()));
+  EXPECT_TRUE(nnue.net().per1_simple);
+  EXPECT_EQ(nnue.net().per1_out_buckets, NnueNet::kPer1Buckets);
+  const std::pair<const char*, int> expected[] = {
+      {kPer1Fens[0], 7},  // 32 pieces
+      {kPer1Fens[2], 1},  // 8 pieces
+      {kPer1Fens[3], 0},  // 3 pieces
+      {kPer1Fens[4], 0},  // bare kings
+  };
+  for (const auto& [fen, bucket] : expected) {
+    Position pos;
+    pos.set_nnue(&nnue);
+    pos.set_use_extras(false);
+    pos.set_fen(fen);
+    EXPECT_EQ(nnue.evaluate(pos), (bucket + 1) * NnueNet::kPer1Scale / 4) << fen;
+  }
+  std::filesystem::remove(path);
+}
+
+TEST(NnueTest, Per1WideAccumulatorStaysIncremental) {
+  init_bitboards();
+  Zobrist::init();
+  const Per1Flat flat = random_per1_flat(NnueNet::kPer1Acc, NnueNet::kPer1Buckets, false, 127, 7);
+  auto path = std::filesystem::temp_directory_path() / "nsce_per1_wide_inc.bin";
+  write_per1_flat(path, flat);
+  Nnue nnue;
+  ASSERT_TRUE(nnue.load(path.string()));
+  Position pos;
+  pos.set_nnue(&nnue);
+  pos.set_use_extras(false);
+  pos.set_fen(kPer1Fens[1]);
+  std::array<StateInfo, 6> states;
+  std::array<Move, 6> played{};
+  // Walk six plies, capture-first so the piece count (and the bucket) moves.
+  for (int ply = 0; ply < 6; ++ply) {
+    MoveList list;
+    generate_legal(pos, list);
+    ASSERT_GT(list.size, 0);
+    Move pick = list.moves[0];
+    for (int i = 0; i < list.size; ++i)
+      if (list.moves[i].is_capture()) pick = list.moves[i];
+    played[ply] = pick;
+    pos.do_move(pick, states[ply]);
+    NnueAccumulator refreshed;
+    nnue.refresh(pos, refreshed);
+    EXPECT_EQ(pos.nnue_acc().per1, refreshed.per1) << "ply " << ply;
+    EXPECT_EQ(pos.nnue_acc().piece_count, refreshed.piece_count) << "ply " << ply;
+    EXPECT_EQ(nnue.evaluate(pos), per1_flat_reference(flat, refreshed, pos.side_to_move()));
+  }
+  for (int ply = 5; ply >= 0; --ply) pos.undo_move(played[ply], states[ply]);
+  NnueAccumulator refreshed;
+  nnue.refresh(pos, refreshed);
+  EXPECT_EQ(pos.nnue_acc().per1, refreshed.per1);
+  std::filesystem::remove(path);
+}
+
+TEST(NnueTest, Per1RejectsWidthsTheKernelsCannotStep) {
+  init_bitboards();
+  Zobrist::init();
+  for (const int hidden : {24, NnueNet::kPer1Acc + 16}) {
+    Per1Flat flat;
+    flat.hidden = hidden;
+    flat.w0.assign(static_cast<std::size_t>(NnueNet::kFeatures) * hidden, 0);
+    flat.b0.assign(hidden, 0);
+    flat.w1.assign(2 * static_cast<std::size_t>(hidden), 0);
+    flat.b1.assign(1, 0);
+    auto path = std::filesystem::temp_directory_path() / "nsce_per1_badwidth.bin";
+    write_per1_flat(path, flat);
+    Nnue nnue;
+    EXPECT_FALSE(nnue.load(path.string())) << hidden;
+    std::filesystem::remove(path);
+  }
+}

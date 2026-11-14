@@ -80,6 +80,39 @@ class PackNsceper1Test(unittest.TestCase):
         blobs = pack.pack_from_quantised_simple(l0w + l0b + l1w + l1b16 + b"pad")
         self.assertEqual(struct.unpack("<i", blobs[3]), (-8,))
 
+    def test_bucketed_simple_keeps_rows_and_i32_biases(self) -> None:
+        hidden, buckets = 768, pack.BUCKETS
+        l0w = b"\x00\x00" * (pack.FEATURES * hidden)
+        l0b = b"\x00\x00" * hidden
+        # Row b holds the value b + 1, so a transposed or shifted layout shows.
+        l1w = b"".join(struct.pack("<h", b + 1) * (2 * hidden) for b in range(buckets))
+        # 70000 does not fit i16: bullet writes these biases as i32.
+        l1b = struct.pack(f"<{buckets}i", 70000, -70000, 3, 4, 5, 6, 7, -8)
+        raw = l0w + l0b + l1w + l1b
+        raw += b"\x00" * (-len(raw) % 64)
+        blobs = pack.pack_from_quantised_simple_buckets(raw, hidden, buckets)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "simple_buckets.bin"
+            pack.write_per1_simple_buckets(out, hidden, buckets, *blobs)
+            data = out.read_bytes()
+        self.assertEqual(struct.unpack_from("<8i", data, 8), (768, 768, 8, 0, 0, 255, 64, 400))
+        self.assertEqual(len(data), pack.expected_size_simple(hidden, buckets))
+        rows = 8 + 32 + pack.FEATURES * hidden * 2 + hidden * 2
+        for b in range(buckets):
+            row = struct.unpack_from(f"<{2 * hidden}h", data, rows + b * 2 * hidden * 2)
+            self.assertEqual(set(row), {b + 1})
+        biases = struct.unpack_from(f"<{buckets}i", data, rows + buckets * 2 * hidden * 2)
+        self.assertEqual(biases, (70000, -70000, 3, 4, 5, 6, 7, -8))
+
+    def test_bucketed_simple_rejects_another_width(self) -> None:
+        hidden, buckets = 512, pack.BUCKETS
+        raw = b"\x00" * (pack.expected_size_simple(hidden, buckets) - 40)
+        raw += b"\x00" * (-len(raw) % 64)
+        with self.assertRaises(ValueError):
+            pack.pack_from_quantised_simple_buckets(raw, 768, buckets)
+        with self.assertRaises(ValueError):
+            pack.pack_from_quantised_simple_buckets(raw, 256, buckets)
+
 
 if __name__ == "__main__":
     unittest.main()

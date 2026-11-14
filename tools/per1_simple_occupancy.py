@@ -75,7 +75,7 @@ def measure(net: Per1Net, fens: list[str]) -> dict:
         nstm_acc = acc_b if stm == 0 else acc_w
         stm_rows.append(list(stm_acc))
         nstm_rows.append(list(nstm_acc))
-        cps.append(net._simple_int(stm_acc, nstm_acc))
+        cps.append(net._simple_int(stm_acc, nstm_acc, len(pieces)))
     n = len(fens)
     return {
         "n": n,
