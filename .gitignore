@@ -18,6 +18,8 @@ nets/*
 !nets/nsceper1_hl_lichess.metrics.json
 !nets/nsceper1_hl_full.bin
 !nets/nsceper1_hl_full.metrics.json
+!nets/nsceper1_simple1024_test80.bin
+!nets/nsceper1_simple1024_test80.metrics.json
 train/data/*
 !train/data/validated/
 !train/data/validated/**

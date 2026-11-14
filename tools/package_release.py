@@ -40,7 +40,7 @@ TAG_RE = re.compile(r"^v(\d+\.\d+\.\d+)(?:-([0-9A-Za-z.-]+))?$")
 # Default UCI EvalFile plus the promoted baseline network.
 RELEASE_NETS = (
     Path("nets/nnue_trained.bin"),
-    Path("nets/nnue_search_leaves40k_rw0.bin"),
+    Path("nets/nsceper1_simple1024_test80.bin"),
 )
 RELEASE_CONFIG = Path("tools/configs/baseline.uci")
 
@@ -56,14 +56,14 @@ This archive is a ready-to-run release of the engine.
 
 The engine resolves EvalFile relative to the GUI working directory. Either
 start the GUI from this extracted folder, or set EvalFile to the absolute
-path of nets/nnue_search_leaves40k_rw0.bin.
+path of nets/nsceper1_simple1024_test80.bin.
 
-Promoted baseline (Hash 16, Threads 1, extras on):
+Promoted baseline (Hash 16, Threads 1, extras off):
 
   configs/baseline.uci
 
 UCI default EvalFile is nets/nnue_trained.bin; the current promoted net is
-nets/nnue_search_leaves40k_rw0.bin. Copy the SHA256SUMS file from the GitHub
+nets/nsceper1_simple1024_test80.bin. Copy the SHA256SUMS file from the GitHub
 Release next to these archives if you want to verify the download.
 
 Source: https://github.com/gonzalocolina/Optiline
@@ -260,7 +260,7 @@ def release_notes(version: str, generated: str = "") -> str:
         f"| `{stem}-windows-x86_64.zip` | Windows x86-64, AVX2+BMI2, statically linked |\n"
         "\n"
         "Point a UCI GUI at the engine binary. Load `configs/baseline.uci`, or set "
-        "`EvalFile` to `nets/nnue_search_leaves40k_rw0.bin` (paths are relative to the "
+        "`EvalFile` to `nets/nsceper1_simple1024_test80.bin` (paths are relative to the "
         "working directory). Verify downloads with `SHA256SUMS`.\n"
     )
     generated = generated.strip()

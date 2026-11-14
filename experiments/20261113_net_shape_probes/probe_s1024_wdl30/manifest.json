@@ -1,0 +1,37 @@
+{
+  "kind": "bullet_binpack_training",
+  "created_utc": "2026-11-13T11:19:24.927078+00:00",
+  "run": "probe_s1024_wdl30",
+  "graph": "simple",
+  "backend": "rocm",
+  "trainer_source": "train/bullet_nsce_simple_binpack.rs",
+  "trainer_source_sha256": "790ad78f59f8bbfdf27a32041856f4888d5b3cef398b5020b5f8c002875935a3",
+  "bullet_commit": "5d70177680437b7c0ddf958bd4722d95afa78b0c",
+  "git_commit": "4ac8a70c5b13b863147bbf7e11b7547ecca2744f",
+  "git_dirty": true,
+  "hyperparameters": {
+    "NSCE_CHECKPOINT_DIR": "/home/gonzalo/Optiline/train/bullet_checkpoints_probe_s1024_wdl30",
+    "NSCE_EXP_DIR": "/home/gonzalo/Optiline/experiments/20261113_net_shape_probes/probe_s1024_wdl30",
+    "NSCE_FT": "1024",
+    "NSCE_GRAPH": "simple",
+    "NSCE_GRAPH_SOURCE": "/home/gonzalo/Optiline/third_party/bullet/examples/nsce_simple_binpack.rs",
+    "NSCE_RUN": "probe_s1024_wdl30",
+    "NSCE_SAVE_RATE": "6",
+    "NSCE_SG_DONE": "1",
+    "NSCE_SUPERBATCHES": "6",
+    "NSCE_THREADS": "4",
+    "NSCE_WDL": "0.3"
+  },
+  "binpacks": [
+    {
+      "path": "/home/gonzalo/Optiline/train/data/sfbinpack/test80-2024-01-jan-2tb7p.min-v2.v6.binpack",
+      "bytes": 9184785274,
+      "sha256": "8278a51bfb9de55d64b59b025fae99f75cc4aa311fe7e1fd17a6c5bf66c1d7d3"
+    },
+    {
+      "path": "/home/gonzalo/Optiline/train/data/sfbinpack/test80-2024-02-feb-2tb7p.min-v2.v6.binpack",
+      "bytes": 8262651516,
+      "sha256": "34170e4af1f66c0302888a9d1b45774c842a574d2cda88b660aa96674fd022a7"
+    }
+  ]
+}

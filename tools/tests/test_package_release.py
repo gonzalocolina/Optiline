@@ -133,7 +133,7 @@ class PackArchiveTest(unittest.TestCase):
             self.assertIn(f"{prefix}/PLAYING.txt", names)
             self.assertIn(f"{prefix}/configs/baseline.uci", names)
             self.assertIn(f"{prefix}/nets/nnue_trained.bin", names)
-            self.assertIn(f"{prefix}/nets/nnue_search_leaves40k_rw0.bin", names)
+            self.assertIn(f"{prefix}/nets/nsceper1_simple1024_test80.bin", names)
             with tarfile.open(archive, "r:gz") as tar:
                 nsce = tar.getmember(f"{prefix}/nsce")
                 self.assertTrue(nsce.mode & stat.S_IXUSR)

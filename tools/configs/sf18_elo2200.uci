@@ -1,0 +1,4 @@
+setoption name Hash value 16
+setoption name Threads value 1
+setoption name UCI_LimitStrength value true
+setoption name UCI_Elo value 2200
