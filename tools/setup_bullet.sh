@@ -17,6 +17,16 @@ cp -f train/bullet_nsce_hl_binpack.rs third_party/bullet/examples/nsce_binpack.r
 if ! grep -q 'name = "nsce_binpack"' "$TOML"; then
   printf '\n[[example]]\nname = "nsce_binpack"\npath = "../../examples/nsce_binpack.rs"\n' >> "$TOML"
 fi
+# One SCReLU layer with output buckets, same binpacks. The current Elo path.
+cp -f train/bullet_nsce_simple_binpack.rs third_party/bullet/examples/nsce_simple_binpack.rs
+if ! grep -q 'name = "nsce_simple_binpack"' "$TOML"; then
+  printf '\n[[example]]\nname = "nsce_simple_binpack"\npath = "../../examples/nsce_simple_binpack.rs"\n' >> "$TOML"
+fi
+# Entry counts of a binpack, before and after the training filter.
+cp -f train/bullet_binpack_stats.rs third_party/bullet/examples/nsce_binpack_stats.rs
+if ! grep -q 'name = "nsce_binpack_stats"' "$TOML"; then
+  printf '\n[[example]]\nname = "nsce_binpack_stats"\npath = "../../examples/nsce_binpack_stats.rs"\n' >> "$TOML"
+fi
 echo "bullet ready. Train after shuffle (cwd is third_party/bullet):"
 echo "  (cd third_party/bullet && cargo r -r --example nsce --features cuda)   # NVIDIA"
 echo "  (source tools/rocm_env.sh; cd third_party/bullet && cargo r -r --example nsce --features rocm)   # AMD"

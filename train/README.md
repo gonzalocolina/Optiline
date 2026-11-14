@@ -43,6 +43,31 @@ NSCE_CORPUS_EXP=experiments/$(date +%Y%m%d)_datagen_full bash tools/run_full_cor
 NSCE_CORPUS_EXP=experiments/$(date +%Y%m%d)_datagen_full bash tools/train_after_corpus.sh
 ```
 
+## Public Stockfish binpacks
+
+`tools/fetch_test80.sh` downloads `linrock/test80-2024` months (default
+jan–apr, `2tb7p.min-v2.v6`, ~42 GB decompressed) into `train/data/sfbinpack/`,
+checks each `.zst` against the published sha256 and records the decompressed
+sha256 in `SHA256SUMS`. `train/run_bullet_binpack.sh` trains from them, packs
+the last checkpoint, writes `train/candidates/nsceper1_<run>{,_extras_off}.uci`
+and runs the float-reference check. It writes a manifest with the binpack hashes
+and every `NSCE_*` setting.
+
+```bash
+bash tools/fetch_test80.sh
+# Bucketed simple net (768→FT)×2 SCReLU → 8 material buckets (default FT 768)
+NSCE_GRAPH=simple NSCE_FT=1024 NSCE_SUPERBATCHES=60 bash train/run_bullet_binpack.sh
+# HL net (768→512)×2 SCReLU → 32 SCReLU → 1
+NSCE_GRAPH=hl bash train/run_bullet_binpack.sh
+# Filtered position counts per file and output bucket (JSON lines)
+(source tools/rocm_env.sh; cd third_party/bullet && cargo r -r --example nsce_binpack_stats --features rocm -- ../../train/data/sfbinpack/*.binpack)
+```
+
+Both trainers keep positions with ply ≥ 16, not in check, |score| ≤ 10000 and a
+quiet best move. One superbatch is ~100 M positions; the four default months
+hold ~8.0 G such positions. Shape probes on equal data:
+[20261113_net_shape_probes](../experiments/20261113_net_shape_probes/report.md).
+
 ## 1. Clone the frozen arbiter (export check)
 
 Static C++ eval (internal net + extras), same `768×128`, quantized binary must

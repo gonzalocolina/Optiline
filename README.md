@@ -102,7 +102,7 @@ flowchart LR
 | `NSCENNUE` | 768 → 128 → 1, int16 | The frozen, promoted baseline topology |
 | `NSCEHFKP` | 16 king buckets × 768 | HalfKA-lite, dual accumulators |
 | `NSCEKAT1` | 32 mirrored king buckets × 768 + 12-dim threat residual | HalfKA-hm style research path |
-| `NSCEPER1` | Dual-perspective bullet nets: MLP (Chess768 FT L1=128 pairwise CReLU, L2=16 / L3=32 SCReLU, 8 output buckets) or Simple ((768→512)×2 SCReLU) | Current Elo path via the bullet trainer |
+| `NSCEPER1` | Dual-perspective bullet nets: MLP (Chess768 FT L1=128 pairwise CReLU, L2=16 / L3=32 SCReLU, 8 output buckets) or Simple ((768→N)×2 SCReLU, N ≤ 1024, optionally 8 material output buckets), or HL ((768→512)×2 → 32 → 1) | Current Elo path via the bullet trainer; public binpacks via [`train/run_bullet_binpack.sh`](train/run_bullet_binpack.sh) |
 
 Two auxiliary learned components plug into the searcher: a compact **policy network** ([`policy.cpp`](engine/src/policy.cpp)) for move ordering, and a linear **search controller** ([`controller.cpp`](engine/src/controller.cpp)) fitted from LMR telemetry to suggest reduction deltas.
 
