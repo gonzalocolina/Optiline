@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from fastchess_match import parse_summary  # noqa: E402
+from fastchess_match import parse_summary, summarize_output  # noqa: E402
 
 FINAL = """Results of final1024 vs base768 (8+0.08, 1t, 16MB, openings_balanced.epd):
 Elo: 5957.30 +/- 39.70, nElo: 5957.30 +/- 39.70
@@ -27,6 +27,16 @@ class FastchessSummaryTest(unittest.TestCase):
     def test_unfinished_sprt_stays_inconclusive(self) -> None:
         text = FINAL.replace("SPRT ([0.00, 5.00]) completed - H1 was accepted\n", "")
         self.assertEqual(parse_summary(text)["sprt_decision"], "inconclusive")
+
+    def test_decision_after_the_last_separator_is_read(self) -> None:
+        # fastchess ends a run with the results block, a separator, then the decision.
+        interim = FINAL.replace("SPRT ([0.00, 5.00]) completed - H1 was accepted\n", "")
+        sep = "--------------------------------------------------\n"
+        text = sep + interim + sep + "SPRT ([0.00, 5.00]) completed - H1 was accepted\nFinished match\n"
+        out = summarize_output(text)
+        self.assertEqual(out["sprt_decision"], "H1")
+        self.assertEqual(out["decision"], "accept_H1_candidate_stronger")
+        self.assertEqual(out["W"], 293)
 
 
 if __name__ == "__main__":
