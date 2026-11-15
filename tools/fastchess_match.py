@@ -154,6 +154,21 @@ def parse_summary(text: str) -> dict:
     return out
 
 
+def summarize_output(text: str) -> dict:
+    """Summarise a whole fastchess run: its last results block and its SPRT decision."""
+    # fastchess prints a results block every ratinginterval; keep the last one.
+    blocks = text.split("--------------------------------------------------")
+    final = ""
+    for block in reversed(blocks):
+        if "Results of" in block:
+            final = block
+            break
+    # "SPRT (...) completed - H1 was accepted" comes after the last separator,
+    # outside that block.
+    decided = [ln for ln in text.splitlines() if ln.strip().startswith("SPRT") and "accepted" in ln]
+    return parse_summary((final or text) + ("\n" + decided[-1] if decided else ""))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fastchess", default=str(FASTCHESS))
@@ -238,14 +253,7 @@ def main() -> int:
     text = "".join(captured)
     (outdir / "fastchess_stdout.txt").write_text(text)
 
-    # fastchess prints a results block every ratinginterval; keep the last one.
-    blocks = text.split("--------------------------------------------------")
-    final = ""
-    for block in reversed(blocks):
-        if "Results of" in block:
-            final = block
-            break
-    summary = parse_summary(final or text)
+    summary = summarize_output(text)
     summary.update(
         {
             "engine_a": str(engine_a.resolve()),

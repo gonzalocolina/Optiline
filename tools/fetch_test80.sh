@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Download linrock/test80-2024 Stockfish binpacks into train/data/sfbinpack.
+# Download linrock/test80-<year> Stockfish binpacks into train/data/sfbinpack.
 #
 #   bash tools/fetch_test80.sh                 # jan feb mar apr
-#   bash tools/fetch_test80.sh 01-jan 05-may   # chosen months
+#   bash tools/fetch_test80.sh 01-jan 05-may   # chosen months of 2024
+#   bash tools/fetch_test80.sh 2023-12-dec     # a month of linrock/test80-2023
 #
 # Each .zst is checked against the sha256 the dataset publishes before it is
 # decompressed. The decompressed sha256 goes to SHA256SUMS in the same folder,
@@ -10,7 +11,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${NSCE_BINPACK_DIR:-$ROOT/train/data/sfbinpack}"
-REPO="linrock/test80-2024"
 VARIANT="${NSCE_BINPACK_VARIANT:-2tb7p.min-v2.v6}"
 MONTHS=("$@")
 if (( ${#MONTHS[@]} == 0 )); then
@@ -18,11 +18,10 @@ if (( ${#MONTHS[@]} == 0 )); then
 fi
 mkdir -p "$OUT"
 cd "$OUT"
-TREE="$OUT/.tree.json"
-curl -sS -L --retry 5 -o "$TREE" "https://huggingface.co/api/datasets/$REPO/tree/main?recursive=true"
-
+# Each run reads the dataset listings afresh.
+rm -f .tree.json .tree-*.json
 published_sha() {
-  python3 - "$TREE" "$1" <<'PY'
+  python3 - "$1" "$2" <<'PY'
 import json, sys
 for entry in json.load(open(sys.argv[1])):
     if entry.get("path") == sys.argv[2]:
@@ -34,12 +33,18 @@ PY
 }
 
 for month in "${MONTHS[@]}"; do
-  name="test80-2024-$month-$VARIANT.binpack"
+  # A bare month (05-may) is 2024; 2023-12-dec names the year too.
+  [[ "$month" =~ ^20[0-9]{2}- ]] || month="2024-$month"
+  year="${month%%-*}"
+  REPO="linrock/test80-$year"
+  TREE="$OUT/.tree-$year.json"
+  [[ -s "$TREE" ]] || curl -sS -L --retry 5 -o "$TREE" "https://huggingface.co/api/datasets/$REPO/tree/main?recursive=true"
+  name="test80-$month-$VARIANT.binpack"
   if [[ -s "$name" ]] && grep -q "  $name\$" SHA256SUMS 2>/dev/null; then
     echo "$(date -Is) $name already present"
     continue
   fi
-  want=$(published_sha "$name.zst")
+  want=$(published_sha "$TREE" "$name.zst")
   echo "$(date -Is) fetch $name.zst (sha256 $want)"
   curl -sS -L -C - --retry 20 --retry-delay 10 --retry-all-errors \
     -o "$name.zst" "https://huggingface.co/datasets/$REPO/resolve/main/$name.zst"
