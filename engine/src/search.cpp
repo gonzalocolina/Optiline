@@ -30,7 +30,6 @@ namespace {
 constexpr int kMateBound = VALUE_MATE - 256;
 constexpr int kTTMoveScore = 1 << 30;
 constexpr int kGoodNoisyScore = 1 << 28;
-constexpr int kKillerScore = 1 << 27;
 constexpr int kCorrGrain = 256;
 constexpr int kCorrMax = 128 * kCorrGrain;
 
@@ -105,6 +104,14 @@ int16_t& main_hist(SearchWorker& w, Color c, Bitboard threats, Move m) {
                        [from_to(m)];
 }
 
+PieceToHistory& pawn_hist(SearchWorker& w, const Position& pos) {
+  return w.pawn_history[pos.pawn_key() & (SearchWorker::kPawnHistorySize - 1)];
+}
+
+const PieceToHistory& pawn_hist(const SearchWorker& w, const Position& pos) {
+  return w.pawn_history[pos.pawn_key() & (SearchWorker::kPawnHistorySize - 1)];
+}
+
 int main_hist(const SearchWorker& w, Color c, Bitboard threats, Move m) {
   return w.main_history[c][(threats >> static_cast<int>(m.from())) & 1][(threats >> static_cast<int>(m.to())) & 1]
                        [from_to(m)];
@@ -148,9 +155,10 @@ bool gives_check(const Position& pos, Move m) {
   return (rook_attacks_bb(ksq, occ) & rq) || (bishop_attacks_bb(ksq, occ) & bq);
 }
 
-// Staged picker: moves in [0, end) are pre-scored (TT move, noisy, killers); the
-// remaining quiets are scored only once the pre-scored stage is exhausted. Noisy
-// moves that fail SEE are deferred until after the quiets.
+// Staged picker: moves in [0, end) are pre-scored (TT move, noisy); the quiets,
+// killers and countermove included, are scored only once the pre-scored stage
+// is exhausted. Noisy moves that fail SEE are deferred until after the good
+// quiets, and quiets scoring below `quiet_threshold` until after those.
 struct MovePicker {
   MoveList list;
   int scores[MAX_MOVES];
@@ -159,7 +167,10 @@ struct MovePicker {
   int end = 0;
   int bad_count = 0;
   int bad_index = 0;
+  int bad_quiet_begin = 0;
+  int bad_quiet_end = 0;
   int see_div = 36;
+  int quiet_threshold = std::numeric_limits<int>::min();
   bool quiets_done = false;
 
   template <typename ScoreFn>
@@ -200,12 +211,31 @@ struct MovePicker {
         if (skip_quiets) {
           index = end = list.size;
         } else {
-          for (int i = end; i < list.size; ++i) scores[i] = quiet_score(list.moves[i]);
-          end = list.size;
+          // Good quiets go to [end, good), the rest to [good, size).
+          int good = end;
+          for (int i = end; i < list.size; ++i) {
+            const int qs = quiet_score(list.moves[i]);
+            if (qs >= quiet_threshold) {
+              std::swap(list.moves[i], list.moves[good]);
+              scores[i] = scores[good];
+              scores[good++] = qs;
+            } else {
+              scores[i] = qs;
+            }
+          }
+          end = good;
+          bad_quiet_begin = good;
+          bad_quiet_end = list.size;
         }
         continue;
       }
       if (bad_index < bad_count) return Move{bad[bad_index++]};
+      if (bad_quiet_begin < bad_quiet_end && !skip_quiets) {
+        index = bad_quiet_begin;
+        end = bad_quiet_end;
+        bad_quiet_begin = bad_quiet_end;
+        continue;
+      }
       return Move{};
     }
   }
@@ -269,6 +299,8 @@ void SearchWorker::reset_search_state() {
   std::memset(main_history, 0, sizeof(main_history));
   std::memset(capture_history, 0, sizeof(capture_history));
   std::memset(continuation, 0, sizeof(continuation));
+  std::memset(pawn_history, 0, sizeof(pawn_history));
+  std::memset(low_ply_history, 0, sizeof(low_ply_history));
   std::memset(pawn_corr, 0, sizeof(pawn_corr));
   std::memset(nonpawn_corr, 0, sizeof(nonpawn_corr));
   std::memset(cont_corr, 0, sizeof(cont_corr));
@@ -524,6 +556,7 @@ int Search::quiet_score(const SearchWorker& w, const Position& pos, const Search
     if ((ss - 2)->cont_hist) s += (*(ss - 2)->cont_hist)[pc][to];
     if ((ss - 4)->cont_hist) s += (*(ss - 4)->cont_hist)[pc][to];
     if ((ss - 6)->cont_hist) s += (*(ss - 6)->cont_hist)[pc][to] / 2;
+    s += pawn_hist(w, pos)[pc][to] * tune_.pawn_hist_scale / 100;
     // A piece that a cheaper one attacks should leave, and should not step
     // onto a square a cheaper one covers.
     const PieceType pt = type_of(pc);
@@ -556,7 +589,10 @@ void Search::update_continuation(SearchStack* ss, Piece pc, Square to, int bonus
 
 void Search::update_quiet_histories(SearchWorker& w, const Position& pos, SearchStack* ss, Move m, int bonus) {
   history_update(main_hist(w, pos.side_to_move(), ss->threats.all, m), bonus);
-  update_continuation(ss, pos.piece_on(m.from()), m.to(), bonus);
+  const Piece pc = pos.piece_on(m.from());
+  update_continuation(ss, pc, m.to(), bonus);
+  if (pc != NO_PIECE) history_update(pawn_hist(w, pos)[pc][m.to()], bonus);
+  if (ss->ply >= 0 && ss->ply < SearchWorker::kLowPly) history_update(w.low_ply_history[ss->ply][from_to(m)], bonus);
 }
 
 void Search::update_capture_history(SearchWorker& w, const Position& pos, Move m, int bonus) {
@@ -949,17 +985,46 @@ int Search::search(Position& pos, SearchWorker& w, SearchStack* ss, int depth, i
       s = kTTMoveScore;
     else if (is_noisy(m))
       s = kGoodNoisyScore + capture_score(w, pos, m);
-    else if (m == killer0)
-      s = kKillerScore + 2;
-    else if (m == killer1)
-      s = kKillerScore + 1;
-    else if (m == counter)
-      s = kKillerScore;
     else
       return false;
     return true;
   });
-  const auto score_quiet = [&](Move m) { return quiet_score(w, pos, ss, m); };
+  // Quiets scoring below the threshold are tried after the losing captures.
+  mp.quiet_threshold = tune_.quiet_bad_threshold;
+  const int low_ply = ply < SearchWorker::kLowPly ? ply : -1;
+  // Squares from which each piece type would check the enemy king directly,
+  // filled on the first quiet scored. Discovered checks are not rewarded.
+  Bitboard check_squares[PIECE_TYPE_NB]{};
+  bool check_squares_ready = false;
+  // Killers and the countermove compete with the other quiets on history plus
+  // a bonus, so a quiet that history says cuts more often can go first. The
+  // killers are keyed only by ply and may come from an unrelated branch.
+  const auto score_quiet = [&](Move m) {
+    int s = quiet_score(w, pos, ss, m);
+    if (m == killer0)
+      s += tune_.order_killer0;
+    else if (m == killer1)
+      s += tune_.order_killer1;
+    else if (m == counter)
+      s += tune_.order_counter;
+    if (low_ply >= 0) s += tune_.low_ply_scale * w.low_ply_history[low_ply][from_to(m)] / (1 + low_ply);
+    if (tune_.quiet_check_bonus) {
+      if (!check_squares_ready) {
+        const Square ksq = pos.king_square(~us);
+        const Bitboard occ = pos.occupied();
+        check_squares[PAWN] = pawn_attacks_bb(~us, ksq);
+        check_squares[KNIGHT] = knight_attacks_bb(ksq);
+        check_squares[BISHOP] = bishop_attacks_bb(ksq, occ);
+        check_squares[ROOK] = rook_attacks_bb(ksq, occ);
+        check_squares[QUEEN] = check_squares[BISHOP] | check_squares[ROOK];
+        check_squares_ready = true;
+      }
+      const Piece pc = pos.piece_on(m.from());
+      if (pc != NO_PIECE && (check_squares[type_of(pc)] & square_bb(m.to())) && see_ge(pos, m, 0))
+        s += tune_.quiet_check_bonus;
+    }
+    return s;
+  };
 
   const int alpha_orig = alpha;
   int best_score = -VALUE_INFINITE;
@@ -1238,6 +1303,7 @@ void Search::iterative_deepening(SearchWorker& w, bool is_main, int max_depth) {
   w.root_pv_len = 0;
   w.nmp_min_ply = 0;
   std::memset(w.killers, 0, sizeof(w.killers));
+  std::memset(w.low_ply_history, 0, sizeof(w.low_ply_history));
   std::memset(w.root_move_nodes, 0, sizeof(w.root_move_nodes));
 
   constexpr int kStackSize = SearchWorker::kMaxPly + SearchWorker::kStackPad + 4;

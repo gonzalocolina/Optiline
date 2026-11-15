@@ -57,5 +57,12 @@
   "SeTtPvMargin": {"value": 62, "min_value": 0, "max_value": 160, "step": 8},
   "QsSeeMargin": {"value": 79, "min_value": 0, "max_value": 300, "step": 12},
   "SeeOrderDiv": {"value": 41, "min_value": 8, "max_value": 128, "step": 4},
-  "ThreatOrderScale": {"value": 104, "min_value": 0, "max_value": 300, "step": 12}
+  "ThreatOrderScale": {"value": 104, "min_value": 0, "max_value": 300, "step": 12},
+  "OrderKiller0": {"value": 20000, "min_value": 0, "max_value": 65536, "step": 2000},
+  "OrderKiller1": {"value": 16000, "min_value": 0, "max_value": 65536, "step": 2000},
+  "OrderCounter": {"value": 12000, "min_value": 0, "max_value": 65536, "step": 2000},
+  "QuietBadThreshold": {"value": -16000, "min_value": -1000000, "max_value": 0, "step": 4000},
+  "PawnHistScale": {"value": 100, "min_value": 0, "max_value": 300, "step": 15},
+  "LowPlyScale": {"value": 4, "min_value": 0, "max_value": 16, "step": 1},
+  "QuietCheckBonus": {"value": 12000, "min_value": 0, "max_value": 65536, "step": 2000}
 }

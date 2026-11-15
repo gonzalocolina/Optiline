@@ -16,7 +16,7 @@ def parse_specs() -> dict[str, dict[str, int]]:
     text = TUNE_HPP.read_text()
     specs = {}
     for m in re.finditer(
-        r'\{\s*"(\w+)",\s*&SearchTune::\w+,\s*(\d+),\s*(\d+),\s*(\d+)\s*\}',
+        r'\{\s*"(\w+)",\s*&SearchTune::\w+,\s*(-?\d+),\s*(-?\d+),\s*(\d+)\s*\}',
         text,
     ):
         specs[m.group(1)] = {
@@ -25,7 +25,7 @@ def parse_specs() -> dict[str, dict[str, int]]:
             "step": int(m.group(4)),
         }
     defaults = {}
-    for m in re.finditer(r"int (\w+) = (\d+);", text):
+    for m in re.finditer(r"int (\w+) = (-?\d+);", text):
         defaults[m.group(1)] = int(m.group(2))
     field_to_name = dict(
         re.findall(r'\{\s*"(\w+)",\s*&SearchTune::(\w+),', text),
@@ -38,7 +38,7 @@ def parse_specs() -> dict[str, dict[str, int]]:
 class SpsaMapTest(unittest.TestCase):
     def test_json_matches_kTuneSpecs(self) -> None:
         specs = parse_specs()
-        self.assertEqual(len(specs), 59)
+        self.assertEqual(len(specs), 66)
         cfg = json.loads(SPSA.read_text())
         self.assertEqual(set(cfg), set(specs))
         for name, spec in specs.items():

@@ -46,5 +46,12 @@
   "SeTtPvMargin": 8,
   "QsSeeMargin": 12,
   "SeeOrderDiv": 4,
-  "ThreatOrderScale": 12
+  "ThreatOrderScale": 12,
+  "OrderKiller0": 2000,
+  "OrderKiller1": 2000,
+  "OrderCounter": 2000,
+  "QuietBadThreshold": 4000,
+  "PawnHistScale": 15,
+  "LowPlyScale": 1,
+  "QuietCheckBonus": 2000
 }
