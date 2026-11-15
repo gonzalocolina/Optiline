@@ -70,6 +70,14 @@ struct SearchTune {
   int qs_see_margin = 79;
   int see_order_div = 60;
   int threat_order_scale = 104;
+  int order_killer0 = 20000;
+  int order_killer1 = 16000;
+  int order_counter = 12000;
+  int quiet_bad_threshold = -16000;
+  int pawn_hist_scale = 100;
+  int low_ply_scale = 4;
+  int quiet_check_bonus = 12000;
+  int root_node_order = 1;
 };
 
 struct TuneSpec {
@@ -140,6 +148,14 @@ inline constexpr TuneSpec kTuneSpecs[] = {
     {"QsSeeMargin", &SearchTune::qs_see_margin, 0, 300, 12},
     {"SeeOrderDiv", &SearchTune::see_order_div, 8, 128, 4},
     {"ThreatOrderScale", &SearchTune::threat_order_scale, 0, 300, 12},
+    {"OrderKiller0", &SearchTune::order_killer0, 0, 65536, 2000},
+    {"OrderKiller1", &SearchTune::order_killer1, 0, 65536, 2000},
+    {"OrderCounter", &SearchTune::order_counter, 0, 65536, 2000},
+    {"QuietBadThreshold", &SearchTune::quiet_bad_threshold, -120000, 0, 4000},
+    {"PawnHistScale", &SearchTune::pawn_hist_scale, 0, 300, 15},
+    {"LowPlyScale", &SearchTune::low_ply_scale, 0, 16, 1},
+    {"QuietCheckBonus", &SearchTune::quiet_check_bonus, 0, 65536, 2000},
+    {"RootNodeOrder", &SearchTune::root_node_order, 0, 1, 1},
 };
 
 inline bool set_tune_field(SearchTune& tune, std::string_view name, int value) {
