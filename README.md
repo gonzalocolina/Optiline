@@ -18,8 +18,24 @@
 
 ---
 
+## At a Glance
+
+<p align="center">
+  <img src="assets/web-board.png" alt="Local web board: playing against NSCE 0.12.0 (depth 19, 1 s per move)" width="720">
+</p>
+
+- **What it is:** a chess engine written in C++20 (bitboards, PVS search, NNUE evaluation with AVX2 kernels), plus the Python pipeline that generates data, trains, quantizes and promotes its neural networks.
+- **How strong:** ~3100 ± 35 Elo on Stockfish 18's `UCI_Elo` scale at 100 ms/move. It beats Stockfish limited to 2900 by +125 ± 43 Elo ([evidence](experiments/20261114_simple1024_test80_elo/report.md)).
+- **How it is validated:** GoogleTest suites, a CI matrix with sanitizers, and full-game SPRT matches before any network is promoted. 80+ reproducible experiment reports live under [`experiments/`](experiments).
+- **Naming:** *Optiline* is the project; the engine binary it builds identifies itself over UCI as **NSCE**.
+
+**Try it in one minute:** download `nsce-0.12.0-windows-x86_64.zip` or the Linux AVX2 tarball from the [latest release](https://github.com/gonzalocolina/Optiline/releases/latest) and load `nsce` in any UCI GUI (Arena, Cute Chess, En Croissant). To play in the browser board shown above, build from source and run `./play.sh` (see [Play Against the Engine](#play-against-the-engine)).
+
+---
+
 ## Table of Contents
 
+- [At a Glance](#at-a-glance)
 - [Overview](#overview)
 - [Why This Project Stands Out](#why-this-project-stands-out)
 - [System Architecture](#system-architecture)
