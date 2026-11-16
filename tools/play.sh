@@ -22,5 +22,5 @@ if [[ ! -x "$ENGINE" ]]; then
 fi
 
 CONFIG="${CONFIG:-$ROOT/tools/configs/baseline.uci}"
-echo "Lanzando NSCE 2200 (baseline promovido; no abre el navegador)."
+echo "Lanzando NSCE (baseline promovido; no abre el navegador)."
 exec "$PYTHON" -u "$ROOT/tools/play.py" --engine "$ENGINE" --config "$CONFIG" "$@"

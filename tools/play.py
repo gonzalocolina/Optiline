@@ -168,7 +168,7 @@ class Game:
         self.movetime_ms = movetime_ms
         self.nodes = nodes
         self.start_fen = fen
-        self.label = "NSCE 2200"
+        self.label = "NSCE"
         self.moves: list[str] = []
         self.sans: list[str] = []
         self.last_score_cp = 0
@@ -451,7 +451,7 @@ PLAY_HTML = r"""<!DOCTYPE html>
 <body>
 <main>
   <section>
-    <h1 id="title">NSCE 2200</h1>
+    <h1 id="title">NSCE</h1>
     <div id="board" class="board-wrap"></div>
   </section>
   <aside>
@@ -540,7 +540,7 @@ function render() {
     lab.textContent = 'abcdefgh'[file];
     boardEl.appendChild(lab);
   }
-  document.getElementById('title').textContent = state.label || 'NSCE 2200';
+  document.getElementById('title').textContent = state.label || 'NSCE';
   let msg = (state && state.message) || '';
   if (thinking) msg = msg ? (msg + ' NSCE piensa…') : 'NSCE piensa…';
   document.getElementById('msg').textContent = msg;
@@ -800,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         net = _eval_file(args.config) or "internal"
         name = engine.identity.get("id_name") or "NSCE"
-        game.label = f"{name} · 2200"
+        game.label = name
         print(f"{game.label}  net={net}  {args.movetime} ms/jugada", flush=True)
         if args.cli:
             run_cli(game)
