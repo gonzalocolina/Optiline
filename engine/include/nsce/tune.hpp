@@ -73,9 +73,7 @@ struct SearchTune {
   int order_killer0 = 20000;
   int order_killer1 = 16000;
   int order_counter = 12000;
-  int quiet_bad_threshold = -16000;
   int pawn_hist_scale = 100;
-  int low_ply_scale = 4;
   int quiet_check_bonus = 12000;
 };
 
@@ -150,9 +148,7 @@ inline constexpr TuneSpec kTuneSpecs[] = {
     {"OrderKiller0", &SearchTune::order_killer0, 0, 65536, 2000},
     {"OrderKiller1", &SearchTune::order_killer1, 0, 65536, 2000},
     {"OrderCounter", &SearchTune::order_counter, 0, 65536, 2000},
-    {"QuietBadThreshold", &SearchTune::quiet_bad_threshold, -1000000, 0, 4000},
     {"PawnHistScale", &SearchTune::pawn_hist_scale, 0, 300, 15},
-    {"LowPlyScale", &SearchTune::low_ply_scale, 0, 16, 1},
     {"QuietCheckBonus", &SearchTune::quiet_check_bonus, 0, 65536, 2000},
 };
 

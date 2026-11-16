@@ -140,7 +140,6 @@ struct SearchWorker {
   static constexpr int kCorrSize = 16384;
   static constexpr int kHistoryMax = 16384;
   static constexpr int kPawnHistorySize = 1024;
-  static constexpr int kLowPly = 4;
 
   // [side][origin attacked][target attacked][from * 64 + to]
   int16_t main_history[COLOR_NB][2][2][SQUARE_NB * SQUARE_NB]{};
@@ -149,8 +148,6 @@ struct SearchWorker {
   // Quiet history keyed by the pawn structure, so a plan that fits one
   // structure does not leak into the ordering of another.
   PieceToHistory pawn_history[kPawnHistorySize]{};
-  // Quiet history for the first plies from the root, cleared on every search.
-  int16_t low_ply_history[kLowPly][SQUARE_NB * SQUARE_NB]{};
   int pawn_corr[COLOR_NB][kCorrSize]{};
   int nonpawn_corr[COLOR_NB][kCorrSize]{};
   int cont_corr[12][SQUARE_NB]{};
