@@ -1,0 +1,161 @@
+{
+  "artifacts": {
+    "configs": {
+      "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/tuned.uci": "40d257b7f8b86358906701e0b696576cf999287447304e8c8ce6dabcb0041aae",
+      "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/tuned_noroot.uci": "286fb3ba86fabc2b4358206c10934ca5a056f0ec8e373e158167183b0c6bf712"
+    },
+    "engine": "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/bin/new",
+    "engine_b": "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/bin/new",
+    "engine_b_sha256": "93c8967589928c2dd52ecb164a42134c89baeeecf841de2ae01aa1cb863680d1",
+    "engine_sha256": "93c8967589928c2dd52ecb164a42134c89baeeecf841de2ae01aa1cb863680d1",
+    "openings": "/home/gonzalo/Optiline/tools/openings_uho.epd",
+    "openings_sha256": "b3c34a85d50f83c9d2ddb2727dbd6a0d58a72437a71741c6581b2ae2ad1d4619",
+    "referenced_files": {
+      "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/bin/new": "93c8967589928c2dd52ecb164a42134c89baeeecf841de2ae01aa1cb863680d1",
+      "/home/gonzalo/Optiline/nets/nsceper1_simple1024_test80.bin": "1087969741e838f82b6fde8d6729908374d5cecb68203374656a323e387094fd"
+    }
+  },
+  "command": [
+    "tools/fastchess_match.py",
+    "--engine",
+    "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/bin/new",
+    "--cfg-a",
+    "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/tuned.uci",
+    "--cfg-b",
+    "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/tuned_noroot.uci",
+    "--name-a",
+    "rootorder",
+    "--name-b",
+    "noroot",
+    "--nodes",
+    "50000",
+    "--sprt",
+    "0",
+    "5",
+    "--rounds",
+    "3000",
+    "--concurrency",
+    "5",
+    "--openings",
+    "tools/openings_uho.epd",
+    "--seed",
+    "20261119",
+    "--outdir",
+    "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/sprt_root_50k"
+  ],
+  "created_utc": "2026-11-16T00:41:21.448508+00:00",
+  "environment": {},
+  "git": {
+    "branch": "train/eight-months",
+    "commit": "9cec21bdd447fdfaf7f3be73c19eb773a0c5f45e",
+    "dirty": true,
+    "status_porcelain": "M engine/include/nsce/search.hpp\n M engine/include/nsce/tune.hpp\n M engine/src/search.cpp\n M tools/configs/spsa.json\n M tools/configs/spsa_nodes_steps.json\n M tools/fastchess_match.py\n M tools/fetch_test80.sh\n M tools/tests/test_spsa_map.py\n?? experiments/20261114_simple1024_8m/\n?? experiments/20261114_spsa_simple1024/\n?? experiments/20261115_quiet_ordering/\n?? experiments/20261115_simple1024_8m_vs_4m/\n?? experiments/20261115_spsa_simple1024_linesearch/"
+  },
+  "measurement": {
+    "pairing": "color_reversed_opening_pairs",
+    "raw_game_telemetry": true,
+    "state_isolation": "normal_game_warm"
+  },
+  "parameters": {
+    "concurrency": 5,
+    "engine_b": "/home/gonzalo/Optiline/experiments/20261115_quiet_ordering/bin/new",
+    "engine_b_sha256": "93c8967589928c2dd52ecb164a42134c89baeeecf841de2ae01aa1cb863680d1",
+    "frozen_targets": "/home/gonzalo/Optiline/experiments/frozen-targets/manifest.json",
+    "full_length_games": true,
+    "harness": "fastchess",
+    "harness_sha256": "dcc07f1c2c4b0bbfb8888a5abc905e6b36e65b774a1d6a7921fd90d0a2c85bcf",
+    "kind": "fastchess_match",
+    "nodes_per_move": 50000,
+    "rounds": 3000,
+    "sprt": [
+      0.0,
+      5.0
+    ],
+    "st_ms": 0,
+    "state_isolation": "normal_game_warm",
+    "tc": "8+0.08"
+  },
+  "platform": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "cpu_count": 12,
+    "cpu_governor": "powersave",
+    "machine": "x86_64",
+    "processor": "",
+    "python": "3.13.5",
+    "system": "Linux-6.12.116+deb13-amd64-x86_64-with-glibc2.41"
+  },
+  "resolved_options": {
+    "EvalFile": "nets/nsceper1_simple1024_test80.bin",
+    "EvalScale": "1000",
+    "Hash": "16",
+    "LowPlyScale": "4",
+    "OrderCounter": "11900",
+    "OrderKiller0": "20071",
+    "OrderKiller1": "15956",
+    "PawnHistScale": "101",
+    "QuietBadThreshold": "-17764",
+    "QuietCheckBonus": "12396",
+    "RootNodeOrder": "0",
+    "Threads": "1",
+    "UseExtras": "false",
+    "UseFutility": "true",
+    "UseLMP": "true",
+    "UseLMR": "true",
+    "UseNNUE": "true",
+    "UseNullMove": "true",
+    "UsePolicy": "false",
+    "UseProbCut": "true",
+    "UseRFP": "true",
+    "UseRazoring": "true",
+    "UseSEE": "true",
+    "UseSearchController": "false",
+    "UseTT": "true"
+  },
+  "schema_version": 2,
+  "seed": 20261119,
+  "targets": {
+    "nsce": {
+      "label": "nsce-under-test",
+      "path": "build/nsce",
+      "sha256": "503cff56e0378180d5e1dc7d8feebab80dfef4e7f76a13ff33b6115e5cd5faf6",
+      "version": "NSCE 0.10"
+    },
+    "stockfish": [
+      {
+        "label": "stockfish-18-stable",
+        "path": "third_party/stockfish/stockfish-18",
+        "sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "version": "Stockfish 18"
+      },
+      {
+        "label": "stockfish-current-development",
+        "path": "third_party/stockfish/stockfish-dev",
+        "sha256": "aecdebba978ef6974954336fe332ee3091af9f122bc7629d8e96289e58e377fb",
+        "version": "Stockfish dev-20260825-2edd935b"
+      },
+      {
+        "label": "stockfish-17-historical-ladder",
+        "path": "third_party/stockfish/stockfish-17",
+        "sha256": "4c22bce76bb3b08b20d761e5c268b802df2d52bdbbd98494d558e880bd6beceb",
+        "version": "Stockfish 17"
+      }
+    ]
+  },
+  "toolchain": {
+    "cmake_cache_sha256": null,
+    "cxx": "c++ (Debian 14.2.0-19) 14.2.0"
+  }
+}
