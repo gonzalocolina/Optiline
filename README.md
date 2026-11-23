@@ -81,7 +81,7 @@ The engine is engineered specifically for **constrained consumer hardware** (lap
 
 ## Why This Project Stands Out
 
-- **Full-Stack Ownership:** A single cohesive codebase covers the entire lifecycle: bitboard move generation → iterative deepening PVS search → int16 AVX2 NNUE inference → self-play bulletformat data generation → PyTorch/NumPy/bullet training → quantized export → full-game SPRT gating → automated promotion.
+- **Full-Stack Ownership:** A single cohesive codebase covers the entire lifecycle: bitboard move generation → iterative deepening PVS search → int16 AVX2 NNUE inference → self-play bulletformat data generation → NumPy/bullet training → quantized export → full-game SPRT gating → automated promotion.
 - **Evidence-Driven Promotion, Not Vibes:** Networks and search parameters are never promoted on validation loss or short test games. Promotion requires an accepted full-game fastchess SPRT match against the active baseline, an extras contract check, and hash-locked artifacts verified by [`tools/promotion_gate.py`](tools/promotion_gate.py).
 - **Rigorous Measurement Culture:** 110+ dated experiment dossiers under [`experiments/`](experiments), each containing an immutable `manifest.json` (engine SHA-256, opening book hash, seed, concurrency) and a detailed `report.md`. Reference Stockfish binaries (SF17, SF18, SF19, dev) are pinned by cryptographic hash via [`tools/freeze_targets.py`](tools/freeze_targets.py).
 - **Honest Scope & Transparency:** The engine's ceiling is published openly, including matches against unlimited-strength Stockfish that it cannot yet win.
@@ -208,10 +208,10 @@ optiline/
 | Requirement | Supported Version | Purpose |
 | --- | --- | --- |
 | CMake | ≥ 3.16 | Build system generator |
-| C++ Compiler | GCC ≥ 11 or Clang ≥ 13 | Engine core (`-std=c++20`, `-O3`, LTO, `-march=native`) |
+| C++ Compiler | GCC or Clang with C++20 support | Engine core (`-std=c++20`, `-O3`, LTO, `-march=native`) |
 | Python | ≥ 3.10 (+ `numpy`) | Training pipeline, match orchestration, and local web board |
 | Make / Ninja | Any modern version | Build execution |
-| *(Optional)* Rust + CUDA / ROCm | CUDA ≥ 12.2 or ROCm ≥ 5.6 | GPU-accelerated bullet training for `NSCEPER1` nets ([`tools/setup_bullet.sh`](tools/setup_bullet.sh)) |
+| *(Optional)* Rust + CUDA / ROCm | CUDA 12.2 or ROCm/HIP | GPU-accelerated bullet training for `NSCEPER1` nets ([`tools/setup_bullet.sh`](tools/setup_bullet.sh); NVIDIA: [`tools/setup_cuda_local.sh`](tools/setup_cuda_local.sh); AMD: Debian `hipcc libhipblas-dev librocblas-dev rocminfo`, user in the `render` group, [`tools/rocm_env.sh`](tools/rocm_env.sh)) |
 | *(Optional)* MinGW-w64 | llvm-mingw | Cross-compiling portable Windows AVX2+BMI2 binaries via [`cmake/mingw-w64-x86_64.cmake`](cmake/mingw-w64-x86_64.cmake) |
 
 ### Building from Source
@@ -271,7 +271,6 @@ option name Clear Hash type button
 option name Threads type spin default 1 min 1 max 64
 option name MoveOverhead type spin default 10 min 0 max 5000
 option name UseNNUE type check default true
-option name EvalFile type string default nets/nnue_trained.bin
 ...
 uciok
 setoption name Threads value 4
@@ -282,16 +281,18 @@ isready
 readyok
 position startpos moves e2e4 c7c5
 go depth 14
-info depth 14 seldepth 21 score cp 32 nodes 142850 nps 1120450 time 127 pv g1f3 d7d6 d2d4 c5d4
-bestmove g1f3 ponder d7d6
+...
+info depth 14 seldepth 24 score cp 77 nodes 99544 nps 4524727 hashfull 8 time 22 pv g1f3 d7d6 b1c3 e7e5 ...
+bestmove g1f3
 ```
 
 Beyond the standard protocol, NSCE provides built-in diagnostic and inspection commands:
 - `bench [depth]`: Fixed-work search benchmark measuring speed (NPS) and node reproducibility.
 - `perft [depth]`: Move generation correctness and node count verification.
-- `d`: ASCII board display with active FEN, castling rights, and Zobrist hash keys.
+- `d`: Prints the FEN of the current position.
 - `status`: Adjudication oracle (`checkmate`, `stalemate`, `draw`, or `ongoing`).
-- `eval`: Detailed evaluation breakdown (NNUE score, classical terms, material balance).
+- `legalmoves`: Lists every legal move in the current position.
+- `eval` / `eval details`: Static evaluation; `details` adds the NNUE score, applied classical extras and the simple material eval.
 - `hashfull`: Current transposition table occupancy in per-mille.
 
 ### UCI Options
@@ -327,7 +328,8 @@ Beyond the standard protocol, NSCE provides built-in diagnostic and inspection c
 ./build/nsce_bench_components 1000 internal # Subsystem microbenchmarks
 
 # High-throughput self-play data generation (bulletformat, multi-threaded, adjudicated)
-# Generates games with soft node limits and balanced openings
+# Request 1.25e6 games, not 1.2e6: run_bullet.sh requires 1e8 positions in the training
+# file after a whole-game holdout, and a 5% holdout of 1.2e6 games can fall short.
 ./build/nsce_datagen --out train/data/gen0.bin --games 1250000 --nodes 5000 \
   --threads "$(nproc)" --eval-file nets/nsceper1_simple1024_test80.bin --seed 1
 ```
@@ -342,14 +344,12 @@ The repository supports two training paradigms: the production GPU-accelerated b
 # 1. Download and verify public Stockfish binpack datasets (linrock/test80-2024, ~42 GB)
 bash tools/fetch_test80.sh
 
-# 2. Build the bullet trainer and train the bucketed simple1024 network
-# (Supports NVIDIA via CUDA or AMD via ROCm)
+# 2. Build the bullet trainer, train the bucketed simple1024 network (CUDA or ROCm),
+#    pack it with tools/pack_nsceper1.py and check the quantized export
 NSCE_GRAPH=simple NSCE_FT=1024 NSCE_SUPERBATCHES=80 bash train/run_bullet_binpack.sh
-
-# 3. Pack the checkpoint and verify floating-point to quantized C++ equivalence
-python3 tools/pack_nsceper1.py pack-simple --weights bullet_checkpoints/final.bin \
-  --output nets/my_candidate.bin --ft 1024 --buckets 8
 ```
+
+The script writes `nets/nsceper1_<run>.bin`, candidate UCI configs under `train/candidates/` and a manifest under `experiments/`; it does not play games or promote, so screen the packed net with `tools/fastchess_match.py` afterwards.
 
 #### 2. Export Reference: Quantization-Aware Training (NumPy / CPU)
 
